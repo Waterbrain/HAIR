@@ -3,8 +3,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.egg-info/
-dist/
+/dist/
 build/
+# Allow the frontend bundle (HA loads it directly)
+!custom_components/hair/frontend/dist/
 *.egg
 
 # Virtual environments
