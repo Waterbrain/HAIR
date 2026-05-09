@@ -37,40 +37,89 @@ export class IrConfirmDialog extends LitElement {
 
     render() {
         return html`
-            <ha-dialog
-                open
-                .heading=${this.title}
-                scrimClickAction=""
-                @closed=${this._close}
-            >
-                <p class="message">${this.message}</p>
-
-                <mwc-button
-                    slot="secondaryAction"
-                    @click=${this._close}
-                >
-                    ${this.cancelLabel}
-                </mwc-button>
-                <mwc-button
-                    slot="primaryAction"
-                    raised
-                    class=${this.destructive ? "destructive" : ""}
-                    @click=${this._confirm}
-                >
-                    ${this.confirmLabel}
-                </mwc-button>
-            </ha-dialog>
+            <div class="overlay" @click=${this._close}>
+                <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
+                    <h3 class="heading">${this.title}</h3>
+                    <p class="message">${this.message}</p>
+                    <div class="actions">
+                        <button class="btn cancel" @click=${this._close}>
+                            ${this.cancelLabel}
+                        </button>
+                        <button
+                            class="btn confirm ${this.destructive ? "destructive" : ""}"
+                            @click=${this._confirm}
+                        >
+                            ${this.confirmLabel}
+                        </button>
+                    </div>
+                </div>
+            </div>
         `;
     }
 
     static styles = css`
-        .message {
-            margin: 8px 0 16px;
-            color: var(--primary-text-color);
-            line-height: 1.5;
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
         }
-        .destructive {
-            --mdc-theme-primary: var(--error-color, #db4437);
+        .dialog {
+            background: var(--card-background-color, #fff);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        .heading {
+            margin: 0 0 12px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+        .message {
+            margin: 0 0 20px;
+            color: var(--secondary-text-color);
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .btn {
+            background: none;
+            border: 1px solid var(--divider-color);
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .btn:hover {
+            background: var(--secondary-background-color);
+        }
+        .cancel {
+            color: var(--secondary-text-color);
+        }
+        .confirm {
+            color: #fff;
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .confirm:hover {
+            opacity: 0.9;
+        }
+        .confirm.destructive {
+            background: var(--error-color, #db4437);
+            border-color: var(--error-color, #db4437);
         }
     `;
 }

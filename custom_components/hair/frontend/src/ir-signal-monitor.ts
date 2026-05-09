@@ -528,31 +528,25 @@ export class IrSignalMonitor extends LitElement {
                                             this._openDelete(device.id, sig);
                                         }}
                                     >Delete</button>
+                                    ${dismissed
+                                        ? html`<button
+                                              class="action-btn"
+                                              @click=${(e: Event) => {
+                                                  e.stopPropagation();
+                                                  void this._undismiss(device.id);
+                                              }}
+                                          >Restore</button>`
+                                        : html`<button
+                                              class="action-btn"
+                                              @click=${(e: Event) => {
+                                                  e.stopPropagation();
+                                                  void this._dismiss(device.id);
+                                              }}
+                                          >Dismiss</button>`}
                                 </div>
                             </div>
                         `,
                     )}
-                </div>
-                <div class="expanded-actions">
-                    ${dismissed
-                        ? html`
-                              <mwc-button
-                                  dense
-                                  @click=${() => this._undismiss(device.id)}
-                              >
-                                  <ha-svg-icon .path=${ICON_RESTORE} slot="icon"></ha-svg-icon>
-                                  Restore
-                              </mwc-button>
-                          `
-                        : html`
-                              <mwc-button
-                                  dense
-                                  @click=${() => this._dismiss(device.id)}
-                              >
-                                  <ha-svg-icon .path=${ICON_DISMISS} slot="icon"></ha-svg-icon>
-                                  Dismiss
-                              </mwc-button>
-                          `}
                 </div>
             </div>
         `;
@@ -760,12 +754,7 @@ export class IrSignalMonitor extends LitElement {
             color: var(--error-color, #db4437);
         }
 
-        .expanded-actions {
-            margin-top: 12px;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
+        /* expanded-actions removed: dismiss/restore now inline with signal actions */
     `;
 }
 
