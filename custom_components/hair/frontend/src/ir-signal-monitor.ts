@@ -82,6 +82,7 @@ export class IrSignalMonitor extends LitElement {
     @state() private _expandedId: string | null = null;
     @state() private _expandedDevice: UnknownDevice | null = null;
     @state() private _flashIds = new Set<string>();
+    @state() private _confirmClearAll = false;
 
     // Dialog state
     @state() private _assignSignal: { deviceId: string; signal: UnknownSignal } | null = null;
@@ -312,7 +313,8 @@ export class IrSignalMonitor extends LitElement {
         }
     }
 
-    private async _clearAll(): Promise<void> {
+    private async _doClearAll(): Promise<void> {
+        this._confirmClearAll = false;
         try {
             await this.api.clearUnknowns();
             this._devices = [];
@@ -353,7 +355,7 @@ export class IrSignalMonitor extends LitElement {
                         ? html`
                               <mwc-button
                                   dense
-                                  @click=${this._clearAll}
+                                  @click=${() => (this._confirmClearAll = true)}
                               >
                                   <ha-svg-icon
                                       .path=${ICON_CLEAR}
@@ -415,6 +417,19 @@ export class IrSignalMonitor extends LitElement {
                           .destructive=${true}
                           @confirmed=${this._confirmDelete}
                           @closed=${this._closeDelete}
+                      ></ir-confirm-dialog>
+                  `
+                : ""}
+
+            ${this._confirmClearAll
+                ? html`
+                      <ir-confirm-dialog
+                          title="Clear All Signals"
+                          message="Remove all unknown signals and devices? This cannot be undone."
+                          confirmLabel="Clear All"
+                          .destructive=${true}
+                          @confirmed=${this._doClearAll}
+                          @closed=${() => (this._confirmClearAll = false)}
                       ></ir-confirm-dialog>
                   `
                 : ""}

@@ -12,6 +12,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import "./ir-progress-bar.js";
 import "./ir-command-row.js";
 import "./ir-capture-dialog.js";
+import "./ir-confirm-dialog.js";
 import type { HairApi } from "./api.js";
 import type { CommandTemplate, IRCommand, IRDevice } from "./types.js";
 
@@ -37,6 +38,7 @@ export class IrDeviceDetail extends LitElement {
     @state() private _customName = "";
     @state() private _toast: string | null = null;
     @state() private _confirmDelete = false;
+    @state() private _commandToDelete: IRCommand | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
@@ -131,9 +133,16 @@ export class IrDeviceDetail extends LitElement {
         }
     }
 
-    private async _onDelete(e: CustomEvent) {
+    private _onDelete(e: CustomEvent) {
         const { command } = e.detail as { command: IRCommand };
         if (!command) return;
+        this._commandToDelete = command;
+    }
+
+    private async _confirmCommandDelete(): Promise<void> {
+        const command = this._commandToDelete;
+        if (!command) return;
+        this._commandToDelete = null;
         this._busy = true;
         try {
             await this.api.deleteCommand(this.device.id, command.id);
@@ -377,30 +386,26 @@ export class IrDeviceDetail extends LitElement {
                 : ""}
             ${this._confirmDelete
                 ? html`
-                      <ha-dialog
-                          open
-                          heading="Delete ${this.device.name}?"
+                      <ir-confirm-dialog
+                          title="Delete ${this.device.name}?"
+                          message="This removes all captured commands and the auto-created entity. The action cannot be undone."
+                          confirmLabel="Delete"
+                          .destructive=${true}
+                          @confirmed=${this._deleteDevice}
                           @closed=${() => (this._confirmDelete = false)}
-                      >
-                          <p>
-                              This removes all captured commands and the
-                              auto-created entity. The action cannot be
-                              undone.
-                          </p>
-                          <mwc-button
-                              slot="secondaryAction"
-                              @click=${() => (this._confirmDelete = false)}
-                          >
-                              Cancel
-                          </mwc-button>
-                          <mwc-button
-                              slot="primaryAction"
-                              class="destructive"
-                              @click=${this._deleteDevice}
-                          >
-                              Delete
-                          </mwc-button>
-                      </ha-dialog>
+                      ></ir-confirm-dialog>
+                  `
+                : ""}
+            ${this._commandToDelete
+                ? html`
+                      <ir-confirm-dialog
+                          title="Delete command?"
+                          message="Remove &quot;${this._commandToDelete.name}&quot;? This cannot be undone."
+                          confirmLabel="Delete"
+                          .destructive=${true}
+                          @confirmed=${this._confirmCommandDelete}
+                          @closed=${() => (this._commandToDelete = null)}
+                      ></ir-confirm-dialog>
                   `
                 : ""}
             ${this._toast
