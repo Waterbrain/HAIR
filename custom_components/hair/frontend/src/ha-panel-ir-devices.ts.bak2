@@ -1,8 +1,8 @@
 /**
  * Main panel entry point for HAIR.
  *
- * Renders in the HA sidebar as "HAIR" and routes between the device
- * list, device detail, and sniffer views. Holds the
+ * Renders in the HA Settings sidebar as "IR Devices" and routes between
+ * the device list, device detail, and signal monitor views. Holds the
  * WebSocket API client and the in-memory device cache.
  */
 import { LitElement, html, css, type PropertyValues } from "lit";
@@ -14,7 +14,7 @@ import "./ir-add-device-dialog.js";
 import "./ir-signal-monitor.js";
 import type { DeviceSummary, IRDevice } from "./types.js";
 
-type PanelTab = "devices" | "sniffer";
+type PanelTab = "devices" | "monitor";
 
 @customElement("ha-panel-ir-devices")
 export class HaPanelIrDevices extends LitElement {
@@ -133,7 +133,7 @@ export class HaPanelIrDevices extends LitElement {
                 <span slot="title">
                     ${this._selectedDevice
                         ? this._selectedDevice.name
-                        : "HAIR"}
+                        : "IR Devices"}
                 </span>
             </ha-top-app-bar-fixed>
 
@@ -147,10 +147,10 @@ export class HaPanelIrDevices extends LitElement {
                               Devices
                           </button>
                           <button
-                              class="tab ${this._activeTab === "sniffer" ? "active" : ""}"
-                              @click=${() => this._switchTab("sniffer")}
+                              class="tab ${this._activeTab === "monitor" ? "active" : ""}"
+                              @click=${() => this._switchTab("monitor")}
                           >
-                              Sniffer
+                              Signal Monitor
                           </button>
                       </div>
                   `
@@ -168,7 +168,6 @@ export class HaPanelIrDevices extends LitElement {
                               .hass=${this.hass}
                               @device-changed=${this._onDeviceChanged}
                               @device-deleted=${this._onDeviceDeleted}
-                              @navigate-sniffer=${() => this._switchTab("sniffer")}
                           ></ir-device-detail>
                       `
                     : this._activeTab === "devices"

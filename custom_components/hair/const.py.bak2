@@ -27,7 +27,7 @@ MAX_CAPTURE_TIMEOUT = 60
 PLATFORMS = ["remote", "media_player", "climate", "fan"]
 
 PANEL_URL = "ir-devices"
-PANEL_TITLE = "HAIR"
+PANEL_TITLE = "IR Devices"
 PANEL_ICON = "mdi:remote"
 
 WS_PREFIX = "hair"

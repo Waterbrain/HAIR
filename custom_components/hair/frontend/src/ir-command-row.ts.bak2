@@ -13,20 +13,27 @@ export class IrCommandRow extends LitElement {
     @property({ attribute: false }) public command: IRCommand | null = null;
     @property({ type: Boolean }) public busy = false;
 
-    /** Human-friendly label for a captured command (plain text fallback). */
+    /** Human-friendly label for a captured command. */
     private _commandLabel(): string {
         const cmd = this.command!;
+        // Pronto commands: show S/L pattern if available.
+        if (cmd.protocol?.toUpperCase() === "PRONTO" && cmd.code) {
+            const sl = this._prontoSlPattern(cmd.code);
+            if (sl) return `Pattern: ${sl}`;
+        }
+        // Non-Pronto decoded: show protocol + short code.
         if (cmd.protocol && cmd.code) {
             return `${cmd.protocol}: ${cmd.code}`;
         }
+        // Raw timings only.
         if (cmd.raw_timings?.length) {
             return `RAW: ${cmd.raw_timings.length} timings`;
         }
         return cmd.protocol ?? "IR";
     }
 
-    /** Compute S/L boolean array from Pronto hex (mirrors backend logic). */
-    private _prontoSlArray(hex: string): boolean[] | null {
+    /** Compute S/L pattern from Pronto hex (mirrors backend logic). */
+    private _prontoSlPattern(hex: string): string | null {
         const words = hex.trim().split(/\s+/);
         if (words.length < 6) return null;
         const burst1 = parseInt(words[2], 16);
@@ -34,26 +41,12 @@ export class IrCommandRow extends LitElement {
         const total = burst1 + burst2;
         const timings = words.slice(4);
         if (timings.length < total * 2) return null;
-        const result: boolean[] = [];
+        let pattern = "";
         for (let i = 0; i < total * 2; i++) {
             const val = parseInt(timings[i], 16);
-            result.push(val >= 0x30); // true = Long, false = Short
+            pattern += val < 0x30 ? "S" : "L";
         }
-        return result.length > 0 ? result : null;
-    }
-
-    /** Render diamond pattern: filled blue = Long, empty amber = Short. */
-    private _renderDiamonds() {
-        const cmd = this.command;
-        if (!cmd || cmd.protocol?.toUpperCase() !== "PRONTO" || !cmd.code)
-            return null;
-        const arr = this._prontoSlArray(cmd.code);
-        if (!arr) return null;
-        return html`<span class="diamonds">${arr.map((isLong) =>
-            isLong
-                ? html`<span class="diamond long">◆</span>`
-                : html`<span class="diamond short">◇</span>`
-        )}</span>`;
+        return pattern || null;
     }
 
     private _emit(name: string) {
@@ -68,49 +61,55 @@ export class IrCommandRow extends LitElement {
 
     render() {
         const learned = this.command !== null;
-        const diamonds = learned ? this._renderDiamonds() : null;
         return html`
             <div class="row" data-learned=${learned ? "true" : "false"}>
                 <div class="status" aria-hidden="true">
-                    ${learned
-                        ? html`<span class="dot learned"></span>`
-                        : html`<span class="dot unlearned"></span>`}
+                    ${learned ? "✅" : "○"}
                 </div>
                 <div class="info">
                     <div class="name">${this.templateName}</div>
                     <div class="meta">
-                        ${diamonds
-                            ? diamonds
-                            : learned
-                              ? html`${this._commandLabel()}`
-                              : html`<span class="muted">Not yet learned</span>`}
+                        ${learned
+                            ? html`${this._commandLabel()}`
+                            : html`<span class="muted">Not yet learned</span>`}
                     </div>
                 </div>
                 <div class="actions">
                     ${learned
                         ? html`
-                              <button
-                                  class="action-btn"
+                              <mwc-button
+                                  dense
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("test")}
-                              >Test</button>
-                              <button
-                                  class="action-btn"
+                              >
+                                  ▶ Test
+                              </mwc-button>
+                              <mwc-button
+                                  dense
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("relearn")}
-                              >Re-learn</button>
-                              <button
-                                  class="action-btn delete-btn"
+                              >
+                                  ↻ Re-learn
+                              </mwc-button>
+                              <mwc-icon-button
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("delete")}
-                              >Delete</button>
+                                  aria-label="Delete command"
+                              >
+                                  <ha-svg-icon
+                                      .path=${"M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"}
+                                  ></ha-svg-icon>
+                              </mwc-icon-button>
                           `
                         : html`
-                              <button
-                                  class="action-btn"
+                              <mwc-button
+                                  raised
+                                  dense
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("learn")}
-                              >Learn</button>
+                              >
+                                  Learn
+                              </mwc-button>
                           `}
                 </div>
             </div>
@@ -133,24 +132,8 @@ export class IrCommandRow extends LitElement {
             background: var(--secondary-background-color);
         }
         .status {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-        .dot.learned {
-            background: var(--primary-color);
-        }
-        .dot.unlearned {
-            border: 2px solid var(--disabled-text-color, #999);
-            width: 8px;
-            height: 8px;
-            background: transparent;
+            font-size: 1.1rem;
+            text-align: center;
         }
         .name {
             font-weight: 500;
@@ -163,49 +146,10 @@ export class IrCommandRow extends LitElement {
         .muted {
             font-style: italic;
         }
-        .diamonds {
-            display: inline-flex;
-            gap: 1px;
-            flex-wrap: wrap;
-            line-height: 1;
-        }
-        .diamond {
-            font-size: 0.7rem;
-        }
-        .diamond.long {
-            color: var(--primary-color);
-        }
-        .diamond.short {
-            color: var(--warning-color, #ff9800);
-        }
         .actions {
             display: flex;
             gap: 4px;
             align-items: center;
-        }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease;
-        }
-        .action-btn:hover {
-            background: var(--secondary-background-color);
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .action-btn.delete-btn {
-            color: var(--error-color, #db4437);
         }
     `;
 }

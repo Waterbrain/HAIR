@@ -1,10 +1,11 @@
 /**
- * Device detail view: header, flat command list, and entity summary.
- * Every learned command is shown as a simple row with Test / Re-learn /
- * Delete actions.
+ * Device detail view: header, progress bar, flat command list, and
+ * entity summary.  Every learned command is shown as a simple row
+ * with Test / Re-learn / Delete actions.
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import "./ir-progress-bar.js";
 import "./ir-command-row.js";
 import "./ir-capture-dialog.js";
 import "./ir-confirm-dialog.js";
@@ -19,17 +20,11 @@ export class IrDeviceDetail extends LitElement {
 
     @state() private _busy = false;
     @state() private _captureName: string | null = null;
+    @state() private _customDialogOpen = false;
+    @state() private _customName = "";
     @state() private _toast: string | null = null;
     @state() private _confirmDelete = false;
     @state() private _commandToDelete: IRCommand | null = null;
-
-    /** Resolve emitter entity to friendly name, falling back to entity_id. */
-    private _emitterName(): string {
-        const eid = this.device.emitter_entity_id;
-        const stateObj = this.hass?.states?.[eid];
-        const friendly = stateObj?.attributes?.friendly_name;
-        return friendly || eid;
-    }
 
     private async _refresh() {
         this.device = await this.api.getDevice(this.device.id);
@@ -102,13 +97,20 @@ export class IrDeviceDetail extends LitElement {
         this._captureName = null;
     }
 
-    private _goToSniffer() {
-        this.dispatchEvent(
-            new CustomEvent("navigate-sniffer", {
-                bubbles: true,
-                composed: true,
-            }),
-        );
+    private _openCustomDialog() {
+        this._customName = "";
+        this._customDialogOpen = true;
+    }
+
+    private _closeCustomDialog() {
+        this._customDialogOpen = false;
+    }
+
+    private _confirmCustom() {
+        const name = this._customName.trim();
+        if (!name) return;
+        this._customDialogOpen = false;
+        this._captureName = name;
     }
 
     private async _deleteDevice() {
@@ -138,17 +140,23 @@ export class IrDeviceDetail extends LitElement {
                 <div>
                     <h1>${this.device.name}</h1>
                     <div class="subtitle">
-                        TX: ${this._emitterName()}
+                        ${this.device.emitter_entity_id}
                     </div>
                 </div>
                 <div class="header-actions">
-                    <button
-                        class="action-btn delete-btn"
+                    <mwc-button
                         @click=${() => (this._confirmDelete = true)}
                         ?disabled=${this._busy}
-                    >Delete</button>
+                    >
+                        Delete
+                    </mwc-button>
                 </div>
             </section>
+
+            <ir-progress-bar
+                .learned=${count}
+                .total=${count || 1}
+            ></ir-progress-bar>
 
             <ha-card>
                 <h2>Commands (${count})</h2>
@@ -169,11 +177,13 @@ export class IrDeviceDetail extends LitElement {
             </ha-card>
 
             <div class="custom-add">
-                <button
-                    class="action-btn"
-                    @click=${this._goToSniffer}
+                <mwc-button
+                    raised
+                    @click=${this._openCustomDialog}
                     ?disabled=${this._busy}
-                >+ Add Command</button>
+                >
+                    + Add Command
+                </mwc-button>
             </div>
 
             ${this._captureName
@@ -186,6 +196,30 @@ export class IrDeviceDetail extends LitElement {
                           @closed=${this._onCaptureClosed}
                           @command-saved=${this._onCommandSaved}
                       ></ir-capture-dialog>
+                  `
+                : ""}
+            ${this._customDialogOpen
+                ? html`
+                      <ha-dialog
+                          open
+                          heading="Add Custom Command"
+                          @closed=${this._closeCustomDialog}
+                      >
+                          <ha-textfield
+                              label="Command name"
+                              .value=${this._customName}
+                              @input=${(e: Event) =>
+                                  (this._customName = (
+                                      e.target as HTMLInputElement
+                                  ).value)}
+                          ></ha-textfield>
+                          <mwc-button slot="secondaryAction" @click=${this._closeCustomDialog}>
+                              Cancel
+                          </mwc-button>
+                          <mwc-button slot="primaryAction" raised @click=${this._confirmCustom}>
+                              Start Learning
+                          </mwc-button>
+                      </ha-dialog>
                   `
                 : ""}
             ${this._confirmDelete
@@ -240,30 +274,6 @@ export class IrDeviceDetail extends LitElement {
         .header-actions {
             display: flex;
             gap: 6px;
-        }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease;
-        }
-        .action-btn:hover {
-            background: var(--secondary-background-color);
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .action-btn.delete-btn {
-            color: var(--error-color, #db4437);
         }
         ha-card {
             margin: 16px 0;
