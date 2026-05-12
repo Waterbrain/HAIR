@@ -8,6 +8,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { HairApi } from "./api.js";
 import "./ir-assign-signal-dialog.js";
 import "./ir-confirm-dialog.js";
+import "./ir-promote-dialog.js";
 import type {
     AssignResult,
     DeviceSummary,
@@ -100,6 +101,7 @@ export class IrSignalMonitor extends LitElement {
     @state() private _editLabel = "";
 
     // Dialog state
+    @state() private _promoteTarget: UnknownDeviceSummary | null = null;
     @state() private _assignSignal: {
         deviceId: string;
         signal: UnknownSignal;
@@ -248,31 +250,19 @@ export class IrSignalMonitor extends LitElement {
         }
     }
 
-    /** Promote: open assign dialog in "new" mode with first signal and label as device name. */
+    /** Open promote dialog to create a HAIR device from this unknown device. */
     private _promoteDevice(d: UnknownDeviceSummary, e: Event): void {
         e.stopPropagation();
-        // We need a signal to assign. Use the expanded device if available,
-        // otherwise fetch it to get signals.
-        if (this._expandedDevice && this._expandedDevice.id === d.id && this._expandedDevice.signals.length > 0) {
-            const sig = this._expandedDevice.signals[0];
-            this._openAssign(d.id, sig, d.label, "new");
-        } else {
-            // Fetch device to get signals, then open dialog.
-            void this._fetchAndPromote(d);
-        }
+        this._promoteTarget = d;
     }
 
-    private async _fetchAndPromote(d: UnknownDeviceSummary): Promise<void> {
-        try {
-            const full = await this.api.getUnknownDevice(d.id);
-            if (full.signals.length > 0) {
-                this._openAssign(d.id, full.signals[0], d.label, "new");
-            } else {
-                this._error = "No signals to assign.";
-            }
-        } catch (err) {
-            this._error = `Failed to load device: ${(err as Error).message}`;
-        }
+    private _closePromote(): void {
+        this._promoteTarget = null;
+    }
+
+    private async _onDevicePromoted(): Promise<void> {
+        this._promoteTarget = null;
+        await this._load();
     }
 
     // --- Signal action handlers ---
@@ -549,6 +539,18 @@ export class IrSignalMonitor extends LitElement {
                   `
                 : ""}
 
+            ${this._promoteTarget
+                ? html`
+                      <ir-promote-dialog
+                          .api=${this.api}
+                          .hass=${this.hass}
+                          .suggestedName=${this._promoteTarget.label ?? ""}
+                          @device-created=${this._onDevicePromoted}
+                          @closed=${this._closePromote}
+                      ></ir-promote-dialog>
+                  `
+                : ""}
+
             ${this._deleteSignal
                 ? html`
                       <ir-confirm-dialog
@@ -632,12 +634,12 @@ export class IrSignalMonitor extends LitElement {
                     </div>
                     ${d.label && this._matchesHairDevice(d.label)
                         ? html`<span
-                              class="device-status-badge hair-device"
+                              class="status-badge hair-device"
                               @click=${(e: Event) => e.stopPropagation()}
                           >HAIR Device</span>`
                         : d.label
                             ? html`<button
-                                  class="device-status-badge promote-btn"
+                                  class="action-btn promote-btn"
                                   @click=${(e: Event) => this._promoteDevice(d, e)}
                               >Promote to Device</button>`
                             : ""}
@@ -847,31 +849,20 @@ export class IrSignalMonitor extends LitElement {
             opacity: 1 !important;
             color: var(--primary-color);
         }
-        .device-status-badge {
+        .status-badge.hair-device {
             font-size: 0.75rem;
             font-weight: 500;
             font-family: inherit;
-            padding: 3px 10px;
-            border-radius: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
             white-space: nowrap;
             flex-shrink: 0;
-        }
-        .device-status-badge.hair-device {
             background: rgba(46, 125, 50, 0.15);
             color: #2e7d32;
             border: 1px solid rgba(46, 125, 50, 0.3);
         }
-        .device-status-badge.promote-btn {
-            background: transparent;
-            color: var(--secondary-text-color);
-            border: 1px solid var(--divider-color);
-            cursor: pointer;
-            transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-        }
-        .device-status-badge.promote-btn:hover {
-            background: var(--secondary-background-color);
-            color: var(--primary-text-color);
-            border-color: var(--primary-color);
+        .promote-btn {
+            flex-shrink: 0;
         }
         .rename-input {
             font-weight: 600;

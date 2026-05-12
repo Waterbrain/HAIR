@@ -73,8 +73,6 @@ export class IrAssignSignalDialog extends LitElement {
     @state() private _newEmitterId = "";
 
     @state() private _busy = false;
-    @state() private _testing = false;
-    @state() private _testResult: string | null = null;
     @state() private _error: string | null = null;
 
     connectedCallback(): void {
@@ -145,40 +143,6 @@ export class IrAssignSignalDialog extends LitElement {
         );
     }
 
-    private async _testSignal(): Promise<void> {
-        // Find the emitter to use for testing.
-        let emitterEntityId: string | null = null;
-        if (this._mode === "existing" && this._selectedDeviceId) {
-            const dev = this._devices.find(
-                (d) => d.id === this._selectedDeviceId,
-            );
-            emitterEntityId = dev?.emitter_entity_id ?? null;
-        } else if (this._mode === "new" && this._newEmitterId) {
-            emitterEntityId = this._newEmitterId;
-        }
-
-        if (!emitterEntityId) {
-            this._testResult = "Select a device or emitter first.";
-            return;
-        }
-
-        this._testing = true;
-        this._testResult = null;
-        try {
-            const result = await this.api.testSignal(
-                this.signal.fingerprint,
-                emitterEntityId,
-            );
-            this._testResult = result.sent
-                ? "Signal sent! Did the target device respond?"
-                : "Send failed. Check emitter connection.";
-        } catch (err) {
-            this._testResult = `Error: ${(err as Error).message}`;
-        } finally {
-            this._testing = false;
-        }
-    }
-
     private async _assign(): Promise<void> {
         const name = this._commandName.trim();
         if (!name) {
@@ -245,15 +209,25 @@ export class IrAssignSignalDialog extends LitElement {
         }
     }
 
+    private _fmtTime(iso: string): string {
+        try {
+            const d = new Date(iso);
+            return d.toLocaleString(undefined, {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch {
+            return iso;
+        }
+    }
+
     render() {
         const proto = this.signal.protocol ?? "RAW";
-        const timings = this.signal.raw_timings?.length ?? 0;
         const freqKhz = this.signal.frequency
             ? `${Math.round(this.signal.frequency / 1000)}kHz`
             : "";
-        const signalLabel = [proto, timings ? `${timings} timings` : "", freqKhz]
-            .filter(Boolean)
-            .join(" · ");
 
         return html`
             <ha-dialog
@@ -266,22 +240,25 @@ export class IrAssignSignalDialog extends LitElement {
                     ? html`<ha-alert alert-type="error">${this._error}</ha-alert>`
                     : ""}
 
-                <div class="signal-preview">
-                    <span class="signal-info">${signalLabel}</span>
-                    <button
-                        class="action-btn test-btn"
-                        @click=${this._testSignal}
-                        ?disabled=${this._testing}
-                    >
-                        ${this._testing ? "Sending..." : "Test"}
-                    </button>
+                <div class="signal-header">
+                    ${this.suggestedDeviceName
+                        ? html`<div class="device-name">${this.suggestedDeviceName}</div>`
+                        : ""}
+                    <div class="signal-detail">
+                        ${this.signal.sl_pattern
+                            ? html`<span class="diamonds">${[...this.signal.sl_pattern].map((ch) =>
+                                ch === "L"
+                                    ? html`<span class="diamond long">&#9670;</span>`
+                                    : html`<span class="diamond short">&#9671;</span>`
+                              )}</span>`
+                            : html`<span class="proto-label">${proto}</span>`}
+                    </div>
+                    <div class="signal-stats">
+                        <span>${this.signal.hit_count} hits</span>
+                        ${freqKhz ? html`<span>${freqKhz}</span>` : ""}
+                        <span>${this._fmtTime(this.signal.last_seen)}</span>
+                    </div>
                 </div>
-
-                ${this._testResult
-                    ? html`<ha-alert
-                          alert-type=${this._testResult.startsWith("Signal sent") ? "success" : "warning"}
-                      >${this._testResult}</ha-alert>`
-                    : ""}
 
                 <!-- Mode tabs -->
                 <div class="mode-tabs">
@@ -535,30 +512,42 @@ export class IrAssignSignalDialog extends LitElement {
             margin: 8px 0;
         }
 
-        .signal-preview {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
+        .signal-header {
+            padding: 10px 12px;
             background: var(--secondary-background-color);
             border-radius: 4px;
             margin-bottom: 12px;
         }
-        .signal-info {
-            flex: 1;
-            font-size: 0.85rem;
-            color: var(--primary-text-color);
-            font-weight: 500;
+        .device-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
         }
-        .test-btn {
-            background: transparent;
+        .signal-detail {
+            margin-bottom: 4px;
+        }
+        .diamonds {
+            font-size: 0.7rem;
+            letter-spacing: 0px;
+            line-height: 1;
+        }
+        .diamond.long {
             color: var(--primary-color);
-            border: 1px solid rgba(var(--rgb-primary-color, 33,150,243), 0.4) !important;
-            padding: 4px 12px !important;
-            font-size: 0.8rem !important;
         }
-        .test-btn:hover:not(:disabled) {
-            background: rgba(var(--rgb-primary-color, 33,150,243), 0.1);
+        .diamond.short {
+            color: var(--warning-color, #ff9800);
+        }
+        .proto-label {
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--secondary-text-color);
+        }
+        .signal-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.78rem;
+            color: var(--secondary-text-color);
+            margin-top: 4px;
         }
 
         .mode-tabs {
