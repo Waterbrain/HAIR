@@ -541,6 +541,7 @@ def _unknown_device_summary(device) -> dict[str, Any]:
         "fingerprint": device.fingerprint,
         "protocol": device.protocol,
         "device_address": device.device_address,
+        "label": device.label,
         "signal_count": len(device.signals),
         "hit_count": device.hit_count,
         "first_seen": device.first_seen,
