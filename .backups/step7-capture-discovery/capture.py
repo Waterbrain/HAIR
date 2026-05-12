@@ -308,17 +308,18 @@ async def get_available_capture_providers(
     """
     providers: list[dict[str, Any]] = []
 
-    # ESPHome devices – include all devices as potential IR capture
-    # providers. The entity-level filter (_has_ir_entities) was too
-    # strict: remote_transmitter/remote_receiver don't create HA
-    # entities, so real IR hardware was being excluded. We can
-    # tighten this later with a better detection mechanism.
+    # ESPHome devices with IR capability (ir_rf_proxy configured).
+    # Only include devices that have infrared.* or remote.* entities,
+    # which indicate ir_rf_proxy + remote_receiver/transmitter.
     if "esphome" in hass.config.components:
         dev_registry = dr.async_get(hass)
+        ent_registry = er.async_get(hass)
         for entry in hass.config_entries.async_entries("esphome"):
             for device in dr.async_entries_for_config_entry(
                 dev_registry, entry.entry_id
             ):
+                if not _has_ir_entities(ent_registry, device.id):
+                    continue
                 providers.append(
                     {
                         "type": str(CaptureProviderType.ESPHOME),

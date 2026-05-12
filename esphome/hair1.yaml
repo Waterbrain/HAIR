@@ -1,0 +1,44 @@
+esphome:
+  name: hair1
+  friendly_name: HAIR1
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "HAIR1 Fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+# --- IR Transmitter (TX) ---
+remote_transmitter:
+  pin: GPIO9
+  carrier_duty_percent: 50%
+
+# --- IR Receiver (RX) ---
+remote_receiver:
+  pin:
+    number: GPIO8
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  dump: all
+  tolerance: 25%
+  idle: 10ms
