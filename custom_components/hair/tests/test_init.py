@@ -297,6 +297,7 @@ class TestPanelRegistration:
             mock_pc.async_register_panel = AsyncMock()
             mock_bundle = MagicMock()
             mock_bundle.exists.return_value = True
+            mock_bundle.read_bytes.return_value = b"fake-js-content"
             mock_path_cls.return_value.__truediv__ = MagicMock(return_value=mock_bundle)
             # Chain the / operators
             parent = MagicMock()

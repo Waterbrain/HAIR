@@ -1,6 +1,7 @@
 """The HAIR (Home Assistant IR Admin) integration."""
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 
@@ -103,6 +104,17 @@ async def _async_register_panel(
         Path(__file__).parent / "frontend" / "dist" / PANEL_FILENAME
     )
 
+    # Compute content hash for cache busting.
+    content_hash = ""
+    try:
+        if bundle_path.exists():
+            raw = bundle_path.read_bytes()
+            content_hash = hashlib.md5(raw).hexdigest()[:8]
+    except (OSError, TypeError):
+        content_hash = ""
+
+    versioned_path = f"{PANEL_STATIC_PATH}?v={content_hash}" if content_hash else PANEL_STATIC_PATH
+
     if bundle_path.exists():
         try:
             await hass.http.async_register_static_paths(
@@ -128,7 +140,7 @@ async def _async_register_panel(
         require_admin=True,
         embed_iframe=False,
         trust_external=False,
-        module_url=PANEL_STATIC_PATH,
+        module_url=versioned_path,
     )
 
 

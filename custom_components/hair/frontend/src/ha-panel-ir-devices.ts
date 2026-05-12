@@ -112,6 +112,9 @@ export class HaPanelIrDevices extends LitElement {
             this._backToList();
         }
         this._activeTab = tab;
+        if (tab === "devices") {
+            void this._refreshDevices();
+        }
     }
 
     render() {
