@@ -138,22 +138,35 @@ async def test_remove_command_clears_mapping(manager):
 
 
 @pytest.mark.asyncio
-async def test_send_command_calls_infrared_service(manager, mock_device: IRDevice):
-    with patch(
-        "custom_components.hair.device_manager.dr.async_get",
-        return_value=MagicMock(
-            async_get_or_create=MagicMock(return_value=MagicMock(id="x")),
-            async_get_device=MagicMock(return_value=None),
+async def test_send_command_calls_infrared_helper(manager, mock_device: IRDevice):
+    """Verify async_send_command() calls infrared.async_send_command with a built Command."""
+    mock_ir_send = AsyncMock()
+    with (
+        patch(
+            "custom_components.hair.device_manager.dr.async_get",
+            return_value=MagicMock(
+                async_get_or_create=MagicMock(return_value=MagicMock(id="x")),
+                async_get_device=MagicMock(return_value=None),
+            ),
         ),
     ):
         await manager.async_create_device(mock_device)
-    await manager.async_send_command(mock_device.id, "cmd-1")
-    manager._hass.services.async_call.assert_awaited_once()
-    args, kwargs = manager._hass.services.async_call.call_args
-    assert args[0] == "infrared"
-    assert args[1] == "send_command"
-    assert args[2]["entity_id"] == "infrared.test_emitter"
-    assert args[2]["code"] == "0x20DF10EF"
+
+    import sys
+    ir_mod = sys.modules["homeassistant.components.infrared"]
+    orig = ir_mod.async_send_command
+    ir_mod.async_send_command = mock_ir_send
+    try:
+        await manager.async_send_command(mock_device.id, "cmd-1")
+    finally:
+        ir_mod.async_send_command = orig
+
+    mock_ir_send.assert_awaited_once()
+    call_args = mock_ir_send.call_args
+    assert call_args[0][0] is manager._hass  # hass
+    assert call_args[0][1] == "infrared.test_emitter"  # entity_id
+    ir_cmd = call_args[0][2]  # the Command object
+    assert hasattr(ir_cmd, "get_raw_timings")
 
 
 def test_category_for_command_name():

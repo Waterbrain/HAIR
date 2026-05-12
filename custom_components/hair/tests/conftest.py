@@ -1,9 +1,24 @@
 """Test fixtures for the HAIR integration."""
 from __future__ import annotations
 
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# Stub the homeassistant.components.infrared module for test environments
+# that run an older HA version without the 2026.4 infrared platform.
+# The lazy imports in device_manager / signal_monitor will pick this up.
+# ---------------------------------------------------------------------------
+_INFRARED_MOD_NAME = "homeassistant.components.infrared"
+if _INFRARED_MOD_NAME not in sys.modules or not hasattr(
+    sys.modules[_INFRARED_MOD_NAME], "async_send_command"
+):
+    _fake_ir = types.ModuleType(_INFRARED_MOD_NAME)
+    _fake_ir.async_send_command = AsyncMock()  # type: ignore[attr-defined]
+    sys.modules[_INFRARED_MOD_NAME] = _fake_ir
 
 from custom_components.hair.capture import MockCaptureProvider
 from custom_components.hair.const import (

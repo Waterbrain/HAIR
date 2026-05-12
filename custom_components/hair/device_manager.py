@@ -153,9 +153,9 @@ class DeviceManager:
     ) -> None:
         """Send a stored IR command via the configured emitter.
 
-        Forwards to ``infrared.send_command`` (HA's native IR platform
-        as of 2026.4). The infrared service accepts either an encoded
-        ``code`` or ``raw_timings``.
+        Uses ``homeassistant.components.infrared.async_send_command``
+        (HA 2026.4+) which accepts an ``infrared_protocols.Command``
+        instance wrapping the raw timings or Pronto hex.
         """
         device = self._store.get_device(device_id)
         if device is None:
@@ -164,24 +164,22 @@ class DeviceManager:
         if command is None:
             raise KeyError(f"Unknown command {command_id} on device {device_id}")
 
-        service_data: dict[str, object] = {
-            "entity_id": device.emitter_entity_id,
-            "frequency": command.frequency,
-            "repeat": command.repeat_count,
-        }
-        if command.code is not None:
-            service_data["code"] = command.code
-        if command.protocol is not None:
-            service_data["protocol"] = command.protocol
-        if command.raw_timings:
-            service_data["raw"] = command.raw_timings
-
-        await self._hass.services.async_call(
-            "infrared",
-            "send_command",
-            service_data,
-            blocking=True,
+        # Lazy imports: infrared component only available at runtime on HA 2026.4+.
+        from homeassistant.components.infrared import (  # noqa: E402
+            async_send_command as ir_send,
         )
+
+        from .ir_command import build_command
+
+        ir_cmd = build_command(
+            protocol=command.protocol,
+            code=command.code,
+            raw_timings=command.raw_timings,
+            frequency=command.frequency or 38000,
+            repeat_count=command.repeat_count or 0,
+        )
+
+        await ir_send(self._hass, device.emitter_entity_id, ir_cmd)
 
     def _register_ha_device(self, device: IRDevice) -> None:
         registry = dr.async_get(self._hass)

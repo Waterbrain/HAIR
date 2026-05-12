@@ -596,23 +596,28 @@ class SignalMonitor:
             return {"success": False, "code": "signal_not_found",
                     "error": "Signal not found"}
 
-        # Build service data.
-        service_data: dict[str, Any] = {
-            "entity_id": emitter_entity_id,
-        }
-        if signal.protocol and signal.code:
-            service_data["command"] = signal.code
-        elif signal.raw_timings:
-            service_data["command"] = signal.raw_timings
-        else:
+        # Lazy imports: infrared component only available at runtime on HA 2026.4+.
+        from homeassistant.components.infrared import (  # noqa: E402
+            async_send_command as ir_send,
+        )
+
+        from .ir_command import build_command
+
+        # Build an infrared_protocols.Command from the stored signal data.
+        try:
+            ir_cmd = build_command(
+                protocol=signal.protocol,
+                code=signal.code,
+                raw_timings=signal.raw_timings,
+                frequency=signal.frequency or 38000,
+            )
+        except ValueError as exc:
             return {"success": False, "code": "no_signal_data",
-                    "error": "Signal has no code or raw timings"}
+                    "error": str(exc)}
 
         try:
             await asyncio.wait_for(
-                self._hass.services.async_call(
-                    "remote", "send_command", service_data, blocking=True
-                ),
+                ir_send(self._hass, emitter_entity_id, ir_cmd),
                 timeout=ASSIGN_SERVICE_TIMEOUT_S,
             )
         except (TimeoutError, asyncio.TimeoutError, asyncio.CancelledError):

@@ -641,17 +641,26 @@ class TestTestSignal:
 
         sig = UnknownSignal(
             fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            raw_timings=[9000, -4500, 560, -560],
         )
         device = UnknownDevice(id="ud1", fingerprint="fp", signals=[sig])
         store.add_device(device)
 
-        result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        mock_ir_send = AsyncMock()
+        import sys
+        ir_mod = sys.modules["homeassistant.components.infrared"]
+        orig = ir_mod.async_send_command
+        ir_mod.async_send_command = mock_ir_send
+        try:
+            result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        finally:
+            ir_mod.async_send_command = orig
         assert result["success"] is True
-        hass.services.async_call.assert_called_once()
-        call_args = hass.services.async_call.call_args
-        assert call_args[0][0] == "remote"
-        assert call_args[0][1] == "send_command"
-        assert call_args[0][2]["entity_id"] == "remote.ir_blaster"
+        mock_ir_send.assert_awaited_once()
+        call_args = mock_ir_send.call_args
+        assert call_args[0][0] is hass
+        assert call_args[0][1] == "remote.ir_blaster"
+        assert hasattr(call_args[0][2], "get_raw_timings")
 
     @pytest.mark.asyncio
     async def test_signal_not_found_returns_false(self):
@@ -940,22 +949,28 @@ class TestTestSignalErrors:
 
         sig = UnknownSignal(
             fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            raw_timings=[9000, -4500, 560, -560],
         )
         device = UnknownDevice(id="ud1", fingerprint="fp", signals=[sig])
         store.add_device(device)
 
-        # Make the service call hang.
+        # Make the ir_send call hang.
         async def _hang(*a, **kw):
             await asyncio.sleep(999)
 
-        hass.services.async_call = _hang
-
         # Patch timeout to 0.1s so test doesn't wait 10s.
-        with patch(
-            "custom_components.hair.signal_monitor.ASSIGN_SERVICE_TIMEOUT_S",
-            0.1,
-        ):
-            result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        import sys
+        ir_mod = sys.modules["homeassistant.components.infrared"]
+        orig = ir_mod.async_send_command
+        ir_mod.async_send_command = _hang
+        try:
+            with patch(
+                "custom_components.hair.signal_monitor.ASSIGN_SERVICE_TIMEOUT_S",
+                0.1,
+            ):
+                result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        finally:
+            ir_mod.async_send_command = orig
         assert result["success"] is False
         assert result["code"] == "send_timeout"
 
@@ -967,14 +982,18 @@ class TestTestSignalErrors:
 
         sig = UnknownSignal(
             fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            raw_timings=[9000, -4500, 560, -560],
         )
         device = UnknownDevice(id="ud1", fingerprint="fp", signals=[sig])
         store.add_device(device)
 
-        hass.services.async_call = AsyncMock(
-            side_effect=RuntimeError("hardware error")
-        )
-
-        result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        import sys
+        ir_mod = sys.modules["homeassistant.components.infrared"]
+        orig = ir_mod.async_send_command
+        ir_mod.async_send_command = AsyncMock(side_effect=RuntimeError("hardware error"))
+        try:
+            result = await monitor.test_signal("sig_fp", "remote.ir_blaster")
+        finally:
+            ir_mod.async_send_command = orig
         assert result["success"] is False
         assert result["code"] == "send_failed"

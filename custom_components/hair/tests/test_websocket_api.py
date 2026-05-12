@@ -849,22 +849,33 @@ async def test_test_signal_success(fake_hass):
     monitor = _make_signal_monitor(fake_hass)
     _wire_hass(fake_hass, signal_monitor=monitor)
 
-    sig = UnknownSignal(fingerprint="sig_fp", protocol="NEC", code="0x1234")
+    sig = UnknownSignal(
+        fingerprint="sig_fp", protocol="NEC", code="0x1234",
+        raw_timings=[9000, -4500, 560, -560],
+    )
     device = UnknownDevice(id="ud1", fingerprint="fp", signals=[sig])
     monitor._signal_store.add_device(device)
 
+    import sys
+    ir_mod = sys.modules["homeassistant.components.infrared"]
+    mock_ir_send = AsyncMock()
+    orig = ir_mod.async_send_command
+    ir_mod.async_send_command = mock_ir_send
     conn = _make_connection()
-    await ws_test_signal(
-        fake_hass, conn,
-        {
-            "id": 109,
-            "type": "hair/unknown/test",
-            "signal_fingerprint": "sig_fp",
-            "emitter_entity_id": "remote.ir",
-        },
-    )
+    try:
+        await ws_test_signal(
+            fake_hass, conn,
+            {
+                "id": 109,
+                "type": "hair/unknown/test",
+                "signal_fingerprint": "sig_fp",
+                "emitter_entity_id": "remote.ir",
+            },
+        )
+    finally:
+        ir_mod.async_send_command = orig
     conn.send_result.assert_called_once()
-    fake_hass.services.async_call.assert_called_once()
+    mock_ir_send.assert_awaited_once()
 
 
 @pytest.mark.asyncio
