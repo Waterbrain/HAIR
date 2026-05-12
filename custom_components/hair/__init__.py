@@ -21,11 +21,18 @@ from .websocket_api import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
+_BUTTON_PLATFORM = getattr(Platform, "BUTTON", None)
+
 PLATFORMS_LIST: list[Platform] = [
-    Platform.REMOTE,
-    Platform.MEDIA_PLAYER,
-    Platform.CLIMATE,
-    Platform.FAN,
+    p
+    for p in [
+        _BUTTON_PLATFORM,
+        Platform.REMOTE,
+        Platform.MEDIA_PLAYER,
+        Platform.CLIMATE,
+        Platform.FAN,
+    ]
+    if p is not None
 ]
 
 PANEL_FILENAME = "ha-panel-ir-devices.js"

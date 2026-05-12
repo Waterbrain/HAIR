@@ -13,6 +13,42 @@ export class IrCommandRow extends LitElement {
     @property({ attribute: false }) public command: IRCommand | null = null;
     @property({ type: Boolean }) public busy = false;
 
+    /** Human-friendly label for a captured command. */
+    private _commandLabel(): string {
+        const cmd = this.command!;
+        // Pronto commands: show S/L pattern if available.
+        if (cmd.protocol?.toUpperCase() === "PRONTO" && cmd.code) {
+            const sl = this._prontoSlPattern(cmd.code);
+            if (sl) return `Pattern: ${sl}`;
+        }
+        // Non-Pronto decoded: show protocol + short code.
+        if (cmd.protocol && cmd.code) {
+            return `${cmd.protocol}: ${cmd.code}`;
+        }
+        // Raw timings only.
+        if (cmd.raw_timings?.length) {
+            return `RAW: ${cmd.raw_timings.length} timings`;
+        }
+        return cmd.protocol ?? "IR";
+    }
+
+    /** Compute S/L pattern from Pronto hex (mirrors backend logic). */
+    private _prontoSlPattern(hex: string): string | null {
+        const words = hex.trim().split(/\s+/);
+        if (words.length < 6) return null;
+        const burst1 = parseInt(words[2], 16);
+        const burst2 = parseInt(words[3], 16);
+        const total = burst1 + burst2;
+        const timings = words.slice(4);
+        if (timings.length < total * 2) return null;
+        let pattern = "";
+        for (let i = 0; i < total * 2; i++) {
+            const val = parseInt(timings[i], 16);
+            pattern += val < 0x30 ? "S" : "L";
+        }
+        return pattern || null;
+    }
+
     private _emit(name: string) {
         this.dispatchEvent(
             new CustomEvent(name, {
@@ -34,8 +70,7 @@ export class IrCommandRow extends LitElement {
                     <div class="name">${this.templateName}</div>
                     <div class="meta">
                         ${learned
-                            ? html`${this.command!.protocol ?? "Raw"} ·
-                              ${this.command!.code ?? "timings"}`
+                            ? html`${this._commandLabel()}`
                             : html`<span class="muted">Not yet learned</span>`}
                     </div>
                 </div>

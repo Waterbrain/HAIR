@@ -1,11 +1,7 @@
 /**
- * Device detail view: header, setup-progress bar, command checklist
- * grouped into Essential / Optional / Custom sections, and the auto-
- * created entity summary.
- *
- * Owns the capture queue: when the user clicks Save & Learn Next on the
- * capture dialog, this component opens the dialog for the next un-
- * learned essential template and drives them through the full list.
+ * Device detail view: header, progress bar, flat command list, and
+ * entity summary.  Every learned command is shown as a simple row
+ * with Test / Re-learn / Delete actions.
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -14,15 +10,7 @@ import "./ir-command-row.js";
 import "./ir-capture-dialog.js";
 import "./ir-confirm-dialog.js";
 import type { HairApi } from "./api.js";
-import type { CommandTemplate, IRCommand, IRDevice } from "./types.js";
-
-interface ChecklistEntry {
-    template: CommandTemplate | null;
-    name: string;
-    command: IRCommand | null;
-    essential: boolean;
-    custom: boolean;
-}
+import type { IRCommand, IRDevice } from "./types.js";
 
 @customElement("ir-device-detail")
 export class IrDeviceDetail extends LitElement {
@@ -30,65 +18,13 @@ export class IrDeviceDetail extends LitElement {
     @property({ attribute: false }) public hass: any;
     @property({ attribute: false }) public device!: IRDevice;
 
-    @state() private _templates: CommandTemplate[] = [];
     @state() private _busy = false;
     @state() private _captureName: string | null = null;
-    @state() private _captureQueue: string[] = [];
     @state() private _customDialogOpen = false;
     @state() private _customName = "";
     @state() private _toast: string | null = null;
     @state() private _confirmDelete = false;
     @state() private _commandToDelete: IRCommand | null = null;
-
-    connectedCallback(): void {
-        super.connectedCallback();
-        void this._loadTemplates();
-    }
-
-    protected updated(changed: Map<string, unknown>): void {
-        if (changed.has("device") && this.device) {
-            void this._loadTemplates();
-        }
-    }
-
-    private async _loadTemplates() {
-        try {
-            this._templates = await this.api.listTemplates(this.device.device_type);
-        } catch (err) {
-            this._templates = [];
-        }
-    }
-
-    private get _entries(): ChecklistEntry[] {
-        const captured = new Map(
-            this.device.commands.map((c) => [c.name.toLowerCase(), c]),
-        );
-        const seenTemplate = new Set<string>();
-        const entries: ChecklistEntry[] = [];
-
-        for (const template of this._templates) {
-            seenTemplate.add(template.name.toLowerCase());
-            entries.push({
-                template,
-                name: template.name,
-                command: captured.get(template.name.toLowerCase()) ?? null,
-                essential: template.essential,
-                custom: false,
-            });
-        }
-        for (const command of this.device.commands) {
-            if (!seenTemplate.has(command.name.toLowerCase())) {
-                entries.push({
-                    template: null,
-                    name: command.name,
-                    command,
-                    essential: false,
-                    custom: true,
-                });
-            }
-        }
-        return entries;
-    }
 
     private async _refresh() {
         this.device = await this.api.getDevice(this.device.id);
@@ -107,15 +43,8 @@ export class IrDeviceDetail extends LitElement {
         }, 2400);
     }
 
-    private async _onLearn(e: CustomEvent) {
-        const { templateName } = e.detail;
-        this._captureQueue = [];
-        this._captureName = templateName;
-    }
-
     private async _onRelearn(e: CustomEvent) {
         const { templateName } = e.detail;
-        this._captureQueue = [];
         this._captureName = templateName;
     }
 
@@ -157,38 +86,15 @@ export class IrDeviceDetail extends LitElement {
 
     private _onCaptureClosed() {
         this._captureName = null;
-        this._captureQueue = [];
     }
 
     private async _onCommandSaved(e: CustomEvent) {
-        const { saveAndNext, commandName } = e.detail as {
-            saveAndNext: boolean;
+        const { commandName } = e.detail as {
             commandName: string;
         };
         await this._refresh();
         this._flash(`Saved "${commandName}"`);
-
-        if (saveAndNext) {
-            const queue = this._buildNextQueue(commandName);
-            if (queue.length > 0) {
-                this._captureQueue = queue;
-                this._captureName = queue[0];
-                return;
-            }
-        }
         this._captureName = null;
-    }
-
-    private _buildNextQueue(justSaved: string): string[] {
-        const captured = new Set(
-            this.device.commands.map((c) => c.name.toLowerCase()),
-        );
-        captured.add(justSaved.toLowerCase());
-        return this._templates
-            .filter(
-                (t) => t.essential && !captured.has(t.name.toLowerCase()),
-            )
-            .map((t) => t.name);
     }
 
     private _openCustomDialog() {
@@ -205,7 +111,6 @@ export class IrDeviceDetail extends LitElement {
         if (!name) return;
         this._customDialogOpen = false;
         this._captureName = name;
-        this._captureQueue = [];
     }
 
     private async _deleteDevice() {
@@ -227,27 +132,15 @@ export class IrDeviceDetail extends LitElement {
     }
 
     render() {
-        const entries = this._entries;
-        const essential = entries.filter((e) => e.essential);
-        const optional = entries.filter((e) => !e.essential && !e.custom);
-        const custom = entries.filter((e) => e.custom);
-        const learned = entries.filter((e) => e.command !== null).length;
-        const total = entries.length || essential.length;
-        const mappedFeatures = Object.keys(this.device.entity_config.command_mapping);
-        const platform = this.device.entity_config.platform;
+        const commands = this.device.commands;
+        const count = commands.length;
 
         return html`
             <section class="header">
                 <div>
                     <h1>${this.device.name}</h1>
                     <div class="subtitle">
-                        ${[
-                            this.device.manufacturer,
-                            this.device.model,
-                            this.device.emitter_entity_id,
-                        ]
-                            .filter(Boolean)
-                            .join(" • ")}
+                        ${this.device.emitter_entity_id}
                     </div>
                 </div>
                 <div class="header-actions">
@@ -261,69 +154,27 @@ export class IrDeviceDetail extends LitElement {
             </section>
 
             <ir-progress-bar
-                .learned=${learned}
-                .total=${total}
+                .learned=${count}
+                .total=${count || 1}
             ></ir-progress-bar>
 
-            ${essential.length > 0
-                ? html`
-                      <ha-card>
-                          <h2>Essential Commands</h2>
-                          ${essential.map(
-                              (entry) => html`
-                                  <ir-command-row
-                                      .templateName=${entry.name}
-                                      .command=${entry.command}
-                                      .busy=${this._busy}
-                                      @learn=${this._onLearn}
-                                      @relearn=${this._onRelearn}
-                                      @test=${this._onTest}
-                                      @delete=${this._onDelete}
-                                  ></ir-command-row>
-                              `,
-                          )}
-                      </ha-card>
-                  `
-                : ""}
-            ${optional.length > 0
-                ? html`
-                      <ha-card>
-                          <h2>Optional Commands</h2>
-                          ${optional.map(
-                              (entry) => html`
-                                  <ir-command-row
-                                      .templateName=${entry.name}
-                                      .command=${entry.command}
-                                      .busy=${this._busy}
-                                      @learn=${this._onLearn}
-                                      @relearn=${this._onRelearn}
-                                      @test=${this._onTest}
-                                      @delete=${this._onDelete}
-                                  ></ir-command-row>
-                              `,
-                          )}
-                      </ha-card>
-                  `
-                : ""}
-            ${custom.length > 0
-                ? html`
-                      <ha-card>
-                          <h2>Custom Commands</h2>
-                          ${custom.map(
-                              (entry) => html`
-                                  <ir-command-row
-                                      .templateName=${entry.name}
-                                      .command=${entry.command}
-                                      .busy=${this._busy}
-                                      @relearn=${this._onRelearn}
-                                      @test=${this._onTest}
-                                      @delete=${this._onDelete}
-                                  ></ir-command-row>
-                              `,
-                          )}
-                      </ha-card>
-                  `
-                : ""}
+            <ha-card>
+                <h2>Commands (${count})</h2>
+                ${commands.length > 0
+                    ? commands.map(
+                          (cmd) => html`
+                              <ir-command-row
+                                  .templateName=${cmd.name}
+                                  .command=${cmd}
+                                  .busy=${this._busy}
+                                  @relearn=${this._onRelearn}
+                                  @test=${this._onTest}
+                                  @delete=${this._onDelete}
+                              ></ir-command-row>
+                          `,
+                      )
+                    : html`<div class="empty">No commands yet. Add one below.</div>`}
+            </ha-card>
 
             <div class="custom-add">
                 <mwc-button
@@ -331,22 +182,9 @@ export class IrDeviceDetail extends LitElement {
                     @click=${this._openCustomDialog}
                     ?disabled=${this._busy}
                 >
-                    + Add Custom Command
+                    + Add Command
                 </mwc-button>
             </div>
-
-            <ha-card class="entity-summary">
-                <h2>Entity</h2>
-                <div class="meta">
-                    Platform: <code>${platform}</code>
-                </div>
-                <div class="meta">
-                    Mapped features:
-                    ${mappedFeatures.length > 0
-                        ? mappedFeatures.join(", ")
-                        : "None yet — capture commands to enable features."}
-                </div>
-            </ha-card>
 
             ${this._captureName
                 ? html`
@@ -447,6 +285,11 @@ export class IrDeviceDetail extends LitElement {
             text-transform: uppercase;
             letter-spacing: 0.04em;
             color: var(--secondary-text-color);
+        }
+        .empty {
+            color: var(--secondary-text-color);
+            font-style: italic;
+            padding: 12px 0;
         }
         .custom-add {
             margin: 16px 0;

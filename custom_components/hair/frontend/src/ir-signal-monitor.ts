@@ -287,6 +287,13 @@ export class IrSignalMonitor extends LitElement {
                     last_seen: now,
                     signals: sigs,
                 };
+            } else {
+                // New signal on already-expanded device -- re-fetch to pick it up.
+                void this.api.getUnknownDevice(ev.device_id).then((detail) => {
+                    if (this._expandedId === ev.device_id) {
+                        this._expandedDevice = detail;
+                    }
+                }).catch(() => {});
             }
         }
 
