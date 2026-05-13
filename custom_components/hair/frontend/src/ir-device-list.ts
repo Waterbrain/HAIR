@@ -542,13 +542,13 @@ export class IrDeviceList extends LitElement {
         /* TX badge (blue) */
         .tx-badge {
             background: rgba(30, 136, 229, 0.15);
-            color: #1565c0;
+            color: #e65100;
         }
 
-        /* RX badge (amber) */
+        /* RX badge */
         .rx-badge {
             background: rgba(255, 152, 0, 0.15);
-            color: #e65100;
+            color: #1565c0;
         }
 
         /* No TX warning (muted) */

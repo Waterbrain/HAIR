@@ -371,23 +371,27 @@ export class IrDeviceDetail extends LitElement {
             </div>
 
             <!-- Commands -->
-            <ha-card>
-                <h2>Commands (${count})</h2>
-                ${commands.length > 0
-                    ? commands.map(
-                          (cmd) => html`
-                              <ir-command-row
-                                  .templateName=${cmd.name}
-                                  .command=${cmd}
-                                  .busy=${this._busy}
-                                  @relearn=${this._onRelearn}
-                                  @test=${this._onTest}
-                                  @delete=${this._onDelete}
-                              ></ir-command-row>
-                          `,
-                      )
-                    : html`<div class="empty">No commands yet. Add one below.</div>`}
-            </ha-card>
+            <div class="commands-section">
+                <div class="commands-header">
+                    <span>Commands (${count})</span>
+                </div>
+                <div class="commands-list">
+                    ${commands.length > 0
+                        ? commands.map(
+                              (cmd) => html`
+                                  <ir-command-row
+                                      .templateName=${cmd.name}
+                                      .command=${cmd}
+                                      .busy=${this._busy}
+                                      @relearn=${this._onRelearn}
+                                      @test=${this._onTest}
+                                      @delete=${this._onDelete}
+                                  ></ir-command-row>
+                              `,
+                          )
+                        : html`<div class="empty">No commands yet. Add one below.</div>`}
+                </div>
+            </div>
 
             <div class="footer-actions">
                 <button
@@ -571,17 +575,24 @@ export class IrDeviceDetail extends LitElement {
             background: var(--secondary-background-color);
         }
 
-        /* --- Commands card --- */
-        ha-card {
+        /* --- Commands section (Sniffer-style) --- */
+        .commands-section {
             margin: 16px 0;
-            padding: 16px;
+            border-top: 1px solid var(--divider-color);
+            padding-top: 12px;
         }
-        ha-card h2 {
-            margin: 0 0 8px;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--secondary-text-color);
+        .commands-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--primary-text-color);
+        }
+        .commands-list {
+            display: flex;
+            flex-direction: column;
         }
         .empty {
             color: var(--secondary-text-color);

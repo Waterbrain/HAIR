@@ -640,19 +640,34 @@ export class IrSignalMonitor extends LitElement {
                             <span class="stat last-seen" title=${fmtTime(d.last_seen)}>
                                 ${relTime(d.last_seen)}
                             </span>
+                            ${d.label && this._matchesHairDevice(d.label)
+                                ? html`<span
+                                      class="status-badge hair-device"
+                                      @click=${(e: Event) => e.stopPropagation()}
+                                  >HAIR Device</span>`
+                                : d.label
+                                    ? html`<button
+                                          class="action-btn promote-btn"
+                                          @click=${(e: Event) => this._promoteDevice(d, e)}
+                                      >Promote</button>`
+                                    : ""}
                         </div>
                     </div>
-                    ${d.label && this._matchesHairDevice(d.label)
-                        ? html`<span
-                              class="status-badge hair-device"
-                              @click=${(e: Event) => e.stopPropagation()}
-                          >HAIR Device</span>`
-                        : d.label
-                            ? html`<button
-                                  class="action-btn promote-btn"
-                                  @click=${(e: Event) => this._promoteDevice(d, e)}
-                              >Promote to Device</button>`
-                            : ""}
+                    ${d.dismissed
+                        ? html`<button
+                              class="action-btn device-dismiss-btn"
+                              @click=${(e: Event) => {
+                                  e.stopPropagation();
+                                  void this._undismiss(d.id);
+                              }}
+                          >Restore</button>`
+                        : html`<button
+                              class="action-btn device-dismiss-btn"
+                              @click=${(e: Event) => {
+                                  e.stopPropagation();
+                                  void this._dismiss(d.id);
+                              }}
+                          >Dismiss</button>`}
                     <ha-svg-icon
                         class="expand-icon"
                         .path=${expanded ? ICON_COLLAPSE : ICON_EXPAND}
@@ -660,13 +675,13 @@ export class IrSignalMonitor extends LitElement {
                 </div>
 
                 ${expanded && this._expandedDevice
-                    ? this._renderExpanded(this._expandedDevice, d.dismissed)
+                    ? this._renderExpanded(this._expandedDevice)
                     : ""}
             </ha-card>
         `;
     }
 
-    private _renderExpanded(device: UnknownDevice, dismissed: boolean) {
+    private _renderExpanded(device: UnknownDevice) {
         return html`
             <div class="expanded">
                 <div class="signal-header">
@@ -723,21 +738,6 @@ export class IrSignalMonitor extends LitElement {
                                             this._openDelete(device.id, sig);
                                         }}
                                     >Delete</button>
-                                    ${dismissed
-                                        ? html`<button
-                                              class="action-btn"
-                                              @click=${(e: Event) => {
-                                                  e.stopPropagation();
-                                                  void this._undismiss(device.id);
-                                              }}
-                                          >Restore</button>`
-                                        : html`<button
-                                              class="action-btn dismiss-btn"
-                                              @click=${(e: Event) => {
-                                                  e.stopPropagation();
-                                                  void this._dismiss(device.id);
-                                              }}
-                                          >Dismiss</button>`}
                                 </div>
                             </div>
                         `},
@@ -863,18 +863,23 @@ export class IrSignalMonitor extends LitElement {
             color: var(--primary-color);
         }
         .status-badge.hair-device {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 500;
             font-family: inherit;
-            padding: 4px 10px;
+            padding: 2px 8px;
             border-radius: 4px;
             white-space: nowrap;
             flex-shrink: 0;
             background: rgba(46, 125, 50, 0.15);
             color: #2e7d32;
             border: 1px solid rgba(46, 125, 50, 0.3);
+            margin-left: 4px;
         }
         .promote-btn {
+            flex-shrink: 0;
+            margin-left: 4px;
+        }
+        .device-dismiss-btn {
             flex-shrink: 0;
         }
         .rename-input {

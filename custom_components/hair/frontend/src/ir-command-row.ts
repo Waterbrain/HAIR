@@ -121,21 +121,21 @@ export class IrCommandRow extends LitElement {
         :host {
             display: block;
         }
+        :host(:not(:last-of-type)) {
+            margin-bottom: 4px;
+        }
         .row {
             display: grid;
             grid-template-columns: 32px 1fr auto;
             align-items: center;
             gap: 12px;
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--divider-color);
-            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-        }
-        .row:last-child {
-            border-bottom: none;
-            box-shadow: none;
+            padding: 8px 10px;
+            background: var(--secondary-background-color);
+            border-radius: 4px;
         }
         .row[data-learned="false"] {
             background: var(--secondary-background-color);
+            opacity: 0.7;
         }
         .status {
             display: flex;
