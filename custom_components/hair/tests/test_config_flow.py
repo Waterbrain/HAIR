@@ -141,7 +141,7 @@ async def test_creates_entry_on_submit(fake_hass):
     flow = _make_flow(fake_hass)
     result = await flow.async_step_user(user_input={})
     assert result["type"] == "create_entry"
-    assert result["title"] == "IR Devices"
+    assert result["title"] == "HAIR"
     assert result["data"] == {}
     assert result["options"][CONF_CAPTURE_TIMEOUT] == DEFAULT_CAPTURE_TIMEOUT
     assert result["options"][CONF_DEFAULT_REPEAT_COUNT] == DEFAULT_REPEAT_COUNT

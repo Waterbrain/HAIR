@@ -50,6 +50,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> bool:
     """Set up HAIR from a config entry."""
+    # One-time migration: fix legacy entry title.
+    if entry.title != "HAIR":
+        hass.config_entries.async_update_entry(entry, title="HAIR")
+
     store = HAIRStore(hass)
     await store.async_load()
 

@@ -1,9 +1,10 @@
-# HAIR — Brand Guide v1
+# HAIR — Brand Guide v2
 
 **Project:** HAIR (Home Assistant IR)
 **Author:** David Bailey
-**Date:** 2026-05-08
+**Date:** 2026-05-13 *(v2 reset — see Section 14 for change history)*
 **Status:** Living document
+**Previous version:** [`brand-guide-v1.3-archive.md`](./brand-guide-v1.3-archive.md)
 
 ---
 
@@ -191,190 +192,109 @@ Five marks, all generated from the prompt family above:
 
 ---
 
-## 5.5 The Mascot — Hairy Hank
+## 5.5 The Device Gallery — Hair on Things
 
-### Who He Is
+### The Concept
 
-**Hairy Hank** is the HAIR mascot. He is the warm, friendly, slightly mischievous face of the brand. The locked HAIR wordmark + barber pole is the *logo*; Hank is the *character*. They work together: the wordmark sells the brand, Hank sells the *feeling*.
+HAIR v2 has **no mascot character**. There is no Hank, no troll, no human stand-in. The recurring cast of the brand is the **devices themselves**, each wearing a signature human hairstyle. The HAIR shop *puts hair on things*. The "things" are the recurring stars.
 
-Hank pays homage to the 1980s plastic troll dolls without infringing on the trademarked "Troll Doll" / "Good Luck Troll" IP. We use AI-generated assets only and **do not push merch** — Hank lives in marketing, social, and in-product illustrations.
+This is structurally better than a single mascot:
 
-### Hank's Locked Character Design
+- The brand name pays off literally every time anyone sees a brand asset
+- The cast scales with the product — every new device type HAIR supports is a new face for the brand
+- The joke compounds: a TV with a mullet is funny once, a whole shop full of differently-coiffed appliances is the world
+- There's no canonical character that has to be defended across every render — the gallery rotates
 
-**Body:**
-- Small, chubby cartoon proportions (classic troll silhouette)
-- Warm tan plastic-toy skin tone
-- **Round circular belly button visible on his stomach** — mandatory, this is the homage
-- Bare feet (always)
-- Short arms, stubby legs, slightly oversized head
+### The Hair Rule
 
-**Face:**
-- Big round expressive eyes
-- Wide goofy grin
-- Round nose
-- Friendly and slightly mischievous
+The hair is **photorealistic**. The device is **photorealistic**. The collision is the entire joke. AI image generators are very good at hair on humans and very good at rendering devices; smashing them together is what modern generative models do best.
 
-**Hair (the hero element):**
-- Massive, voluminous, gravity-defying upright hair
-- Tall — at least equal to body height
-- **Rendered in classic Sailor Jerry tattoo color shading: deep barber red at the roots → warm orange in the middle → bright Sailor Jerry yellow at the tips**
-- Color zones are **distinct flat color blocks (not soft gradients)** separated by bold black ink outlines
-- Small white highlight pops at the peaks where light catches
-- Looks like classic American traditional tattoo flames
+- Hair must look like real human hair — strand-by-strand, light catching, the works
+- Hair must be *grafted onto* the device in a way that respects the device's actual surface and silhouette
+- Hair must be styled with a clear, named hairstyle (pompadour, mullet, handlebar, etc.) — not just "some hair"
+- No cartoon hair, no flame stylization, no flat-color hair zones. Real. Hair.
+- Where the hair meets the device, the seam is honest — sometimes it sprouts from a vent, sometimes it grows under the bezel, sometimes it just *is there* like the device was born with it
 
-**Clothing:**
-- **Default: white t-shirt with "HAIR" across the chest** in our locked tattoo-flash serif red lettering
-- Wardrobe variants permitted for scenarios (apron, hoodie, tank, holiday tee, tour tee)
+### The Locked Cast — Initial Roster
 
-**What Hank does NOT have:**
-- ❌ No IR signal waves coming off his hair
-- ❌ No hibiscus flowers around him
-- ❌ No tattoo-flash banner curling at his feet (the wordmark lives on his shirt)
-- ❌ No tiki carving as a base
-- ❌ No props unless a scenario requires them
+Eight device archetypes, each with a single signature hairstyle. These are the recurring stars. Future archetypes (smart bulbs, fireplaces, garage doors, anything IR or IR-adjacent) get added to the cast as needed, but each new entry must lock to one signature look.
 
-### Hair Color = Mood Indicator (Brand Mechanic)
+| # | Device | Signature Cut | Personality |
+|---|---|---|---|
+| 1 | **Home Assistant Yellow** *(hero device)* | 1950s greaser pompadour, deep black, perfectly waved | The hometown favorite. The reason the shop exists. The face on the window sticker. |
+| 2 | **Wall-mount AC / mini-split** | Tom Selleck handlebar mustache across the bottom face | Quiet, dependable, slightly intimidating. Has stories. |
+| 3 | **Soundbar** | Long Fabio-style rocker mane, blonde, flowing | Loud, dramatic, fronts the band. |
+| 4 | **Ceiling fan** | Twin braided pigtails hanging from opposing blades | Spins all day. Pigtails fly out. Cheerful idiot. |
+| 5 | **Pillar candle** | Full Victorian gentleman's beard with waxed mustache tips | The shop's eccentric professor. Burns the midnight oil. |
+| 6 | **Projector** | Sharp pencil mustache (because it projects a fine line) | Theatrical. Slightly French. Insists on dimmed lights. |
+| 7 | **TV** | 1980s mullet — short cropped top, long flow down the back | Business up front, party in back. Plays sports. |
+| 8 | **IR remote control** | Comb-over (the remote is losing its hair on the inside, too) | Aging, dignified, doing its best. Crowd favorite. |
 
-Hank's flame hair changes "temperature" based on context. The flame is a built-in mood/state indicator:
+### Master Prompt Template — Device Gallery Hero Portrait
 
-| State / Context | Flame logic |
-|---|---|
-| **Default Hank** | Red → orange → yellow (warm flame) |
-| **Capturing IR** | Pink → magenta → cyan (cyberpunk flame, hot at bottom, cold at top) |
-| **AC / Cool scene** | Navy → teal → cyan (cool flame / icy fire) |
-| **YAML defeated** | Default warm flame, but bigger and more aggressive |
-| **Holiday / December** | Red → green → white (seasonal flame) |
-| **Sleeping / idle** | Cream → tan → cream (the flame is "out") |
-| **Greatest hits / celebration** | Multi-zone rainbow flame |
+This is the canonical prompt template for any device-gallery hero portrait. Swap in the device-and-hairstyle pairing from the locked cast. Every gallery hero render starts here.
 
-This is more visually interesting than a flat hair color swap and gives every scenario built-in narrative.
-
-### Master Prompt — Hairy Hank (LOCKED v8 — FINAL)
-
-**Canonical reference image:** [`assets/hank-master-v8-final.png`](./assets/hank-master-v8-final.png)
-
-This is the canonical Hank prompt. Every Hank illustration starts here. Locked after iterating through 8 versions to land on the definitive character: an aged-up plastic troll doll with a magnificent towering Sailor Jerry flame mane, working as a barbershop barber in a tobacco-leather smock, dressed underneath like the suburban dad he is on weekends.
-
-When evaluating any new Hank render, compare it against the canonical reference image above. Every defining element (towering hair, troll face, wireframes, smock with HAIR patch, dad outfit peeking through, New Balance + crew socks) must match.
-
-> A friendly retro mascot character illustrated in Sailor Jerry American traditional tattoo flash style with bold black outlines and flat color fills, **rendered on a tall vertical canvas (2:3 portrait aspect ratio)**.
+> A high-resolution photorealistic studio portrait of a {DEVICE_DESCRIPTION} sitting on a polished dark walnut barber's counter. The device has a perfectly styled {HAIRSTYLE_DESCRIPTION} of fully photorealistic human hair growing from {HAIR_ANCHOR_POINT_ON_DEVICE}. The hair is rendered with full strand-level detail, natural sheen, realistic light response, and a styled finish — as if it was just cut and combed by a real barber. The hair color is {HAIR_COLOR}. The styling is precise, intentional, and freshly done.
 >
-> **CRITICAL COMPOSITION RULE — read this first and treat it as the most important constraint of the entire image:**
+> Behind the device on the counter sit period barbershop tools and steampunk accents: a brass-handled straight razor, a copper-banded bottle of pomade, a small pressure gauge, an oil lamp with brass fittings, a folded white linen towel, a worn leather strop hanging from a brass hook on the wall behind. The wall behind the counter is dark stained wood with hammered copper sheet panels and exposed riveted brass piping running horizontally. A single warm tungsten bulb hangs above the counter casting soft directional light on the device. Subtle steam curls from one corner of the frame. The lighting is warm, cinematic, slightly underexposed in the shadows.
 >
-> **The hair MUST occupy approximately 65-70% of the total vertical height of the image. The character's body (head + smock + legs + shoes) occupies only the BOTTOM 25-30% of the image. The remaining 5% is breathing room. This is non-negotiable. The hair is enormous, towering, dominant — at least 3 to 4 times the height of the entire body. Picture: if the body is 1 foot tall, the hair is 4 feet tall above it.**
+> The mood is dignified, slightly absurd, and unmistakably a barbershop portrait — as if this device just got a $90 haircut and is sitting for its glamour shot. No banners or text in the image itself.
+
+**Field substitutions for each archetype:**
+
+| Archetype | DEVICE_DESCRIPTION | HAIRSTYLE_DESCRIPTION | HAIR_ANCHOR_POINT | HAIR_COLOR |
+|---|---|---|---|---|
+| HA Yellow | a Home Assistant Yellow device (small square computer with a yellow front face and dark grey case) | classic 1950s greaser pompadour swept up and back, sharp side part, comb lines visible | top edge of the yellow front face | jet black with a single grey streak at the temple |
+| Wall AC | a white wall-mounted ductless mini-split air conditioner with a long horizontal vent | Tom Selleck handlebar mustache with full, thick, waxed and curled tips | along the upper edge of the air output vent | rich chestnut brown |
+| Soundbar | a slim black horizontal soundbar with a fabric speaker grille | long Fabio-style flowing rocker mane reaching well past the unit, gently windswept | the top edge of the soundbar along its full length | sun-bleached blonde with caramel lowlights |
+| Ceiling Fan | a five-blade dark wood ceiling fan with brass-finish accents, viewed slightly from below | two long braided pigtails tied with red ribbons, hanging from two opposite blades | the underside of two opposing fan blades | warm chestnut brown |
+| Candle | a tall ivory pillar candle, lit, with a soft visible flame | full Victorian gentleman's beard and intricately waxed and curled handlebar mustache | wrapping the entire upper third of the candle just below the wick | silver-grey, distinguished |
+| Projector | a small black home cinema projector with a single front lens | sharp pencil mustache, thin and precise | directly above the projector lens | jet black |
+| TV | a slim modern flat-screen TV (off, dark screen) on a small wooden stand | classic 1980s mullet, short on top with long straight hair flowing down the back | the top edge of the TV bezel, flowing down behind | dirty blonde |
+| IR Remote | a vintage chunky black plastic TV remote with rubber buttons, lying flat | distinguished comb-over, thin grey hairs carefully arranged across the top | the upper third of the remote, where a forehead would be | thin silver-grey |
+
+### Style Juxtaposition Rules
+
+The brand operates in three visual modes (defined in Section 8). The Device Gallery shows up in all three, with these rules for how realistic the hair gets in each:
+
+- **Mode 1 — Photoreal hero portraits.** Hair photoreal. Device photoreal. Environment photoreal. Sailor Jerry tattoo flash appears as **overlay**: a hand-drawn cream banner with the device's nickname in tattoo-flash lettering, optional decorative roses or daggers as corner stamps. The illustration sits *on top* of the photo, never blended into it. Print-style "tattoo over photograph" energy.
+- **Mode 2 — Tattoo flash sheets.** Device illustrated in flat Sailor Jerry tattoo flash style (bold black outlines, limited flat fills, banners, decorative flourishes). The hair, however, stays **photoreal-textured** inside the flat illustration — full strand detail, real sheen, real color depth. The contrast between flat illustrated device and detailed real hair *is the entire joke*. Print sheets, stickers, social.
+- **Mode 3 — In-product illustrations.** Device illustrated cleanly in the simplified house style. Hair rendered with visible strand texture but in 2-3 tonal zones (no full photoreal here — would be too busy in a UI). Bold black outlines on the device, finer linework inside the hair. Restrained.
+
+### Gallery Usage Rules
+
+- **The cast is the cast.** New devices can join the gallery (with David's signoff), but the existing eight don't get redesigned. Pompadour TV is wrong. Mullet HA Yellow is wrong. Lock and respect.
+- **One signature look per device.** No scenario variations on hair. The HA Yellow always has a pomp. The candle always has the Victorian beard. Variety comes from *which device* is on screen, not from "today the HA Yellow has bangs."
+- **No props on the hair.** No tiny Santa hats on the pompadour, no sunglasses on the candle. The brand stays clean. Seasonal beats come from the *environment* (December counter has a tiny wreath on the wall, not on the device).
+- **Hair color is locked per device.** See the substitution table above. The HA Yellow's pomp is always jet black with a grey streak. Drift on hair color drifts the character.
+- **Devices appear alone in hero portraits.** Group shots (the "shop floor" lineup) are allowed for marketing — see Mode 1 — but each individual gallery render is one device, centered, getting its glamour shot.
+- **No human faces or hands in gallery renders.** The shop is staffed by ghosts. The hair appeared overnight. Keep the focus on the device.
+- **No merch, AI-generated assets only.** Same posture as v1.3: this is a software project with a fun visual layer, not a streetwear brand.
+
+### Gallery Family Portrait (the "Shop Floor" Hero)
+
+The hero marketing image for the brand is the **family portrait** — all eight archetypes lined up on a counter or row of chairs, each in profile, each with its signature cut. This is the HAIR equivalent of the wall of headshots in a real barbershop. It runs across the top of the README, the HACS listing, and the project's launch announcement.
+
+**Family Portrait Prompt:**
+
+> A photorealistic horizontal group portrait of eight household electronic devices lined up in a row on a polished dark walnut barbershop counter. Each device is wearing a different fully photorealistic human hairstyle as if freshly cut by a real barber. From left to right: (1) a Home Assistant Yellow computer with a jet-black 1950s greaser pompadour, (2) a white wall-mount mini-split AC with a thick chestnut-brown handlebar mustache across its vent, (3) a slim black soundbar with a long blonde flowing Fabio rocker mane, (4) a dark wood five-blade ceiling fan with two braided chestnut pigtails tied in red ribbons hanging from opposing blades, (5) a tall lit ivory pillar candle with a silver-grey Victorian beard and waxed handlebar mustache, (6) a small black home projector with a precise jet-black pencil mustache above the lens, (7) a slim flat-screen TV with a dirty-blonde 1980s mullet, (8) a vintage chunky black plastic TV remote with a thin silver comb-over.
 >
-> **DO NOT center the body in the canvas. DO NOT make the hair "tall but proportional." DO NOT balance the composition. The character looks like a tiny troll standing under a magnificent towering inferno of hair that dwarfs him completely.** This deliberate imbalance is the entire point — it pays homage to 1980s plastic troll dolls whose hair was always far taller than their bodies.
->
-> ---
->
-> The character is **Hairy Hank**, a small chubby cartoon figure that is unmistakably a 1980s plastic troll doll aged into middle age and working as a barbershop barber. Preserve all classic troll doll features: a slightly oversized round head with chunky troll proportions, large prominent ears that stick out from the sides of his head, a distinctive bulbous flat squashed troll nose taking up the center of his face, big round shiny expressive troll eyes with bright catchlights, warm tan plastic-vinyl-toy skin tone with that distinctive shiny plastic-doll quality, slightly chubby cheeks, and a slightly mischievous knowing smirk. Subtle laugh lines at the corners of his eyes suggest a middle-aged troll who's been doing this work for decades.
->
-> He wears thin minimalist gold wireframe glasses with small oval lenses sitting low on his bulbous nose.
->
-> He has a visibly receded mature hairline with a clearly pronounced bald forehead. The towering hair erupts from the back two-thirds of his scalp.
->
-> ---
->
-> **THE HAIR (the entire upper 65-70% of the canvas):**
->
-> The hair is a magnificent, towering, gravity-defying flame mane that erupts from his head and rises massively upward — at least 3-4 times the height of his body, dominating the upper two-thirds of the entire composition. It is wider than his shoulders at the base and tapers into multiple flame tongues at the very top.
->
-> The hair must look like actual furry voluminous troll-doll hair (like teased-up brushed synthetic doll fur with visible strand texture, fluffy soft edges with stray strands breaking free, and three-dimensional volume) styled into the SHAPE of a colossal Sailor Jerry tattoo flame. Every internal portion of the flame is rendered with hair texture — visible individual hair strands and tufts, internal linework throughout — not flat decorative flame icons, but real hair shaped like fire.
->
-> Use classic Sailor Jerry tattoo color shading: deep barber red at the roots, transitioning to warm orange in the middle third, fading to bright Sailor Jerry yellow at the tips. The colors blend through the strand texture in distinct zones with bold black ink outlines defining the overall flame silhouette and finer black ink linework throughout the interior depicting individual strands. Small white highlight shapes at the peaks where light catches the hair.
->
-> ---
->
-> **THE BARBER BODY (the bottom 25-30% of the canvas):**
->
-> Hank stands centered in the lower portion of the canvas. He wears a rich tobacco-brown weathered leather barber smock (apron style) tied at the neck and waist, hanging from his chest down to mid-thigh. The smock has visible brass rivets at the corners, brass eyelets at the neck strap, and two patch pockets across the front waist. The leather has subtle patina and faint working scuff marks. A small "HAIR" patch is stitched on the left chest in bold red thread serif lettering with black outlines.
->
-> **Underneath the smock he is dressed like a suburban dad on a Saturday — a tucked-in white short-sleeve polo shirt with a small collar (the polo collar visible at his neck above the smock's neckline, the polo's HAIR-printed chest hidden behind the smock), tan cargo shorts visible peeking out below the smock hem with their characteristic side pocket detail, bright white chunky New Balance dad sneakers, and white crew socks pulled up at the ankles. The dad-outfit details — the polo collar, the cargo shorts hem with side pockets, the chunky white sneakers, the white crew socks — are all clearly visible around the edges of the smock, telling the viewer that under the professional barber gear is just a regular suburban dad.**
->
-> A small round circular belly button is visible briefly where the smock pulls open at his bare midriff (subtle troll homage detail).
->
-> He stands in a relaxed confident pose, arms slightly out at his sides — he's the barber waiting for his next walk-in.
->
-> ---
->
-> **OVERALL:**
->
-> Clean cream textured background with subtle vintage paper texture filling the entire canvas. Bold black tattoo-style outlines defining all major shapes, with finer ink linework inside the hair for strand texture and on the leather smock for material detail. Limited palette: cream background, warm tan plastic-doll skin, deep red, warm orange, Sailor Jerry yellow flame hair, tobacco brown leather smock, white polo collar, tan/khaki cargo shorts, white New Balance sneakers, white crew socks, gold wireframe glasses, brass rivet accents, white highlight pops.
->
-> No flowers, no banners, no signal waves, no other elements. Single character, vertical composition, hair dominates upper two-thirds, body in lower third.
+> The background is a steampunk barbershop wall: dark stained wood paneling, hammered copper sheets, exposed brass piping running horizontally, a row of small pressure gauges, oil lamps on brass sconces, a leather strop hanging on a brass hook. A single brass-and-glass barber pole stands on the far right edge of the frame, the red-white-navy spiral visible inside the glass cylinder. Warm tungsten lighting from above, slight steam curling from one corner. Cinematic, dignified, slightly absurd. No people, no text, no banners in the image.
 
-### The Locked Hank Silhouette
+### Why This Replaces a Mascot
 
-The signature read of Hank, top to bottom, in 0.5 seconds:
+A mascot is a single character that has to carry the brand's warmth across every surface. That's a tall order, and v1.3's Hank required eight rounds of iteration to lock and a permanent reference image to defend. The Device Gallery distributes that warmth across an ensemble cast, which means:
 
-1. **Top of frame:** "HOLY HAIR" — towering Sailor Jerry flame mane dominates the upper 2/3
-2. **Middle:** "Oh, he's a barber" — tobacco leather smock, name patch, troll face with wireframes
-3. **Bottom of frame:** "Wait — he's also just a dad" — cargo shorts hem, white New Balance, crew socks
-
-Three-act visual storytelling in a single still image. Hank is a craftsman *and* one of us. The expert *and* the audience.
-
-### Hank Wardrobe Variants
-
-The default Hank is the locked Barber-with-Dad-Underneath. For specific scenarios, only the **outermost layer** changes — the dad outfit underneath is preserved (sometimes peeking, sometimes implied). The flame hair, troll face, and wireframes never change.
-
-- **Default — Barber Hank** *(locked above)*: Tobacco leather smock over polo + cargo shorts + New Balance
-- **Out of the Shop** — No smock, just the dad outfit (polo with HAIR on chest, cargo shorts, New Balance) for casual scenarios
-- **Holiday Smock** — Smock over a red and green ringer tee, December version
-- **Tour Smock** — Black smock variant for special editions
-- **Rolled-Sleeve Working Hank** — Smock tied loosely, polo sleeves rolled, mid-job energy
-
-### Hank Scenario Library
-
-Each scenario starts with the locked v8 Master Prompt above. The character (towering flame hair, troll face, wireframes, leather smock with HAIR patch, dad outfit underneath, New Balance sneakers) stays exactly the same — only the pose, props, hair color, or background changes per scenario.
-
-**Scenario 1 — Hank with the Remote** *(hero / about page)*
-> [Master prompt v8] — but instead of a relaxed pose, he holds an oversized vintage TV remote control with both stubby troll hands, gripping it from the sides, pressing a large red button on the front with one thumb. His expression is focused but happy, mouth in a small "o" of concentration. The remote is rendered in matching Sailor Jerry tattoo flash style with bold black outlines, dark navy body with red, cream, and teal buttons. All other character details (towering flame hair, leather smock with HAIR patch, dad outfit peeking through) remain unchanged.
-
-**Scenario 2 — Hank Captures a Signal** *(in-product capture state)*
-> [Master prompt v8] — but his towering flame hair shifts to cyberpunk colors: hot pink at the roots, magenta in the middle, electric cyan at the tips. Same fur-strand texture and flame silhouette. He stands in a focused listening pose with his stubby troll hands cupped near his prominent ears like he's straining to hear something faint. Eyes wide and alert, mouth slightly open in concentration. Cream background with a very subtle radial cyan glow behind his head.
-
-**Scenario 3 — Hank on the Mini-Split** *(climate marketing)*
-> [Master prompt v8] — but his towering flame hair shifts to cool colors: navy at the roots, ocean teal in the middle, electric cyan at the tips (icy fire). He's perched on top of a wall-mounted ductless mini-split air conditioner, lounging casually with his New Balance sneakers dangling off the edge. Cool air visibly puffs from the AC vents below him. He gives a thumbs up. The mini-split is rendered in matching tattoo flash style.
-
-**Scenario 4 — Hank vs. YAML** *(anti-config messaging)*
-> [Master prompt v8] — but his warm flame hair is even bigger and more aggressive than usual. He stands triumphantly on top of a large crumpled piece of paper that has "YAML" written across it in distressed lettering. The paper looks defeated, wrinkled, with one corner torn. Confident victory pose, hands on his smock-clad hips, chin slightly raised, big mischievous smirk.
-
-**Scenario 5 — Hank Family Portrait** *(home page hero)*
-> A horizontal lineup of five Hairy Hank mascot characters in a row, each rendered as the locked v8 character: middle-aged plastic troll dolls with bulbous noses, big shiny eyes, wireframe glasses, receded hairlines, towering Sailor Jerry flame hair, tobacco-brown leather barber smocks with red "HAIR" patches, and dad outfits visible underneath (polo collars, cargo shorts hems, white New Balance, crew socks). **Each Hank has enormous towering flame hair in a different color scheme: (1) classic warm flame red→orange→yellow, (2) cyberpunk flame pink→magenta→cyan, (3) icy flame navy→teal→cyan, (4) sunset flame red→pink→yellow, (5) rainbow flame multi-color.** Each holds a different vintage remote: TV remote, AC remote, soundbar remote, ceiling fan remote, projector remote. All five stand evenly spaced on a clean cream textured background. Sailor Jerry tattoo flash style throughout, bold black outlines, flat color fills. No banners, no flowers.
-
-**Scenario 6 — Sleeping Hank** *(idle / 404 / "be right back")*
-> [Master prompt] — but his flame hair is "out" (faded cream → tan → cream, drooping slightly downward instead of standing tall). He is curled up asleep in a small vintage red barber chair, knees pulled up, head tilted to one side, eyes closed peacefully, mouth slightly open in a small smile. Three small "Z" letters float upward from his head in classic cartoon style. The barber chair is rendered in matching tattoo flash style — bold black outlines, deep red leather seat, chrome metal accents.
-
-**Scenario 7 — Hank with the IR Blaster** *(setup / config flow)*
-> [Master prompt] — but he's proudly displaying a small ESP32-style IR blaster device in his hands like a trophy, eyes wide with excitement. Standard warm flame hair.
-
-**Scenario 8 — Hank vs. Cloud** *(local-first messaging)*
-> [Master prompt] — but his flame hair shifts to icy fire (navy→teal→cyan). He's confidently pushing back a stormy navy cloud with both hands. The cloud has a small "X" through it.
-
-**Scenario 9 — Greatest Hits Hank** *(release notes / blog)*
-> [Master prompt] — but his flame hair is rainbow multi-color (all six brand neon colors mixed). He's on a small stage with a tiny microphone, wearing comically small sunglasses. A single spotlight on him.
-
-**Scenario 10 — Holiday Hank** *(seasonal December)*
-> [Master prompt] — but his flame hair shifts to seasonal colors: deep red at the roots, evergreen green in the middle, bone white at the tips. He's wearing a tiny Santa hat that comically can't sit flat on his enormous wild hair. He holds a small wrapped present labeled "v2.0."
-
-### Hank Usage Rules
-
-- **Hank is the mascot, not the logo.** The HAIR wordmark + pole is the brand mark. Hank is the character.
-- **Always render Hank in the locked Sailor Jerry tattoo flash style.** Never photo-real, never 3D, never anime/chibi, never minimalist vector.
-- **The hair-to-body ratio is mandatory.** Hair must occupy 65-70% of vertical canvas. If a render comes back with a "tall but balanced" composition, it's wrong.
-- **The fur-textured flame is the signature.** Strand linework throughout the flame, fluffy soft edges, white highlight pops at the peaks. Flat decorative flame icons are wrong.
-- **The troll face is non-negotiable.** Bulbous nose, big shiny eyes with catchlights, prominent ears, plastic-doll skin sheen, mischievous smirk. If he reads as "human cartoon dad," it's wrong.
-- **The wireframes stay thin and minimalist.** Sitting low on the bulbous nose. Never horn-rims, never aviators (those were rejected during iteration).
-- **The receded hairline is required.** Pronounced bald forehead, hair erupts from the back two-thirds. He's a middle-aged troll, not a young one.
-- **The leather barber smock is the default outerwear.** Tobacco brown, brass rivets, two patch pockets, small red "HAIR" patch on the left chest.
-- **The dad outfit underneath is mandatory.** Polo collar at neck, cargo shorts hem peeking, white New Balance, white crew socks. These details must be visible around the smock edges.
-- **The belly button peek stays.** Visible where the smock pulls open at the midriff. It's the troll-doll homage.
-- **Hank gets new poses, props, scenarios, and hair colors — he doesn't get redesigned.** No facial hair, no new glasses, no new body proportions, no different outfit philosophy. Lock the character, vary the context.
-- **No merch.** AI-generated assets only. Hank lives in marketing, social, and in-product surfaces.
+- Failure modes are smaller — one bad device render doesn't break the brand, it just doesn't ship
+- The brand stays surprising — each new render is a new face, not the same character in a new pose
+- The brand argument writes itself — "what device should I show today?" is easier than "what is Hank doing today?"
+- The joke literally is the product — HAIR puts hair on the IR things, and every render reinforces that
 
 ---
 
 ## 6. Color Palette
+
+The v2 palette drops cyberpunk neon (Neon Pink, Electric Cyan) and tropical accents (Tiki Wood) and mascot-specific colors (Hank Orange, Sailor Jerry Yellow). It adds the warm-metal range that anchors the steampunk world. The Barber Red / Deep Navy / Cream Linen / Bone White anchor stays intact.
 
 | Color | Hex | Role |
 |---|---|---|
@@ -382,27 +302,30 @@ Each scenario starts with the locked v8 Master Prompt above. The character (towe
 | **Barber Red** | `#C8102E` | Primary brand red, the pole stripe |
 | **Deep Navy** | `#1A2B4A` | Primary text, ink lines, the pole stripe |
 | **Bone White** | `#FBF8F1` | Surfaces, cards, the pole stripe |
-| **Ocean Teal** | `#2A8B8B` | Secondary accent, tiki greenery |
-| **Neon Pink** | `#FF2E88` | Cyberpunk glow, "live" indicator |
-| **Electric Cyan** | `#00E5FF` | Cyberpunk glow, capture state |
-| **Tiki Wood** | `#8B4513` | Carved details, frames |
-| **Hank Orange** | `#F28C3F` | Middle band of Hank's flame hair, warm accents |
-| **Sailor Jerry Yellow** | `#F2C14E` | Tattoo highlight, accent only, tip of Hank's flame hair |
+| **Ocean Teal** | `#2A8B8B` | Secondary accent, oxidized patina, retained from v1 |
+| **Antique Brass** | `#B08D57` | Steampunk apparatus, gauges, plinth, frames |
+| **Oxidized Copper** | `#A85A3A` | Copper banding, exhaust tubing, secondary metal accent |
+| **Gunmetal** | `#3B3F45` | Riveted plate, mechanical gears, restrained accent |
+| **Oxblood** | `#6E1E1E` | Leather strop, smock detail, deep accent over Barber Red |
+| **Tobacco Leather** | `#8A5A3B` | Aged leather, chair upholstery, warm secondary |
 
 ### Palette Usage Rules
 
 - **Cream Linen** is the default background. Treat it like the wall of the shop.
-- **Barber Red + Deep Navy + Bone White** is the classic trio — these do the heavy lifting in any layout.
-- **Ocean Teal + Tiki Wood** add warmth — use for secondary surfaces, tags, decorative elements.
-- **Neon Pink + Electric Cyan** are *accents only* — like a single neon sign in a dim shop. Never use them for body text or large fills. They glow; they don't dominate.
-- **Sailor Jerry Yellow** is the rarest — reserve for highlights inside tattoo-style illustrations.
+- **Barber Red + Deep Navy + Bone White** is the classic trio — these do the heavy lifting in any layout. The pole, the wordmark, and most type.
+- **Antique Brass + Oxidized Copper** are the steampunk metals — use for apparatus, frames, gauges, decorative dividers. They replace the role tiki wood and chrome played in v1.
+- **Gunmetal + Oxblood** are deep accents — use sparingly for mechanical detail, leather, or to ground a busy composition. Never use Gunmetal as a substitute for Deep Navy in body text.
+- **Tobacco Leather** is the warm secondary — the chair, the strop, the smock. Pairs naturally with Antique Brass.
+- **Ocean Teal** is retained as an occasional patina or secondary accent — never as a primary, never as a substitute for green.
 
 ### Avoid
 
 - Tech blue (the default HA palette) — we are intentionally not that
-- Pure black (#000000) — use Deep Navy instead, it's warmer
+- Pure black (#000000) — use Deep Navy or Gunmetal instead, they're warmer
 - Pure white (#FFFFFF) — use Bone White or Cream Linen, the warm tones matter
-- Green (other than Ocean Teal) — clashes with the palette identity
+- Green (other than Ocean Teal patina) — clashes with the palette identity
+- Neon anything — the v2 brand does not glow. The metals carry the contrast.
+- Modern chrome / cool silver — replace with Antique Brass or Gunmetal
 
 ---
 
@@ -428,7 +351,7 @@ Clean modern sans, gets out of the way. The vintage stays in the marketing; the 
 
 ### Accent Script
 
-A bold brush script for occasional flair — captions on illustrations, signed notes from the dev, neon-sign-style copy.
+A bold brush script for occasional flair — captions on illustrations, signed notes from the dev, hand-lettered shop-window copy.
 
 **Try:** Permanent Marker, Cookie, or a Sailor Jerry-style brush script.
 
@@ -436,56 +359,71 @@ A bold brush script for occasional flair — captions on illustrations, signed n
 
 ## 8. Visual Asset System
 
-The brand operates in **three visual modes**, each suited to different surfaces.
+The brand operates in **three visual modes**, each suited to different surfaces. The Device Gallery (Section 5.5) shows up in all three; the modes define *how* the gallery is rendered for that surface.
 
-### Mode 1: The Photoreal Hero Image (Marketing)
+### Mode 1: Photoreal Hero (Marketing)
 
-**One cinematic photograph that sells the brand.**
+**Cinematic studio photography of the device gallery, shot like real barbershop glamour portraits.**
 
-> Nighttime exterior of a small storefront. Above the door, a hand-painted sign reads "HAIR — IR Stylists" in vintage barbershop lettering. A traditional red-white-navy barber pole spins beside the door — the stripes glow faintly with neon cyan and pink. Through the window: shadowy silhouettes of household devices (TV, AC unit, soundbar) sitting in barber chairs. A neon "OPEN" sign glows hot pink in the window. A potted palm beside the door. The street outside is wet pavement reflecting nearby neon signs. Atmospheric, cinematic, slightly noir.
+Two canonical Mode 1 shots:
 
-**Tagline overlay:** *Style Your HAIR.*
+**1a — Solo Hero Portrait.** A single device from the gallery sits on a polished dark walnut counter, in full photoreal styling, with its locked human hairstyle perfectly rendered. The steampunk barbershop wall sits behind it: hammered copper sheets, exposed brass piping, oil lamps, leather strop. Warm tungsten lighting. A subtle wisp of steam in the corner. The device looks like it just paid $90 and is sitting for its glamour shot. (See the master prompt template in Section 5.5.)
 
-**Use for:** Website hero, README header, HACS listing thumbnail, launch announcement, large posters.
+**1b — Family Portrait.** The full gallery lined up across a counter, each device wearing its signature cut, the steampunk shop behind them. This is the README header, the HACS thumbnail, the launch announcement hero. (See the Family Portrait prompt in Section 5.5.)
 
-### Mode 2: Sailor Jerry Tattoo Flash (Social, Merch, Stickers)
+**The Sailor Jerry overlay.** Photoreal images get a hand-drawn tattoo-flash overlay applied *on top*: a cream-colored ribbon banner with the device's nickname or tagline ("THE POMPADOUR," "WALK-INS WELCOME"), optional corner stamps (a small rose, a dagger, a swallow). The overlay sits like a real tattoo over a photograph — the photo and the illustration never blend. This is the brand stamp that says "yes, this is HAIR."
 
-**Single devices rendered as American traditional tattoo designs.**
+**Tagline overlay default:** *Style Your HAIR.*
 
-A "flash sheet" featuring devices with classic tattoo treatments:
+**Use for:** Website hero, README header, HACS listing thumbnail, launch announcement, large-format posters, marketing carousel cards.
 
-- TV with a banner reading "MY ONE TRUE LOVE"
-- AC unit with classic roses and "COOL FOREVER"
-- Ceiling fan rendered like a ship's wheel
-- Soundbar with classic swallow birds flanking it
-- Mini-split with a hibiscus flower
-- Projector with a lighthouse beam
-- Remote with a dagger through it reading "FROM YAML"
+### Mode 2: Sailor Jerry Tattoo Flash (Social, Stickers, Posters)
 
-Each device: bold black outlines, flat fills in brand palette, banners and decorative flourishes. Print-ready as posters and stickers.
+**Devices illustrated as American traditional tattoo designs — with photoreal hair as the contrast element.**
 
-**Use for:** Stickers, t-shirts, social posts, secondary marketing, fan art templates.
+Each gallery device gets a tattoo-flash treatment: bold black ink outlines, flat-fill colors in the brand palette, classic decorative flourishes (banners, roses, daggers, swallows, gears, brass plates). **The one element that stays photoreal is the hair.** Inside the flat illustrated device, the hairstyle is rendered with full strand-level texture and natural sheen, so it looks like a real haircut got stamped onto a tattoo. That seam between flat illustration and detailed real hair is the joke.
 
-### Mode 3: Illustrated Barbershop Interiors (In-Product)
+Tattoo flash scene seeds:
 
-**Consistent illustration set for empty states, loading, errors, and success.**
+- HA Yellow with its jet-black pompadour, banner reading "WALK-INS WELCOME"
+- Mini-split AC with handlebar mustache, classic roses, banner reading "COOL & WELL-GROOMED"
+- Soundbar with Fabio mane, two swallows flanking, banner reading "LOUD AND PROUD"
+- Ceiling fan with photoreal pigtails, banner reading "ROUND AND ROUND"
+- Pillar candle with Victorian beard, classic rose, banner reading "BURNS LATE"
+- Projector with pencil mustache, classic dagger, banner reading "DRAMA"
+- TV with photoreal mullet, banner reading "BUSINESS / PARTY"
+- IR remote with photoreal comb-over, dagger through it, banner reading "STILL TICKING"
 
-Devices are *customers at the shop* — not characters with hair, but visitors getting service. The HAIR (the styling, the cut, the magic) is what the shop *provides*.
+**Style rules:**
+- Bold black tattoo outlines on the device
+- Flat fills only in brand palette
+- Hair is photoreal-textured, not flat — full strand detail inside the illustration
+- Banner curls and Sailor Jerry shading on text
+- Steampunk accents (brass plate frame, copper rivets, small gauge) allowed as flourishes
+- One device per design, centered, print-ready
+
+**Use for:** Stickers, posters, social posts, secondary marketing, fan-shareable assets, t-shirt mockups (no merch shipped, but the art reads as merch-ready).
+
+### Mode 3: Illustrated In-Product
+
+**Cleaner, restrained illustrations of the gallery devices for in-product UI states.**
+
+The shop has been quietly cleaning up. Mode 3 illustrations are flatter than Mode 1, simpler than Mode 2, and tuned to sit calmly inside a Home Assistant admin panel without screaming for attention. Devices appear with their signature hair, but the hair is rendered in 2-3 tonal zones (visible strand linework, no full photoreal). Bold black outlines on the device silhouette, finer linework inside the hair. Limited palette: Cream Linen background, Barber Red / Deep Navy / Bone White for the device, Antique Brass / Tobacco Leather for environment accents.
 
 Scene library:
 
 | Surface | Scene |
 |---|---|
-| Empty device list | Interior of the shop, four empty barber chairs facing a mirror. *"Slow day at the shop. Add your first device."* |
-| Add device flow | A device walking through the door, hat in hand. *"Walk-ins welcome. What can we do for you today?"* |
-| Capture in progress | Device in chair, cape on, scissors and comb hovering. Barber pole spins faster. Neon "LISTENING" sign glows. |
-| Capture success | Device admiring itself in the mirror. *"That'll do."* |
-| Capture error | Device in tilted chair, looking confused. Clippers unplugged. *"Something's not right. Take a seat, we'll go again."* |
-| All commands learned | Device walking out the door, head held high. Shop bell rings. *"Come back anytime."* |
-| Settings page | "Back of house" — supply shelves, cabinets, time clock. Neon "STAFF ONLY" sign. |
-| 404 / error | Closed shop, "BE RIGHT BACK" sign in the door. A cat sleeps in the window. |
+| Empty device list | A row of empty barber chairs facing a mirror. A brass pressure gauge on the wall reads "0." *"Slow day at the shop. Add your first device."* |
+| Add device flow | A single device silhouette stepping through the shop door, hairstyle not yet visible. *"Walk-ins welcome. What can we do for you today?"* |
+| Capture in progress | Device in the chair, cape on, brass scissors and comb hovering above it, the pole's spiral mid-rotation. A small "LISTENING" tag hangs from a brass hook. |
+| Capture success | Device facing the mirror, admiring its fresh haircut. *"That'll do."* |
+| Capture error | Device tilted in the chair, comb broken on the floor, a small gear on the floor next to it. *"Something's not right. Take a seat, we'll go again."* |
+| All commands learned | Device walking out the door with its full hairstyle on display, shop bell mid-ring. *"Come back anytime."* |
+| Settings page | "Back of house" — brass tool rack, leather strop, jars of pomade. A small "STAFF ONLY" plate on the door. |
+| 404 / error | Closed shop, "BE RIGHT BACK" hand-painted sign hanging in the door. A cat sleeps on the windowsill next to a brass oil lamp. |
 
-**Style:** Sailor Jerry-style ink lines, flat warm fills in brand palette. One clear visual idea per scene. Not cluttered.
+**Style:** Restrained Sailor Jerry linework + steampunk environment. Flat fills in brand palette. One clear visual idea per scene. Not cluttered. The pole is steampunk-stylized but unmistakable.
 
 **Use for:** All in-product illustrations.
 
@@ -493,10 +431,17 @@ Scene library:
 
 | Surface | Mode |
 |---|---|
-| Marketing hero, README, HACS thumbnail | Mode 1 (Photoreal shop window) |
-| Social, stickers, t-shirts, fan-shareable assets | Mode 2 (Tattoo flash) |
-| In-product UI states | Mode 3 (Illustrated interiors) |
+| Marketing hero, README, HACS thumbnail | Mode 1 (Photoreal hero portrait or family) |
+| Social, stickers, posters, fan-shareable assets | Mode 2 (Tattoo flash with photoreal hair) |
+| In-product UI states | Mode 3 (Illustrated in-product) |
 | Logo marks (everywhere) | Logo system (Section 5) |
+
+### Cross-Mode Consistency Rules
+
+- **The Device Gallery cast is constant across all three modes.** A device's signature hairstyle doesn't change between modes. The HA Yellow's pompadour is a pomp in Mode 1 (photoreal), Mode 2 (illustrated outline with photoreal hair), and Mode 3 (illustrated with simplified strand texture).
+- **The steampunk environment scales with the mode.** Photoreal in Mode 1, decorative accent in Mode 2, restrained background in Mode 3. Never absent.
+- **Sailor Jerry linework is the brand seal.** It overlays photos in Mode 1, defines the device in Mode 2, and outlines everything in Mode 3.
+- **No cyberpunk neon, no tropical motifs, no glowing surfaces.** The shop runs on tungsten and brass.
 
 ---
 
@@ -609,7 +554,7 @@ Discoverable details that turn a brand into a community.
 To clarify the edges:
 
 - **Not corporate.** No SaaS landing page energy. No stock photos.
-- **Not nostalgic LARP.** The cyberpunk neon makes sure we don't read as a Pinterest mood board.
+- **Not nostalgic LARP.** The Device Gallery — photoreal modern devices wearing real human hair — keeps us from reading as a Pinterest mood board. The steampunk and tattoo flash are the costume, not the substance.
 - **Not chaotic.** The system is consistent — the variation lives inside the system, not on top of it.
 - **Not exclusive.** "Walk-ins welcome" means everyone — power users, newcomers, kids running their first HA setup.
 - **Not the salon.** Salon implies precious. We're the barbershop. We work for a living.
@@ -619,24 +564,34 @@ To clarify the edges:
 
 ## 13. Asset Wishlist (To Generate / Commission)
 
-Tracking what we need to actually produce:
+Tracking what we need to actually produce for v2. All v1 / v1.3 assets are considered archive and live under `assets/_archive/`.
 
-### Logo system
-- [ ] Master logo (barber pole + wordmark) — *iterating on prompt now*
-- [ ] Wordmark only
-- [ ] Pole only (favicon-ready)
-- [ ] Shop sign (full "HAIR — IR Stylists" hand-painted)
-- [ ] Tattoo flash mark (single device, secondary)
+### Logo system (v3 prompts in Section 5)
+- [ ] Master logo (steampunk pole + HAIR banner)
+- [ ] Wordmark only (banner)
+- [ ] Pole only (favicon-ready, 16-32px legible)
+- [ ] Shop sign (full "HAIR — IR Stylists" double-banner)
+- [ ] Horizontal lockup (site headers, social cards)
 
-### Marketing
-- [ ] Hero shop window photograph
-- [ ] Tattoo flash sheet (8 devices on one poster)
-- [ ] Sticker pack (single-device tattoos)
-- [ ] One t-shirt design
-- [ ] Social card template
-- [ ] HACS thumbnail
+### Device Gallery hero portraits (Mode 1 — eight needed)
+- [ ] HA Yellow with pompadour *(hero device, ship first)*
+- [ ] Wall-mount AC with handlebar mustache
+- [ ] Soundbar with Fabio mane
+- [ ] Ceiling fan with pigtails
+- [ ] Pillar candle with Victorian beard
+- [ ] Projector with pencil mustache
+- [ ] TV with 1980s mullet
+- [ ] IR remote with comb-over
 
-### In-product
+### Family portrait (Mode 1)
+- [ ] All eight devices lined up on the counter — README header / HACS thumbnail / launch hero
+
+### Tattoo flash (Mode 2)
+- [ ] One flash sheet of all eight devices (poster)
+- [ ] Eight individual sticker designs (one per device)
+- [ ] Social card templates (one per device)
+
+### In-product (Mode 3)
 - [ ] Empty device list illustration
 - [ ] Add device flow illustration
 - [ ] Capture in progress (animated)
@@ -648,7 +603,7 @@ Tracking what we need to actually produce:
 
 ### Type & color
 - [ ] Final wordmark typeface decision
-- [ ] Hex palette tested for accessibility (WCAG AA contrast)
+- [ ] Hex palette tested for accessibility (WCAG AA contrast) — including new metals
 - [ ] Dark mode palette variant
 
 ---
@@ -663,9 +618,10 @@ This document evolves. Track major changes here.
 | v1.1 | 2026-05-08 | **Logo prompt v2 LOCKED.** Updated Section 5 with the canonical master prompt (HAIR-dominant banner, pole as supporting element, tiki + hibiscus base). Added four named variant prompts (Wordmark-Only, Pole-Only, Horizontal Lockup, Shop Sign) for the full asset family. The "BARBER SHOP" subtitle is dropped from the primary mark to keep the wordmark pure. |
 | v1.2 | 2026-05-08 | **Hairy Hank LOCKED as mascot.** Added new Section 5.5 with full character design, locked master prompt, 10-scenario library, wardrobe variants, and usage rules. Hank's hair uses Sailor Jerry tattoo color shading (red→orange→yellow flame) as the default; flame color shifts function as a brand-wide mood indicator across scenarios. Added **Hank Orange (#F28C3F)** to the color palette as the middle band of the flame. AI-generated only, no merch posture confirmed. Pin and pole logo system unchanged — Hank is the *mascot*, the wordmark + pole is the *logo*. |
 | v1.3 | 2026-05-08 | **Hank v8 LOCKED as final mascot.** After 8 iteration rounds, the canonical Hank is locked: middle-aged plastic troll doll with a pronounced receded hairline, towering 65-70%-of-canvas Sailor Jerry flame hair (with fluffy fur strand texture), thin gold wireframe glasses on a bulbous nose, working as a barbershop barber in a tobacco-brown leather smock with brass rivets and a small red "HAIR" patch — dressed underneath like a suburban dad on a Saturday (polo collar, cargo shorts, white New Balance, crew socks all visible peeking around the smock). Three-act visual storytelling: hair = "HOLY HAIR," middle = "he's a barber," bottom = "wait, he's a dad too." All scenarios and wardrobe variants updated to reference v8 as the locked baseline. Created `branding/assets/` folder with README pointing to the canonical reference render. Usage rules expanded to lock the hair-to-body ratio, fur texture, troll face, wireframes, hairline, smock, dad-outfit underneath, and belly-button peek as non-negotiable elements. |
+| **v2.0** | **2026-05-13** | **Brand reset — Steampunk Sailor Jerry Barbershop direction locked.** Hairy Hank is retired (archived to `assets/_archive/`). Tiki and cyberpunk are dropped entirely. Steampunk joins as an equal partner to Sailor Jerry tattoo flash. The new central concept is **"hair on things"** — photoreal human hairstyles grafted onto IR-controllable devices, with the Device Gallery (Section 5.5) as the recurring ensemble cast in place of a single mascot. Eight archetypes locked: HA Yellow (pompadour), wall AC (handlebar mustache), soundbar (Fabio mane), ceiling fan (pigtails), pillar candle (Victorian beard), projector (pencil mustache), TV (mullet), IR remote (comb-over). Logo system rewritten: barber pole reframed as brass-and-glass steampunk apparatus on a riveted brass plinth, no tiki base. Color palette refreshed: dropped Neon Pink, Electric Cyan, Tiki Wood, Hank Orange, Sailor Jerry Yellow; added Antique Brass, Oxidized Copper, Gunmetal, Oxblood, Tobacco Leather. Visual modes rewritten with explicit photoreal-vs-illustrated juxtaposition rules so the three modes stay coherent. Previous guide archived to `brand-guide-v1.3-archive.md`. |
 
 ---
 
-*Branding by David Bailey. Opinions by an old-school barber who's been to the future.*
+*Branding by David Bailey. Opinions by an old-school barber who runs the only shop in town that does mini-splits.*
 
 *Walk-ins welcome.*

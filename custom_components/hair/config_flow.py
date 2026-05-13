@@ -71,7 +71,7 @@ class HAIRConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         return self.async_create_entry(
-            title="IR Devices",
+            title="HAIR",
             data={},
             options={
                 CONF_CAPTURE_TIMEOUT: DEFAULT_CAPTURE_TIMEOUT,
