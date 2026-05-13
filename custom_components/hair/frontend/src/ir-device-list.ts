@@ -37,6 +37,10 @@ const DEVICE_TYPE_LABELS: Record<DeviceTypeId, string> = {
     other: "IR Device",
 };
 
+// MDI: remote (devices header icon)
+const ICON_DEVICES =
+    "M12,0C8.96,0 6.21,1.23 4.22,3.22L5.63,4.63C7.26,3 9.5,2 12,2C14.5,2 16.74,3 18.36,4.64L19.78,3.22C17.79,1.23 15.04,0 12,0M7.05,6.05L8.46,7.46C9.37,6.56 10.62,6 12,6C13.38,6 14.63,6.56 15.54,7.46L16.95,6.05C15.68,4.78 13.93,4 12,4C10.07,4 8.32,4.78 7.05,6.05M12,15A2,2 0 0,1 10,13A2,2 0 0,1 12,11A2,2 0 0,1 14,13A2,2 0 0,1 12,15M15,9H9A1,1 0 0,0 8,10V22A1,1 0 0,0 9,23H15A1,1 0 0,0 16,22V10A1,1 0 0,0 15,9Z";
+
 // MDI: access-point (antenna icon) for emitters
 const ICON_EMITTER =
     "M12,10A2,2 0 0,1 14,12C14,12.5 13.82,12.95 13.53,13.29L16.7,16.46C17.5,15.26 18,13.71 18,12A6,6 0 0,0 12,6A6,6 0 0,0 6,12C6,13.71 6.5,15.26 7.3,16.46L10.47,13.29C10.18,12.95 10,12.5 10,12A2,2 0 0,1 12,10M12,2A10,10 0 0,0 2,12C2,15.07 3.18,17.85 5.09,19.91L7.5,17.5C6.19,15.89 5.5,14 5.5,12A6.5,6.5 0 0,1 12,5.5A6.5,6.5 0 0,1 18.5,12C18.5,14 17.81,15.89 16.5,17.5L18.91,19.91C20.82,17.85 22,15.07 22,12A10,10 0 0,0 12,2Z";
@@ -214,9 +218,12 @@ export class IrDeviceList extends LitElement {
             <!-- Devices -->
             ${hasDevices
                 ? html`
-                      <div class="section-header">
-                          <h2>Devices</h2>
-                          <span class="section-count">${this.devices.length}</span>
+                      <div class="toolbar">
+                          <span class="toolbar-title">
+                              <ha-svg-icon .path=${ICON_DEVICES}></ha-svg-icon>
+                              HAIR Devices
+                              <span class="toolbar-count">(${this.devices.length})</span>
+                          </span>
                       </div>
                       <div class="grid">
                           ${this.devices.map(
@@ -412,6 +419,33 @@ export class IrDeviceList extends LitElement {
             color: var(--primary-text-color);
         }
 
+        /* --- Devices toolbar (matches sniffer) --- */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .toolbar-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--primary-text-color);
+        }
+        .toolbar-title ha-svg-icon {
+            --mdc-icon-size: 24px;
+            color: var(--primary-color);
+        }
+        .toolbar-count {
+            font-weight: 400;
+            color: var(--secondary-text-color);
+            font-size: 0.9rem;
+        }
+
         /* --- Section headers (neutral) --- */
         .section-header {
             display: flex;
@@ -459,8 +493,7 @@ export class IrDeviceList extends LitElement {
         }
         .card:hover,
         .card:focus-visible {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+            background: var(--secondary-background-color);
             outline: none;
         }
         .card-header {

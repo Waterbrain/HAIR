@@ -331,18 +331,11 @@ export class IrDeviceDetail extends LitElement {
                               </h1>
                           `}
                 </div>
-                <div class="header-actions">
-                    <button
-                        class="action-btn collapse-btn"
-                        @click=${() => this.dispatchEvent(new CustomEvent("collapse", { bubbles: true, composed: true }))}
-                        title="Close"
-                    >&#x2715;</button>
-                    <button
-                        class="action-btn delete-btn"
-                        @click=${() => (this._confirmDelete = true)}
-                        ?disabled=${this._busy}
-                    >Delete</button>
-                </div>
+                <button
+                    class="action-btn collapse-btn"
+                    @click=${() => this.dispatchEvent(new CustomEvent("collapse", { bubbles: true, composed: true }))}
+                    title="Close"
+                >&#x2715;</button>
             </section>
 
             <!-- Device metadata grid -->
@@ -396,12 +389,17 @@ export class IrDeviceDetail extends LitElement {
                     : html`<div class="empty">No commands yet. Add one below.</div>`}
             </ha-card>
 
-            <div class="custom-add">
+            <div class="footer-actions">
                 <button
                     class="action-btn"
                     @click=${this._goToSniffer}
                     ?disabled=${this._busy}
                 >+ Add Command</button>
+                <button
+                    class="action-btn delete-btn"
+                    @click=${() => (this._confirmDelete = true)}
+                    ?disabled=${this._busy}
+                >Delete Device</button>
             </div>
 
             <!-- Dialogs -->
@@ -499,9 +497,9 @@ export class IrDeviceDetail extends LitElement {
             width: 100%;
             padding: 0 0 2px;
         }
-        .header-actions {
-            display: flex;
-            gap: 6px;
+        .header .action-btn.collapse-btn {
+            flex-shrink: 0;
+            align-self: center;
         }
 
         /* --- Metadata grid --- */
@@ -590,7 +588,10 @@ export class IrDeviceDetail extends LitElement {
             font-style: italic;
             padding: 12px 0;
         }
-        .custom-add {
+        .footer-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin: 16px 0;
         }
 
