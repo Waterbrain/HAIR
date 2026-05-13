@@ -1,73 +1,114 @@
-# HAIR - Home Assistant IR Device Manager
+# HAIR - Home Assistant IR
 
-A custom Home Assistant integration that provides a unified admin interface for infrared (IR) device management. Built on HA's native infrared platform (2026.4+), HAIR acts as the management layer for capturing, organizing, and controlling IR commands through a polished UI.
+A custom Home Assistant integration that provides a full admin interface for infrared device management. Built on HA's native `infrared` platform (2026.4+), HAIR handles capturing, organizing, and controlling IR commands through a single panel.
 
-No YAML required. Works with any IR proxy (ESPHome, Broadlink, etc.).
+No YAML. No code. Works with any IR proxy hardware (ESPHome, Broadlink, etc.).
+
+## Features
+
+**Signal Sniffer** - Real-time IR signal monitor that captures and fingerprints every IR transmission your receivers pick up. Signals are grouped by source device, deduplicated, and tracked with hit counts and timing.
+
+**Device Management** - Create profiles for your IR-controlled devices (TVs, ACs, soundbars, projectors, fans). Assign captured signals as named commands. Each device gets HA entities automatically.
+
+**Multi-Emitter TX** - Assign one or more IR emitters to each device. Commands broadcast to all assigned emitters simultaneously, so a single "TV Power" button can fire through emitters in multiple rooms.
+
+**Command Templates** - Guided setup suggests which commands to capture based on device type, so you don't have to guess naming conventions.
+
+**Entity Platforms** - Devices automatically get native HA entities based on their type:
+
+| Type | HA Entity | Controls |
+|------|-----------|----------|
+| TV | `media_player` | Power, volume, mute, source select |
+| AC | `climate` | HVAC modes, temperature presets, fan modes |
+| Soundbar | `media_player` | Power, volume, mute |
+| Projector | `media_player` | Power, volume, source select |
+| Fan | `fan` | Power, speed stepping, oscillate |
+| Other | `remote` | Generic IR command sender |
+
+All devices also get `button` entities (one per learned command) and a `remote` entity as a fallback for sending arbitrary Pronto hex codes.
 
 ## Requirements
 
-- Home Assistant 2026.4 or later
+- Home Assistant **2026.4** or later
 - Python 3.12+
-- At least one IR transmitter/receiver (ESPHome, Broadlink, or compatible hardware)
+- At least one IR transmitter or receiver (ESPHome, Broadlink, or compatible hardware)
 
 ## Installation
 
 ### HACS (Recommended)
 
 1. Open HACS in your Home Assistant instance
-2. Go to Integrations
-3. Click the three-dot menu and select "Custom repositories"
-4. Add `https://github.com/DAB-LABS/HAIR` as an Integration
+2. Go to **Integrations**
+3. Click the three-dot menu > **Custom repositories**
+4. Add `https://github.com/DAB-LABS/HAIR` with category **Integration**
 5. Search for "HAIR" and install
 6. Restart Home Assistant
 
 ### Manual
 
-1. Copy `custom_components/hair` into your HA `custom_components` directory
+1. Copy `custom_components/hair` into your HA `custom_components/` directory
 2. Restart Home Assistant
 
 ## Setup
 
-1. Go to Settings > Devices & Services
-2. Click "Add Integration" and search for "HAIR"
-3. The config flow auto-detects your IR hardware
-4. Once added, find "IR Devices" in the sidebar
+1. Go to **Settings > Devices & Services**
+2. Click **Add Integration** and search for "HAIR"
+3. The config flow auto-detects your IR hardware (emitters and receivers)
+4. Once added, find **HAIR** in the sidebar
 
-## What It Does
+## How It Works
 
-HAIR sits between you and HA's IR platform. It does not replace your IR hardware integrations (Broadlink, ESPHome, etc.). It complements them by providing the admin experience those integrations lack.
+HAIR sits between you and HA's IR platform. It does not replace your IR hardware integrations. It complements them by providing the admin experience those integrations lack.
 
-**Device management** - Create profiles for your IR-controlled devices (TVs, ACs, soundbars, projectors, fans). Each device gets its own set of learned IR commands.
-
-**Command capture** - Point-and-shoot IR learning with real-time feedback. Aim your remote at the receiver and press a button. HAIR captures the signal and saves it.
-
-**Entity creation** - Devices automatically get HA entities. A TV becomes a media_player with volume, power, and source control. An AC becomes a climate entity with preset-based temperature control.
-
-**Command templates** - Guided setup suggests which commands to capture based on device type, so you do not have to guess what to name things.
-
-## Supported Device Types
-
-| Type | HA Entity | Features |
-|------|-----------|----------|
-| TV | media_player | Power, volume, mute, source select |
-| AC | climate | HVAC modes, temperature presets, fan modes |
-| Soundbar | media_player | Power, volume, mute |
-| Projector | media_player | Power, volume, source select |
-| Fan | fan | Power, speed stepping, oscillate |
-| Other | remote | Generic IR command sender |
-
-All devices also get a `remote` entity as a fallback for sending arbitrary commands.
-
-## Capture Providers
+### Capture Providers
 
 HAIR discovers capture-capable hardware automatically:
 
 - **ESPHome** - Devices with `remote_receiver` component
 - **Broadlink** - RM series devices
 
+### Signal Fingerprinting
+
+Captured IR signals are converted to Pronto hex and fingerprinted using pulse-duration analysis. This produces a short/long (S/L) pattern that identifies the signal regardless of minor timing variations between presses.
+
+### Architecture
+
+```
+Remote Control
+      |
+  IR Receiver (ESPHome / Broadlink)
+      |
+  HA Event Bus (ir_command_captured)
+      |
+  HAIR Signal Monitor --> Signal Store (fingerprint + dedup)
+      |
+  HAIR Admin Panel (Sniffer view)
+      |
+  Assign to Device --> Device Manager --> Entity Factory
+      |
+  HA Entities (media_player, climate, fan, remote, button)
+      |
+  IR Emitter (infrared.send_command) --> Hardware TX
+```
+
+## Configuration
+
+After installation, HAIR has two configurable options (Settings > Devices & Services > HAIR > Configure):
+
+- **Capture timeout** - How long to wait for an IR signal during capture (5-60 seconds, default 15)
+- **Default repeat count** - Number of times to repeat each IR transmission (1-10, default 3)
+
 ## Development
 
 ```bash
+# Clone the repo
+git clone https://github.com/DAB-LABS/HAIR.git
+cd HAIR
+
+# Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
 # Install dev dependencies
 pip install -e ".[test,lint]"
 
@@ -77,6 +118,10 @@ pytest
 # Lint
 ruff check .
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
