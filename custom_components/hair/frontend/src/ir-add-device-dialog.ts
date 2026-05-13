@@ -1,9 +1,10 @@
 /**
- * Dialog for adding a new IR device.
+ * Simplified dialog for adding a new IR device.
  *
- * Auto-detects available emitters (entities in the `infrared` domain)
- * and capture providers (via `hair/capture/providers`) and lets the
- * user pick from the discovered hardware.
+ * Collects name, device type, and emitter selection.
+ * Brand, model, and capture provider can be edited in the
+ * device detail view after creation.  Capture provider is
+ * auto-selected (first available) behind the scenes.
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
@@ -30,11 +31,8 @@ export class IrAddDeviceDialog extends LitElement {
     @property({ attribute: false }) public hass: any;
 
     @state() private _name = "";
-    @state() private _manufacturer = "";
-    @state() private _model = "";
     @state() private _deviceType: DeviceTypeId = "tv";
     @state() private _emitterIds: string[] = [];
-    @state() private _captureProviderId: string | null = null;
     @state() private _captureProviders: CaptureProviderInfo[] = [];
     @state() private _busy = false;
     @state() private _error: string | null = null;
@@ -47,13 +45,8 @@ export class IrAddDeviceDialog extends LitElement {
     private async _loadCaptureProviders() {
         try {
             this._captureProviders = await this.api.listCaptureProviders();
-            if (this._captureProviders.length === 1) {
-                this._captureProviderId = this._captureProviders[0].device_id;
-            }
-        } catch (err) {
-            this._error = `Could not load capture providers: ${
-                (err as Error).message
-            }`;
+        } catch {
+            // Non-fatal -- device can still be created without a capture provider.
         }
     }
 
@@ -76,16 +69,13 @@ export class IrAddDeviceDialog extends LitElement {
         this._busy = true;
         this._error = null;
         try {
-            const provider = this._captureProviders.find(
-                (p) => p.device_id === this._captureProviderId,
-            );
+            // Auto-select the first capture provider if available.
+            const provider = this._captureProviders[0] ?? null;
             const created: IRDevice = await this.api.createDevice({
                 name: this._name.trim(),
                 device_type: this._deviceType,
                 emitter_entity_ids: this._emitterIds,
-                manufacturer: this._manufacturer.trim() || null,
-                model: this._model.trim() || null,
-                capture_device_id: this._captureProviderId,
+                capture_device_id: provider?.device_id ?? null,
                 capture_provider_type: provider?.type ?? "esphome",
             });
             this.dispatchEvent(
@@ -106,13 +96,22 @@ export class IrAddDeviceDialog extends LitElement {
         return html`
             <ha-dialog
                 open
-                heading="Add IR Device"
+                heading="Add Device"
                 scrimClickAction=""
                 @closed=${this._close}
             >
                 ${this._error
                     ? html`<ha-alert alert-type="error">${this._error}</ha-alert>`
                     : ""}
+
+                <ha-textfield
+                    label="Name"
+                    .value=${this._name}
+                    required
+                    dialogInitialFocus
+                    @input=${(e: Event) =>
+                        (this._name = (e.target as HTMLInputElement).value)}
+                ></ha-textfield>
 
                 <div class="field">
                     <label>Device type</label>
@@ -135,28 +134,6 @@ export class IrAddDeviceDialog extends LitElement {
                     </select>
                 </div>
 
-                <ha-textfield
-                    label="Name"
-                    .value=${this._name}
-                    required
-                    @input=${(e: Event) =>
-                        (this._name = (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-
-                <ha-textfield
-                    label="Brand (optional)"
-                    .value=${this._manufacturer}
-                    @input=${(e: Event) =>
-                        (this._manufacturer = (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-
-                <ha-textfield
-                    label="Model (optional)"
-                    .value=${this._model}
-                    @input=${(e: Event) =>
-                        (this._model = (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
-
                 <ir-emitter-picker
                     .hass=${this.hass}
                     .value=${this._emitterIds}
@@ -164,39 +141,6 @@ export class IrAddDeviceDialog extends LitElement {
                     @emitters-changed=${(e: CustomEvent) =>
                         (this._emitterIds = e.detail.value)}
                 ></ir-emitter-picker>
-
-                <div class="field">
-                    <label>IR receiver (learns commands)</label>
-                    ${this._captureProviders.length === 0
-                        ? html`<ha-alert alert-type="info">
-                              No capture-capable devices detected. You can
-                              still create the device and add commands by
-                              importing them later.
-                          </ha-alert>`
-                        : html`
-                              <select
-                                  .value=${this._captureProviderId ?? ""}
-                                  @change=${(e: Event) =>
-                                      (this._captureProviderId =
-                                          (e.target as HTMLSelectElement)
-                                              .value || null)}
-                              >
-                                  <option value="">None (no learning)</option>
-                                  ${this._captureProviders.map(
-                                      (p) => html`
-                                          <option
-                                              value=${p.device_id}
-                                              ?selected=${this
-                                                  ._captureProviderId ===
-                                              p.device_id}
-                                          >
-                                              ${p.name} (${p.type})
-                                          </option>
-                                      `,
-                                  )}
-                              </select>
-                          `}
-                </div>
 
                 <mwc-button
                     slot="secondaryAction"
