@@ -17,28 +17,22 @@ The product gives every IR device in your home the control (and personality) it'
 
 ---
 
-## 2. Aesthetic Direction — "Steampunk Sailor Jerry Barbershop"
+## 2. Aesthetic Direction — "Neo-Tiki Barbershop"
 
-Sailor Jerry tattoo flash × Victorian-industrial steampunk × classic barbershop ritual × *hair on things you would never expect to have hair*.
+Sailor Jerry tattoo flash × cyberpunk neon × tiki warmth × classic barbershop ritual.
 
-A turn-of-the-century barbershop with brass fittings, pneumatic tubes, and gauges that nobody understands anymore. Nobody works there. The chairs are full anyway — full of your TV, your AC, your candle, your Home Assistant box — and every single customer is walking out with a haircut.
+A 1940s American barbershop and a Hong Kong night market had a baby in a Bali surf shack. Then it grew up watching Blade Runner. That's the visual world.
 
-**The three ingredients and one punchline:**
+**The four ingredients:**
 
 | Element | What it brings |
 |---|---|
-| **Sailor Jerry** | Bold black linework, limited flat-color palette, banners, swallows, daggers, roses, the timeless tattoo-flash craft layered over everything |
-| **Steampunk** | Brass and copper, exposed rivets, pneumatic tubes, pressure gauges, polished wood, oxidized metal, leather straps, oil-lamp warmth, mechanical gears, the sense that this technology is built to last 100 years |
-| **Barbershop** | The pole, the chair, the mirror, the towel, the comb-and-shears ritual, "walk-ins welcome" — the working-class craft tradition |
-| **Hair on things** *(the punchline)* | Photoreal human hairstyles grafted onto IR-controllable devices. A pompadour on a Home Assistant Yellow. A handlebar mustache on a wall-mount AC. A Victorian beard on a candle. The HAIR shop styles your hardware. |
+| **Sailor Jerry** | Bold black linework, limited palette, nautical/floral motifs, timeless craft, swallows and hibiscus and banners |
+| **Cyberpunk** | Neon glow accents, holographic shimmer, the signal that this is *technology*, the night-shop atmosphere |
+| **Tiki** | Carved wood textures, hibiscus and banana leaves, warmth, a sense of *place* — your home, hanging out |
+| **Barbershop** | The pole, the chairs, the mirrors, the ritual of the visit, "walk-ins welcome" |
 
-Together it reads as: **crafted, confident, a little weird, definitely not corporate, the only barbershop in town that does mini-splits.**
-
-### The Core Concept — "We Put Hair on Things"
-
-The brand name is HAIR. The product makes your IR devices controllable. The shop **gives every device a haircut**. That's the joke, the promise, and the visual hook in one.
-
-Every recurring brand surface answers the question *"what's getting hair today?"* — and the answer is whatever IR-controllable thing makes the joke land hardest. Anything you'd point a remote at is on the menu. The hair is real-looking. The device is real-looking. The collision is the brand.
+Together it reads as: **crafted, confident, a little dangerous, definitely not corporate, made by someone who gives a damn.**
 
 ---
 
@@ -121,51 +115,51 @@ Confident, brief, doesn't waste words. Has seen everything. Slightly tattooed. H
 
 ## 5. Visual Identity — The Logo System
 
-### The Master Brand Mark: The Pneumatic Barber Pole
+### The Master Brand Mark: The Barber Pole
 
-The **barber pole** is the brand mark. Iconic, scales to a favicon, recognizable across cultures, stable enough that AI image models render it consistently. For HAIR v2 the pole is reframed as a **brass-and-glass steampunk apparatus**: the classic red/white/navy spiral now lives inside a copper-banded glass cylinder, the cap and finial are oxidized brass instead of chrome, and the whole thing sits on a riveted brass plinth with a small pressure gauge at the base. It looks like something a barber commissioned a watchmaker to build in 1898.
+The **barber pole** is the brand mark. Iconic, scales to a favicon, instantly recognizable across cultures, and stable enough that AI image models render it consistently.
 
 We use a **prompt-standardized, run-variable** approach: every logo asset is generated from the same master prompt family. We accept variation between runs as part of the brand — controlled inconsistency, unified by the prompt.
 
-### Master Logo Prompt (v3 — LOCKED 2026-05-13)
+### Master Logo Prompt (v2 — LOCKED 2026-05-08)
 
 This is the canonical prompt for the primary HAIR brand mark. All logo assets in the family are generated from this prompt or one of its named variants below.
 
-> A Sailor Jerry American traditional tattoo flash design on a cream textured background with subtle aged paper grain. A steampunk barber pole stands vertically at the center — red, white, and navy spiral stripes inside a polished glass cylinder banded with three horizontal copper rings. The pole has an oxidized brass cap on top with a small round pressure gauge set into it, and a matching brass finial below. The cylinder is mounted onto a riveted brass plinth at the base, with two thin copper pipes curving out and away from the plinth like exhaust tubing. A small pressure gauge with a black needle is fitted to the side of the plinth. The pole is wrapped diagonally by a large, dominant cream-colored ribbon banner that takes up the central 50% of the composition. The banner reads "HAIR" in oversized bold serif tattoo-style letterforms — letters tall, thick, deep red with black outlines and subtle drop shadow, filling the entire banner. No subtitle, no secondary text. The banner has classic Sailor Jerry shading and curls at each end. Bold black tattoo-style outlines throughout. Palette: cream, deep red, navy blue, bone white, antique brass, oxidized copper, gunmetal accents. No green, no pink, no neon. Centered vertical composition.
+> A Sailor Jerry American traditional tattoo flash design on a cream textured background. A traditional barber pole stands vertically — red, white, and navy spiral stripes in a glass cylinder, chrome cap and finial top, with hot pink and electric cyan neon glow along its edges. The pole is wrapped diagonally by a large, dominant cream-colored ribbon banner that takes up the central 50% of the composition. The banner reads "HAIR" in oversized bold serif tattoo-style letterforms — letters tall, thick, deep red with black outlines and subtle drop shadow, filling the entire banner. No subtitle, no secondary text. The banner has classic Sailor Jerry shading and curls at each end. Below the pole sits a carved wooden tiki totem with hibiscus flowers and ocean teal leaves on either side. Bold black outlines throughout. Palette: cream, deep red, navy blue, ocean teal, hot pink and cyan neon. Centered composition.
 
-**Why this prompt won the v2 → v3 iteration:**
-- Pole reframed as Victorian-industrial apparatus — brass, copper, glass, gauges, rivets
-- Tiki and hibiscus base dropped entirely, replaced with a riveted brass plinth and exhaust copper tubing
-- Cyberpunk neon dropped — the warm metals carry the contrast against the cream background
-- HAIR wordmark still dominates ~50% of vertical real estate (the banner remains the focal point)
-- The pole still reads instantly as a barber pole; the steampunk treatment is the period costume, not a reskin
+**Why this prompt won the v1 → v2 iteration:**
+- HAIR wordmark dominates ~50% of vertical real estate (was ~15% in v1)
+- Banner is the focal point with classic tattoo-style curls and shading
+- Pole peeks through purposefully — supporting, not competing
+- Tiki + hibiscus stays grounded as the base
+- Cyberpunk neon glow reads cleanly against the warm palette
+- "BARBER SHOP" subtitle dropped to keep the wordmark pure
 
 ### Logo Variant Prompts (Same Brand, Different Asset)
 
 Each variant starts from the master prompt, with the noted modifications:
 
 **Variant A — Wordmark-Only (cramped surfaces, headers)**
-> [Master prompt] — but remove the entire barber pole, the brass plinth, the copper tubing, and the pressure gauges. Show only the cream-colored ribbon banner with "HAIR" in oversized bold serif tattoo-style letterforms, deep red with black outlines and drop shadow, on a cream textured background. Sailor Jerry shading and ribbon curls at each end. Optionally, two small brass rivets at each end of the banner where it would be tacked to a wall. No other elements.
+> [Master prompt] — but remove the barber pole, the tiki totem, and the hibiscus flowers. Show only the cream-colored ribbon banner with "HAIR" in oversized bold serif tattoo-style letterforms, deep red with black outlines and drop shadow, on a cream textured background. Sailor Jerry shading and ribbon curls at each end. No other elements.
 
 **Variant B — Pole-Only (favicon, app icon, sidebar icon)**
-> [Master prompt] — but remove the ribbon banner and the "HAIR" wordmark entirely. Show only the steampunk barber pole: red, white, and navy spiral stripes inside a polished glass cylinder banded with three copper rings, oxidized brass cap with a small pressure gauge set into it, brass finial below, mounted on a small riveted brass plinth. Two short copper pipes curving out from the plinth. Bold black tattoo-style outlines. Cream textured background. Centered, vertical composition. Designed to read clearly at favicon and 32px sizes — keep details simple, silhouette legible.
+> [Master prompt] — but remove the ribbon banner and the "HAIR" wordmark entirely. Show only the traditional barber pole with red, white, and navy spiral stripes, chrome cap and finial, hot pink and cyan neon glow along its edges, sitting on a small carved tiki totem base with hibiscus flowers and ocean teal leaves on either side. Bold black outlines. Cream textured background. Centered, vertical composition. Designed to read clearly at small sizes.
 
 **Variant C — Horizontal Lockup (site headers, email signatures, social cards)**
-> A Sailor Jerry American traditional tattoo flash design on a cream textured background, in a wide horizontal composition. On the left, a large cream-colored ribbon banner reads "HAIR" in oversized bold serif tattoo-style letterforms — deep red with black outlines and drop shadow, classic Sailor Jerry shading and curls at each end. On the right, a steampunk barber pole stands vertically: red, white, and navy spiral stripes inside a polished glass cylinder banded with three copper rings, oxidized brass cap with a small pressure gauge on top, brass finial below, mounted on a riveted brass plinth with copper exhaust tubing curving away. Bold black tattoo-style outlines throughout. Palette: cream, deep red, navy blue, bone white, antique brass, oxidized copper, gunmetal accents.
+> A Sailor Jerry American traditional tattoo flash design on a cream textured background, in a wide horizontal composition. On the left, a large cream-colored ribbon banner reads "HAIR" in oversized bold serif tattoo-style letterforms — deep red with black outlines and drop shadow, classic Sailor Jerry shading and curls at each end. On the right, a traditional barber pole with red, white, and navy spiral stripes glows softly with hot pink and electric cyan neon, mounted on a small carved tiki totem base flanked by hibiscus flowers and ocean teal leaves. Bold black outlines throughout. Palette: cream, deep red, navy blue, ocean teal, hot pink and cyan neon.
 
 **Variant D — Shop Sign (full "HAIR — IR Stylists" version, formal contexts)**
-> [Master prompt] — but add a smaller secondary banner curling beneath the main "HAIR" banner, reading "IR STYLISTS" in stencil-style condensed lettering. Both banners cream-colored, both with Sailor Jerry shading and curls. The pole is mostly hidden behind the two banners — only the brass cap and the pressure gauge peek out at the top, only the brass plinth and copper tubing show at the bottom.
+> [Master prompt] — but add a smaller secondary banner curling beneath the main "HAIR" banner, reading "IR STYLISTS" in stencil-style condensed lettering. Both banners cream-colored, both with Sailor Jerry shading and curls. The pole is mostly hidden behind the two banners. Tiki and hibiscus remain at the base.
 
 ### Prompt Modifier Library (Optional Variations)
 
 Append any of these to a base prompt for occasional thematic variations while staying on-brand:
 
-- *"...with a small dagger tattoo crossing behind the pole"*
-- *"...with a single swallow tattoo perched on top of the brass cap"*
-- *"...with the pressure gauge needle pegged into the red zone"*
-- *"...with a small American traditional rose at the base of the banner"*
-- *"...with a wisp of steam curling from the top of the brass cap"*
-- *"...with the spiral stripes rendered as if mid-rotation, slightly motion-blurred"*
+- *"...with a small lightning bolt detail at the top of the pole"*
+- *"...with a hibiscus flower replacing the top finial"*
+- *"...with subtle holographic chrome shimmer on the spiral"*
+- *"...with banana leaves framing the base"*
+- *"...with a small swallow tattoo perched on top"*
 
 ### Logo Asset Family
 
@@ -173,21 +167,21 @@ Five marks, all generated from the prompt family above:
 
 | # | Asset | Use |
 |---|---|---|
-| 1 | **Primary logo** | Steampunk pole + HAIR wordmark on banner — main brand mark |
-| 2 | **Wordmark only** | "HAIR" tattoo-flash banner alone — when the pole would be redundant |
-| 3 | **Pole only** | Standalone pneumatic pole — favicon, app icon, sidebar icon in HA |
-| 4 | **Shop sign** | Full "HAIR — IR Stylists" double-banner version — site headers |
-| 5 | **Tattoo flash mark** | A single device-with-hair tattoo design — stickers, social secondary |
+| 1 | **Primary logo** | Barber pole + HAIR wordmark on banner — main brand mark |
+| 2 | **Wordmark only** | "HAIR" in vintage barbershop serif — when the pole would be redundant |
+| 3 | **Pole only** | Standalone pole — favicon, app icon, sidebar icon in HA |
+| 4 | **Shop sign** | Full "HAIR — IR Stylists" hand-painted sign — site headers, merch |
+| 5 | **Tattoo flash mark** | A single device-as-tattoo design — stickers, social secondary |
 
 ### Logo Placement Rules
 
 - Always allow generous breathing room (logo height of clear space on all sides)
 - Never recolor outside the brand palette
 - Never stretch or distort
-- Acceptable on: cream, bone white, deep navy, weathered-paper backgrounds
-- Avoid on: busy photographs, brand red (clashes with pole), any green, any neon
+- Acceptable on: cream, bone white, deep navy backgrounds
+- Avoid on: busy photographs, brand red (clashes with pole), any green
 - Minimum size: 32px tall for digital, 0.5 inch for print
-- For favicon use: simplified pole-only version — drop the side gauge and tubing if they don't read at 16px
+- For favicon use: simplified pole-only version, no wordmark
 
 ---
 
