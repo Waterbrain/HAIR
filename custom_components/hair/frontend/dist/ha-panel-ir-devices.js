@@ -46,9 +46,11 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
             gap: 12px;
             padding: 10px 12px;
             border-bottom: 1px solid var(--divider-color);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
         }
         .row:last-child {
             border-bottom: none;
+            box-shadow: none;
         }
         .row[data-learned="false"] {
             background: var(--secondary-background-color);
@@ -777,7 +779,7 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             z-index: 100;
         }
-    `,e([pe({attribute:!1})],fe.prototype,"api",void 0),e([pe({attribute:!1})],fe.prototype,"hass",void 0),e([pe({attribute:!1})],fe.prototype,"device",void 0),e([ue()],fe.prototype,"_busy",void 0),e([ue()],fe.prototype,"_captureName",void 0),e([ue()],fe.prototype,"_toast",void 0),e([ue()],fe.prototype,"_confirmDelete",void 0),e([ue()],fe.prototype,"_commandToDelete",void 0),e([ue()],fe.prototype,"_editingName",void 0),e([ue()],fe.prototype,"_draftName",void 0),fe=e([ce("ir-device-detail")],fe);const $e={tv:"M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z",ac:"M11,21H13V11.85L14.6,13.5L16,12.05L12,8L8,12.05L9.4,13.5L11,11.85V21M2,3V11C2,12.66 5.69,14 12,14C18.31,14 22,12.66 22,11V3H2M4,5H20V8.5C18.5,9.27 15.6,10 12,10C8.4,10 5.5,9.27 4,8.5V5Z",fan:"M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.95 8.94,2 12.5,2Z",soundbar:"M16,4V8H8V4H16M3,9V14H21V9H3M2,16C2,17.1 2.9,18 4,18H20C21.1,18 22,17.1 22,16V8C22,6.89 21.1,6 20,6H4C2.89,6 2,6.89 2,8V16Z",projector:"M4,5A2,2 0 0,0 2,7V17A2,2 0 0,0 4,19H10V21H14V19H20A2,2 0 0,0 22,17V7A2,2 0 0,0 20,5H4M14,8A4,4 0 0,1 18,12A4,4 0 0,1 14,16A4,4 0 0,1 10,12A4,4 0 0,1 14,8M5,9A1,1 0 0,1 6,10A1,1 0 0,1 5,11A1,1 0 0,1 4,10A1,1 0 0,1 5,9M14,10A2,2 0 0,0 12,12A2,2 0 0,0 14,14A2,2 0 0,0 16,12A2,2 0 0,0 14,10Z",other:"M11,2A2,2 0 0,0 9,4V8H4A2,2 0 0,0 2,10V13A2,2 0 0,0 4,15H5V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V15H20A2,2 0 0,0 22,13V10A2,2 0 0,0 20,8H15V4A2,2 0 0,0 13,2H11Z"},xe={tv:"TV",ac:"Air Conditioner",fan:"Fan",soundbar:"Soundbar",projector:"Projector",other:"IR Device"};let we=class extends re{constructor(){super(...arguments),this.devices=[],this.loading=!1,this.expandedDeviceId=null,this._emitters=[],this._captureProviders=[],this._expandedDevice=null}connectedCallback(){super.connectedCallback(),this._discoverHardware()}updated(e){(e.has("hass")||e.has("api"))&&this._discoverHardware(),e.has("expandedDeviceId")&&this._loadExpandedDevice()}async _loadExpandedDevice(){if(this.expandedDeviceId&&this.api)try{this._expandedDevice=await this.api.getDevice(this.expandedDeviceId)}catch{this._expandedDevice=null}else this._expandedDevice=null}async _onExpandedDeviceChanged(){await this._loadExpandedDevice(),this.dispatchEvent(new CustomEvent("device-changed",{bubbles:!0,composed:!0}))}_onExpandedDeviceDeleted(){this.dispatchEvent(new CustomEvent("device-deleted",{bubbles:!0,composed:!0}))}_onCollapse(){this.dispatchEvent(new CustomEvent("device-selected",{detail:this.expandedDeviceId,bubbles:!0,composed:!0}))}async _discoverHardware(){const e=this.hass?.states??{},t=[];for(const[i,s]of Object.entries(e))i.startsWith("infrared.")&&t.push({entity_id:i,name:s.attributes.friendly_name??i});if(this._emitters=t,this.api)try{this._captureProviders=await this.api.listCaptureProviders()}catch{}}_select(e){this.dispatchEvent(new CustomEvent("device-selected",{detail:e,bubbles:!0,composed:!0}))}_add(){this.dispatchEvent(new CustomEvent("add-device",{bubbles:!0,composed:!0}))}_navigateIntegration(e){const t=`/config/integrations/integration/${e}`;window.history.pushState(null,"",t),window.dispatchEvent(new PopStateEvent("popstate"))}_emitterIntegrationDomain(e){const t=this.hass?.entities?.[e];return t?.platform?t.platform:e.split(".")[0]}_getEmitterDeviceIds(){const e=new Set;for(const t of this._emitters){const i=this.hass?.entities?.[t.entity_id];i?.device_id&&e.add(i.device_id)}return e}_classifyHardware(){const e=this._getEmitterDeviceIds(),t=[],i=[];for(const s of this._captureProviders)e.has(s.device_id)?i.push(s):t.push(s);return{receivers:t,proxies:i}}render(){if(this.loading)return F`<div class="loading">Loading IR devices...</div>`;const e=this.devices.length>0,t=this._emitters.length>0,{receivers:i,proxies:s}=this._classifyHardware(),a=i.length>0,o=s.length>0;return e||t||a||o?F`
+    `,e([pe({attribute:!1})],fe.prototype,"api",void 0),e([pe({attribute:!1})],fe.prototype,"hass",void 0),e([pe({attribute:!1})],fe.prototype,"device",void 0),e([ue()],fe.prototype,"_busy",void 0),e([ue()],fe.prototype,"_captureName",void 0),e([ue()],fe.prototype,"_toast",void 0),e([ue()],fe.prototype,"_confirmDelete",void 0),e([ue()],fe.prototype,"_commandToDelete",void 0),e([ue()],fe.prototype,"_editingName",void 0),e([ue()],fe.prototype,"_draftName",void 0),fe=e([ce("ir-device-detail")],fe);const $e={tv:"M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z",ac:"M11,21H13V11.85L14.6,13.5L16,12.05L12,8L8,12.05L9.4,13.5L11,11.85V21M2,3V11C2,12.66 5.69,14 12,14C18.31,14 22,12.66 22,11V3H2M4,5H20V8.5C18.5,9.27 15.6,10 12,10C8.4,10 5.5,9.27 4,8.5V5Z",fan:"M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.95 8.94,2 12.5,2Z",soundbar:"M16,4V8H8V4H16M3,9V14H21V9H3M2,16C2,17.1 2.9,18 4,18H20C21.1,18 22,17.1 22,16V8C22,6.89 21.1,6 20,6H4C2.89,6 2,6.89 2,8V16Z",projector:"M4,5A2,2 0 0,0 2,7V17A2,2 0 0,0 4,19H10V21H14V19H20A2,2 0 0,0 22,17V7A2,2 0 0,0 20,5H4M14,8A4,4 0 0,1 18,12A4,4 0 0,1 14,16A4,4 0 0,1 10,12A4,4 0 0,1 14,8M5,9A1,1 0 0,1 6,10A1,1 0 0,1 5,11A1,1 0 0,1 4,10A1,1 0 0,1 5,9M14,10A2,2 0 0,0 12,12A2,2 0 0,0 14,14A2,2 0 0,0 16,12A2,2 0 0,0 14,10Z",other:"M11,2A2,2 0 0,0 9,4V8H4A2,2 0 0,0 2,10V13A2,2 0 0,0 4,15H5V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V15H20A2,2 0 0,0 22,13V10A2,2 0 0,0 20,8H15V4A2,2 0 0,0 13,2H11Z"},xe={tv:"TV",ac:"Air Conditioner",fan:"Fan",soundbar:"Soundbar",projector:"Projector",other:"IR Device"};let we=class extends re{constructor(){super(...arguments),this.devices=[],this.loading=!1,this.expandedDeviceId=null,this._emitters=[],this._captureProviders=[],this._expandedDevice=null}connectedCallback(){super.connectedCallback(),this._discoverHardware()}updated(e){(e.has("hass")||e.has("api"))&&this._discoverHardware(),e.has("expandedDeviceId")&&this._loadExpandedDevice()}async _loadExpandedDevice(){if(this.expandedDeviceId&&this.api)try{this._expandedDevice=await this.api.getDevice(this.expandedDeviceId)}catch{this._expandedDevice=null}else this._expandedDevice=null}async _onExpandedDeviceChanged(){await this._loadExpandedDevice(),this.dispatchEvent(new CustomEvent("device-changed",{bubbles:!0,composed:!0}))}_onExpandedDeviceDeleted(){this.dispatchEvent(new CustomEvent("device-deleted",{bubbles:!0,composed:!0}))}_onCollapse(){this.dispatchEvent(new CustomEvent("device-selected",{detail:this.expandedDeviceId,bubbles:!0,composed:!0}))}async _discoverHardware(){const e=this.hass?.states??{},t=[];for(const[i,s]of Object.entries(e))i.startsWith("infrared.")&&t.push({entity_id:i,name:s.attributes.friendly_name??i});if(this._emitters=t,this.api)try{this._captureProviders=await this.api.listCaptureProviders()}catch{}}_select(e){this.dispatchEvent(new CustomEvent("device-selected",{detail:e,bubbles:!0,composed:!0}))}_add(){this.dispatchEvent(new CustomEvent("add-device",{bubbles:!0,composed:!0}))}_navigateIntegration(e){const t=`/config/integrations/integration/${e}`;window.history.pushState(null,"",t),window.dispatchEvent(new PopStateEvent("popstate"))}_emitterIntegrationDomain(e){const t=this.hass?.entities?.[e];return t?.platform?t.platform:e.split(".")[0]}_getEmitterDeviceIds(){const e=new Set;for(const t of this._emitters){const i=this.hass?.entities?.[t.entity_id];i?.device_id&&e.add(i.device_id)}return e}_classifyHardware(){const e=this._getEmitterDeviceIds();return{receivers:this._captureProviders,proxies:this._captureProviders.filter(t=>e.has(t.device_id))}}render(){if(this.loading)return F`<div class="loading">Loading IR devices...</div>`;const e=this.devices.length>0,t=this._emitters.length>0,{receivers:i,proxies:s}=this._classifyHardware(),a=i.length>0,o=s.length>0;return e||t||a||o?F`
             <!-- Devices -->
             ${e?F`
                       <div class="section-header">
@@ -807,6 +809,7 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                                           <span class="badge cmd-badge">
                                               ${e.command_count} commands
                                           </span>
+                                          ${e.emitter_entity_ids.length>0?F`<span class="badge tx-badge">TX: ${e.emitter_entity_ids.length}</span>`:F`<span class="badge no-tx-badge">No TX</span>`}
                                       </div>
                                   </div>
                                   ${e.id===this.expandedDeviceId&&this._expandedDevice?F`
@@ -845,7 +848,7 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                                       </div>
                                       <div class="card-meta">${e.entity_id}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">TX</span>
+                                          <span class="badge tx-badge">TX</span>
                                       </div>
                                   </div>
                               `)}
@@ -872,7 +875,7 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                                       </div>
                                       <div class="card-meta">${e.type}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">RX</span>
+                                          <span class="badge rx-badge">RX</span>
                                       </div>
                                   </div>
                               `)}
@@ -899,8 +902,8 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                                       </div>
                                       <div class="card-meta">${e.type}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">TX</span>
-                                          <span class="badge cap-badge">RX</span>
+                                          <span class="badge tx-badge">TX</span>
+                                          <span class="badge rx-badge">RX</span>
                                       </div>
                                   </div>
                               `)}
@@ -927,14 +930,14 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
             color: var(--primary-text-color);
         }
 
-        /* --- Section headers (unified green accent) --- */
+        /* --- Section headers (neutral) --- */
         .section-header {
             display: flex;
             align-items: center;
             gap: 8px;
             margin: 24px 0 10px;
             padding-bottom: 6px;
-            border-bottom: 2px solid #2e7d32;
+            border-bottom: 2px solid var(--divider-color);
         }
         .section-header:first-child {
             margin-top: 0;
@@ -945,7 +948,7 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-weight: 600;
-            color: #2e7d32;
+            color: var(--secondary-text-color);
         }
         .section-count {
             font-size: 0.75rem;
@@ -1021,10 +1024,23 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
             color: #2e7d32;
         }
 
-        /* Capability badge (amber for TX/RX) */
-        .cap-badge {
-            background: rgba(255, 152, 0, 0.15);
-            color: #e65100;
+        /* TX badge (blue) */
+        .tx-badge {
+            background: rgba(66, 165, 245, 0.15);
+            color: #1565c0;
+        }
+
+        /* RX badge (purple) */
+        .rx-badge {
+            background: rgba(149, 117, 205, 0.15);
+            color: #5e35b1;
+        }
+
+        /* No TX warning (muted) */
+        .no-tx-badge {
+            background: var(--secondary-background-color);
+            color: var(--disabled-text-color, #999);
+            font-style: italic;
         }
 
         /* --- Expanded detail row --- */

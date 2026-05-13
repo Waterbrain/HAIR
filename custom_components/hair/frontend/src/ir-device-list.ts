@@ -175,21 +175,16 @@ export class IrDeviceList extends LitElement {
         return ids;
     }
 
-    /** Split capture providers into receivers (RX-only) and proxies (TX+RX). */
+    /** Classify capture providers: all go to receivers, those also TX-capable go to proxies too. */
     private _classifyHardware(): {
         receivers: CaptureProviderInfo[];
         proxies: CaptureProviderInfo[];
     } {
         const txDeviceIds = this._getEmitterDeviceIds();
-        const receivers: CaptureProviderInfo[] = [];
-        const proxies: CaptureProviderInfo[] = [];
-        for (const cp of this._captureProviders) {
-            if (txDeviceIds.has(cp.device_id)) {
-                proxies.push(cp);
-            } else {
-                receivers.push(cp);
-            }
-        }
+        const receivers = this._captureProviders;
+        const proxies = this._captureProviders.filter(
+            (cp) => txDeviceIds.has(cp.device_id),
+        );
         return { receivers, proxies };
     }
 
@@ -261,6 +256,9 @@ export class IrDeviceList extends LitElement {
                                           <span class="badge cmd-badge">
                                               ${device.command_count} commands
                                           </span>
+                                          ${device.emitter_entity_ids.length > 0
+                                              ? html`<span class="badge tx-badge">TX: ${device.emitter_entity_ids.length}</span>`
+                                              : html`<span class="badge no-tx-badge">No TX</span>`}
                                       </div>
                                   </div>
                                   ${device.id === this.expandedDeviceId && this._expandedDevice
@@ -315,7 +313,7 @@ export class IrDeviceList extends LitElement {
                                       </div>
                                       <div class="card-meta">${em.entity_id}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">TX</span>
+                                          <span class="badge tx-badge">TX</span>
                                       </div>
                                   </div>
                               `,
@@ -351,7 +349,7 @@ export class IrDeviceList extends LitElement {
                                       </div>
                                       <div class="card-meta">${p.type}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">RX</span>
+                                          <span class="badge rx-badge">RX</span>
                                       </div>
                                   </div>
                               `,
@@ -387,8 +385,8 @@ export class IrDeviceList extends LitElement {
                                       </div>
                                       <div class="card-meta">${p.type}</div>
                                       <div class="card-footer">
-                                          <span class="badge cap-badge">TX</span>
-                                          <span class="badge cap-badge">RX</span>
+                                          <span class="badge tx-badge">TX</span>
+                                          <span class="badge rx-badge">RX</span>
                                       </div>
                                   </div>
                               `,
@@ -414,14 +412,14 @@ export class IrDeviceList extends LitElement {
             color: var(--primary-text-color);
         }
 
-        /* --- Section headers (unified green accent) --- */
+        /* --- Section headers (neutral) --- */
         .section-header {
             display: flex;
             align-items: center;
             gap: 8px;
             margin: 24px 0 10px;
             padding-bottom: 6px;
-            border-bottom: 2px solid #2e7d32;
+            border-bottom: 2px solid var(--divider-color);
         }
         .section-header:first-child {
             margin-top: 0;
@@ -432,7 +430,7 @@ export class IrDeviceList extends LitElement {
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-weight: 600;
-            color: #2e7d32;
+            color: var(--secondary-text-color);
         }
         .section-count {
             font-size: 0.75rem;
@@ -508,10 +506,23 @@ export class IrDeviceList extends LitElement {
             color: #2e7d32;
         }
 
-        /* Capability badge (amber for TX/RX) */
-        .cap-badge {
-            background: rgba(255, 152, 0, 0.15);
-            color: #e65100;
+        /* TX badge (blue) */
+        .tx-badge {
+            background: rgba(66, 165, 245, 0.15);
+            color: #1565c0;
+        }
+
+        /* RX badge (purple) */
+        .rx-badge {
+            background: rgba(149, 117, 205, 0.15);
+            color: #5e35b1;
+        }
+
+        /* No TX warning (muted) */
+        .no-tx-badge {
+            background: var(--secondary-background-color);
+            color: var(--disabled-text-color, #999);
+            font-style: italic;
         }
 
         /* --- Expanded detail row --- */

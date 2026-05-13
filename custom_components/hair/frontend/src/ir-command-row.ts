@@ -128,9 +128,11 @@ export class IrCommandRow extends LitElement {
             gap: 12px;
             padding: 10px 12px;
             border-bottom: 1px solid var(--divider-color);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
         }
         .row:last-child {
             border-bottom: none;
+            box-shadow: none;
         }
         .row[data-learned="false"] {
             background: var(--secondary-background-color);
