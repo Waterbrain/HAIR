@@ -39,10 +39,11 @@ def _make_flow(hass, existing_entries=None):
     return flow
 
 
-def _make_emitter(entity_id: str = "infrared.test_emitter"):
+def _make_emitter(entity_id: str = "infrared.test_emitter", friendly_name: str | None = None):
     """Create a fake HA state object that looks like an IR emitter."""
     state = MagicMock()
     state.entity_id = entity_id
+    state.attributes = {"friendly_name": friendly_name or entity_id}
     return state
 
 
@@ -90,6 +91,7 @@ async def test_shows_form_when_emitter_found(fake_hass):
     assert result["type"] == "form"
     assert result["step_id"] == "user"
     assert result["description_placeholders"]["emitter_count"] == "1"
+    assert "infrared.test_emitter" in result["description_placeholders"]["hardware_summary"]
 
 
 @pytest.mark.asyncio

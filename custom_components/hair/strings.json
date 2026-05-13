@@ -3,7 +3,7 @@
         "step": {
             "user": {
                 "title": "Set up HAIR",
-                "description": "HAIR will create a management panel for your IR devices. Detected {emitter_count} emitter(s) and {capture_count} capture device(s). Hardware can be added later.",
+                "description": "HAIR manages your IR devices from a single panel.\n\nDetected hardware:\n{hardware_summary}",
                 "data": {}
             }
         },
