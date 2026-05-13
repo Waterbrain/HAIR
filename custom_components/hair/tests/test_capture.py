@@ -153,13 +153,14 @@ def _make_fake_entity(entity_id="remote.ir_blaster"):
 
 
 @pytest.mark.asyncio
-async def test_esphome_device_included(fake_hass):
-    """Any ESPHome device should be listed as a capture provider."""
+async def test_esphome_device_with_ir_entities_included(fake_hass):
+    """ESPHome device with IR entities should be listed as a capture provider."""
     fake_hass.config.components = {"esphome"}
     fake_hass.config_entries.async_entries = MagicMock(
         return_value=[MagicMock(entry_id="esp-entry-1")]
     )
     fake_device = _make_fake_device()
+    fake_ir_entity = _make_fake_entity("infrared.hair1_tx")
 
     with patch(
         "custom_components.hair.capture.dr.async_get",
@@ -167,6 +168,12 @@ async def test_esphome_device_included(fake_hass):
     ), patch(
         "custom_components.hair.capture.dr.async_entries_for_config_entry",
         return_value=[fake_device],
+    ), patch(
+        "custom_components.hair.capture.er.async_get",
+        return_value=MagicMock(),
+    ), patch(
+        "custom_components.hair.capture.er.async_entries_for_device",
+        return_value=[fake_ir_entity],
     ):
         providers = await get_available_capture_providers(fake_hass)
     assert len(providers) == 1
@@ -175,13 +182,14 @@ async def test_esphome_device_included(fake_hass):
 
 
 @pytest.mark.asyncio
-async def test_esphome_device_without_entities_still_included(fake_hass):
-    """ESPHome device with no entities should still be included (no entity filter)."""
+async def test_esphome_device_without_ir_entities_excluded(fake_hass):
+    """ESPHome device without IR entities should be excluded from providers."""
     fake_hass.config.components = {"esphome"}
     fake_hass.config_entries.async_entries = MagicMock(
         return_value=[MagicMock(entry_id="esp-entry-1")]
     )
     fake_device = _make_fake_device()
+    fake_sensor = _make_fake_entity("sensor.temperature")
 
     with patch(
         "custom_components.hair.capture.dr.async_get",
@@ -189,6 +197,12 @@ async def test_esphome_device_without_entities_still_included(fake_hass):
     ), patch(
         "custom_components.hair.capture.dr.async_entries_for_config_entry",
         return_value=[fake_device],
+    ), patch(
+        "custom_components.hair.capture.er.async_get",
+        return_value=MagicMock(),
+    ), patch(
+        "custom_components.hair.capture.er.async_entries_for_device",
+        return_value=[fake_sensor],
     ):
         providers = await get_available_capture_providers(fake_hass)
-    assert len(providers) == 1
+    assert len(providers) == 0

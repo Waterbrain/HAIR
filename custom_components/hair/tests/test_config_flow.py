@@ -107,12 +107,21 @@ async def test_shows_form_when_capture_provider_found(fake_hass):
     fake_device.name_by_user = None
     fake_device.name = "ESPHome IR"
 
+    fake_ir_entity = MagicMock()
+    fake_ir_entity.entity_id = "infrared.hair1_tx"
+
     with patch(
         "custom_components.hair.capture.dr.async_get",
         return_value=MagicMock(),
     ), patch(
         "custom_components.hair.capture.dr.async_entries_for_config_entry",
         return_value=[fake_device],
+    ), patch(
+        "custom_components.hair.capture.er.async_get",
+        return_value=MagicMock(),
+    ), patch(
+        "custom_components.hair.capture.er.async_entries_for_device",
+        return_value=[fake_ir_entity],
     ):
         flow = _make_flow(fake_hass)
         result = await flow.async_step_user(user_input=None)
