@@ -142,21 +142,22 @@ export class IrAddDeviceDialog extends LitElement {
                         (this._emitterIds = e.detail.value)}
                 ></ir-emitter-picker>
 
-                <mwc-button
-                    slot="secondaryAction"
-                    @click=${this._close}
-                    ?disabled=${this._busy}
-                >
-                    Cancel
-                </mwc-button>
-                <mwc-button
-                    slot="primaryAction"
-                    raised
-                    @click=${this._create}
-                    ?disabled=${this._busy}
-                >
-                    Create
-                </mwc-button>
+                <div class="dialog-actions">
+                    <button
+                        class="action-btn cancel-btn"
+                        @click=${this._close}
+                        ?disabled=${this._busy}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="action-btn create-btn"
+                        @click=${this._create}
+                        ?disabled=${this._busy}
+                    >
+                        ${this._busy ? "Creating..." : "Create"}
+                    </button>
+                </div>
             </ha-dialog>
         `;
     }
@@ -185,6 +186,44 @@ export class IrAddDeviceDialog extends LitElement {
         ha-alert {
             display: block;
             margin: 8px 0;
+        }
+        .dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--divider-color);
+        }
+        .action-btn {
+            background: none;
+            border: 1px solid var(--divider-color);
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+        .cancel-btn {
+            background: transparent;
+            color: var(--secondary-text-color);
+        }
+        .cancel-btn:hover:not(:disabled) {
+            background: var(--secondary-background-color);
+        }
+        .create-btn {
+            background: #2e7d32;
+            color: #fff;
+            border-color: #2e7d32;
+        }
+        .create-btn:hover:not(:disabled) {
+            opacity: 0.9;
         }
     `;
 }
