@@ -21,6 +21,20 @@ This is the canonical hero asset for HAIR. It pairs the Home Assistant box with 
 
 ---
 
+## Locked Reference: HAIR Panel Marquee Header (v2.2)
+
+**Status:** Locked 2026-05-14. In production use on the README hero and the HAIR custom HA panel header.
+
+- **Image:** [`../../../images/internal/HAIR-header.png`](../../../images/internal/HAIR-header.png) — production asset, used by the README and frontend
+- **Prompt:** Documented in full in [`../image-prompts.md`](../image-prompts.md) under "Prompt 3: HAIR Panel Marquee Header"
+- **Previous iteration kept:** `images/internal/HAIR-header-old.png` for reference
+
+Wide 16:5 marquee composition: HA Box mascot on the left bench, steampunk Sailor Jerry back bar across the center and right with a brass-framed mirror, HA·IR and STYLING banners painted on the mirror glass, wooden shelf below with apothecary items (tonic bottles, pomade jar, miniature brand barber pole, shaving brush), wall decor (Edison bulb, pressure gauge, small framed flash-sheet).
+
+The marquee is the brand's first production-deployed asset that ties together the locked HA Box mullet hero with the broader steampunk barbershop world described in the brand guide.
+
+---
+
 ## Logo System
 
 **Status:** Awaiting generation against the v3 master prompt (Section 5 of the brand guide).
