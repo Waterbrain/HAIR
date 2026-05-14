@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="custom_components/hair/frontend/hair-header.png" alt="HAIR - Home Assistant Infrared Registry" width="600" />
+  <img src="custom_components/hair/frontend/hair-header.png" alt="HAIR" width="600" />
 </p>
 
-# HAIR - Home Assistant Infrared Registry
+# HAIR
 
 A custom Home Assistant integration that provides a full admin interface for infrared device management. Built on HA's native `infrared` platform (2026.4+), HAIR handles capturing, organizing, and controlling IR commands through a single sidebar panel at `/hair`.
 

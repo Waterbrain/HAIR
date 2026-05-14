@@ -1,4 +1,4 @@
-# HAIR - Home Assistant Infrared Registry
+# HAIR
 
 A full admin interface for infrared device management in Home Assistant.
 
