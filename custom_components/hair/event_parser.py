@@ -15,6 +15,7 @@ from .const import (
     DEFAULT_CARRIER_FREQUENCY,
     PRONTO_DEVICE_PREAMBLE_PAIRS,
     PRONTO_GAP_THRESHOLD,
+    PRONTO_NEC_ADDRESS_PAIRS,
     PRONTO_SL_THRESHOLD,
     SIGNAL_RAW_FINGERPRINT_LEN,
     SIGNAL_RAW_QUANTIZE_BIN_US,
@@ -208,15 +209,25 @@ class EventParser:
 
         # Pronto: use carrier frequency + preamble S/L pattern.
         # The frequency word (e.g. 006D = 38kHz) discriminates between
-        # remotes using different carrier frequencies.  The preamble
-        # (first burst pair's S/L pattern) adds timing-structure info.
+        # remotes using different carrier frequencies.
         if protocol and protocol.upper() == "PRONTO" and code:
             words = EventParser._parse_pronto_words(code)
             sl = EventParser._pronto_sl_pattern(code)
             if words is not None and sl is not None:
                 freq_word = words[1]
-                n = PRONTO_DEVICE_PREAMBLE_PAIRS * 2
-                preamble = sl[:n]
+                timings = words[4:]
+                # NEC-family detection: first timing word is a lead-in
+                # mark (>= 0x100).  The lead-in pair is identical across
+                # ALL NEC/Samsung/JVC/LG remotes, so skip it and use the
+                # address byte (next 8 S/L pairs) for device grouping.
+                if timings and timings[0] >= 0x100:
+                    # Skip lead-in pair (2 chars), take address portion.
+                    addr_chars = PRONTO_NEC_ADDRESS_PAIRS * 2
+                    preamble = sl[2 : 2 + addr_chars]
+                else:
+                    # Generic Pronto: first burst pair is the preamble.
+                    n = PRONTO_DEVICE_PREAMBLE_PAIRS * 2
+                    preamble = sl[:n]
                 payload = f"DEV:PRONTO:{freq_word:04X}:{preamble}"
                 return hashlib.sha256(payload.encode()).hexdigest()[:16]
 

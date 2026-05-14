@@ -62,6 +62,9 @@ PRONTO_SL_THRESHOLD = 0x30
 PRONTO_GAP_THRESHOLD = 0x0400
 # Number of S/L pairs from the preamble used for device grouping.
 PRONTO_DEVICE_PREAMBLE_PAIRS = 1
+# NEC-family address length in burst pairs (8 address bits = 8 pairs).
+# Used for device grouping when a lead-in mark is detected.
+PRONTO_NEC_ADDRESS_PAIRS = 8
 ASSIGN_SERVICE_TIMEOUT_S = 10
 
 

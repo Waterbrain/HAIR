@@ -476,73 +476,124 @@ class TestIsProntoRepeat:
 
 
 class TestNecProntoFingerprinting:
-    """Integration tests: NEC-style Pronto codes should dedup properly."""
+    """Integration tests: NEC-style Pronto codes should dedup properly.
 
-    # A realistic NEC power button in Pronto format (simplified to 10 data pairs).
-    # Lead-in: 0x0159 (9ms mark), 0x00AC (4.5ms space), then alternating
-    # short (0x0015 ~560us) and long (0x0041 ~1690us) data pulses.
-    NEC_BUTTON_A = (
-        "0000 006D 000C 0000"
-        " 0159 00AC"  # lead-in mark + space
+    Realistic NEC structure in Pronto (38kHz, 0x006D):
+      [lead-in pair] [8 address pairs] [8 inv-address pairs]
+      [8 command pairs] [8 inv-command pairs] [stop bit + gap]
+
+    Each NEC bit is encoded as a mark+space pair:
+      0-bit = short mark + short space (SS)
+      1-bit = short mark + long space  (SL)
+
+    Buttons on the SAME remote share the address byte;
+    buttons on DIFFERENT remotes have different address bytes.
+    """
+
+    # Remote 1, address=0x55 (01010101), command=0xAA
+    # Address pairs: SL SS SL SS SL SS SL SS
+    # Command pairs: SS SL SS SL SS SL SS SL (inverted)
+    NEC_R1_POWER = (
+        "0000 006D 0022 0000"
+        " 0159 00AC"                                          # lead-in
+        " 0015 0041 0015 0015 0015 0041 0015 0015"            # addr 0x55
+        " 0015 0041 0015 0015 0015 0041 0015 0015"
+        " 0015 0015 0015 0041 0015 0015 0015 0041"            # inv-addr 0xAA
         " 0015 0015 0015 0041 0015 0015 0015 0041"
+        " 0015 0015 0015 0041 0015 0015 0015 0041"            # cmd 0xAA
         " 0015 0015 0015 0041 0015 0015 0015 0041"
-        " 0015 0015 0015 0041"
-        " 0015 0BBA"  # stop bit + gap
+        " 0015 0041 0015 0015 0015 0041 0015 0015"            # inv-cmd 0x55
+        " 0015 0041 0015 0015 0015 0041 0015 0015"
+        " 0015 0BBA"                                          # stop + gap
     )
 
-    # Same button, timing jitter: 0x0015->0x0016, 0x0041->0x0042, lead-in 0x015A
-    NEC_BUTTON_A_JITTERED = (
-        "0000 006D 000C 0000"
+    # Remote 1, same address, command=0x30 (different button)
+    NEC_R1_VOLUP = (
+        "0000 006D 0022 0000"
+        " 0159 00AC"                                          # lead-in
+        " 0015 0041 0015 0015 0015 0041 0015 0015"            # addr 0x55 (same)
+        " 0015 0041 0015 0015 0015 0041 0015 0015"
+        " 0015 0015 0015 0041 0015 0015 0015 0041"            # inv-addr 0xAA
+        " 0015 0015 0015 0041 0015 0015 0015 0041"
+        " 0015 0015 0015 0015 0015 0041 0015 0041"            # cmd 0x30
+        " 0015 0015 0015 0015 0015 0015 0015 0015"
+        " 0015 0041 0015 0041 0015 0015 0015 0015"            # inv-cmd 0xCF
+        " 0015 0041 0015 0041 0015 0041 0015 0041"
+        " 0015 0BBA"
+    )
+
+    # Remote 1 power, jittered (0x0015->0x0016, 0x0041->0x0042, lead-in 0x015A)
+    NEC_R1_POWER_JITTERED = (
+        "0000 006D 0022 0000"
         " 015A 00AB"
+        " 0016 0042 0016 0016 0016 0042 0016 0016"
+        " 0016 0042 0016 0016 0016 0042 0016 0016"
         " 0016 0016 0016 0042 0016 0016 0016 0042"
         " 0016 0016 0016 0042 0016 0016 0016 0042"
-        " 0016 0016 0016 0042"
+        " 0016 0016 0016 0042 0016 0016 0016 0042"
+        " 0016 0016 0016 0042 0016 0016 0016 0042"
+        " 0016 0042 0016 0016 0016 0042 0016 0016"
+        " 0016 0042 0016 0016 0016 0042 0016 0016"
         " 0016 0BBA"
     )
 
-    # Different button: different S/L data pattern
-    NEC_BUTTON_B = (
-        "0000 006D 000C 0000"
-        " 0159 00AC"
-        " 0015 0041 0015 0041 0015 0015 0015 0015"
+    # Remote 2, address=0x07 (00000111), command=0xAA (same cmd, different remote)
+    NEC_R2_POWER = (
+        "0000 006D 0022 0000"
+        " 0159 00AC"                                          # lead-in
+        " 0015 0015 0015 0015 0015 0015 0015 0015"            # addr 0x07
+        " 0015 0015 0015 0041 0015 0041 0015 0041"
+        " 0015 0041 0015 0041 0015 0041 0015 0041"            # inv-addr 0xF8
+        " 0015 0041 0015 0015 0015 0015 0015 0015"
+        " 0015 0015 0015 0041 0015 0015 0015 0041"            # cmd 0xAA
+        " 0015 0015 0015 0041 0015 0015 0015 0041"
+        " 0015 0041 0015 0015 0015 0041 0015 0015"            # inv-cmd 0x55
         " 0015 0041 0015 0015 0015 0041 0015 0015"
-        " 0015 0041 0015 0015"
         " 0015 0BBA"
     )
 
     def test_nec_pronto_signal_fingerprint_stable(self):
         """Same NEC button produces the same signal fingerprint."""
-        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
-        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_POWER, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_POWER, None)
         assert fp1 == fp2
         assert len(fp1) == 16
 
     def test_nec_pronto_signal_fingerprint_jitter_tolerant(self):
         """Jittered NEC captures produce the same signal fingerprint (dedup)."""
-        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
-        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A_JITTERED, None)
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_POWER, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_POWER_JITTERED, None)
         assert fp1 == fp2
 
     def test_nec_pronto_different_buttons_differ(self):
         """Different NEC buttons produce different signal fingerprints."""
-        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
-        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_B, None)
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_POWER, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_R1_VOLUP, None)
         assert fp1 != fp2
 
     def test_nec_pronto_device_fingerprint_groups_buttons(self):
-        """Different NEC buttons from the same remote share a device fingerprint."""
-        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A)
-        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_B)
+        """Different buttons from the same NEC remote share a device fingerprint.
+
+        Uses address byte (S/L pairs 1-8) which is common to all buttons.
+        """
+        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R1_POWER)
+        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R1_VOLUP)
         assert fp1 == fp2
 
     def test_nec_pronto_device_fingerprint_jitter_tolerant(self):
         """Jittered captures from same remote produce same device fingerprint."""
-        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A)
-        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A_JITTERED)
+        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R1_POWER)
+        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R1_POWER_JITTERED)
         assert fp1 == fp2
+
+    def test_nec_pronto_different_remotes_separate(self):
+        """Different NEC remotes (different address bytes) get different device fps."""
+        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R1_POWER)
+        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_R2_POWER)
+        assert fp1 != fp2
 
     def test_nec_pronto_sl_pattern_not_none(self):
         """NEC-style Pronto codes now produce a valid S/L pattern."""
-        sl = EventParser._pronto_sl_pattern(self.NEC_BUTTON_A)
+        sl = EventParser._pronto_sl_pattern(self.NEC_R1_POWER)
         assert sl is not None
         assert len(sl) > 4
