@@ -529,8 +529,8 @@ export class IrDeviceList extends LitElement {
             align-items: center;
         }
         .badge {
-            border-radius: 999px;
-            padding: 2px 10px;
+            border-radius: 4px;
+            padding: 2px 8px;
             font-size: 0.72rem;
             font-weight: 500;
         }

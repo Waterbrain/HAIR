@@ -245,13 +245,12 @@ export class IrDeviceDetail extends LitElement {
         const { command } = e.detail as { command: IRCommand };
         if (!command) return;
 
-        // Position popover near the badge button that fired the event.
+        // Position popover near the badge button using fixed viewport coords.
         const badge = (e.target as LitElement).shadowRoot?.querySelector(".badge-btn") as HTMLElement | null;
         if (badge) {
             const rect = badge.getBoundingClientRect();
-            const hostRect = this.getBoundingClientRect();
-            this._popoverTop = rect.bottom - hostRect.top + 4;
-            this._popoverLeft = Math.max(0, rect.left - hostRect.left - 60);
+            this._popoverTop = rect.bottom + 4;
+            this._popoverLeft = Math.max(8, rect.right - 220);
         }
 
         this._mappingCommandName = command.name;
@@ -760,11 +759,10 @@ export class IrDeviceDetail extends LitElement {
         .commands-list {
             display: flex;
             flex-direction: column;
-            position: relative;
         }
         /* --- Action popover --- */
         .action-popover {
-            position: absolute;
+            position: fixed;
             z-index: 50;
             min-width: 200px;
             max-width: 280px;
