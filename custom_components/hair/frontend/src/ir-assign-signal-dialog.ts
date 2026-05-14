@@ -13,6 +13,7 @@ import "./ir-emitter-picker.js";
 import type { HairApi } from "./api.js";
 import type {
     AssignResult,
+    CommandTemplate,
     DeviceSummary,
     DeviceTypeId,
     UnknownSignal,
@@ -59,6 +60,10 @@ export class IrAssignSignalDialog extends LitElement {
     @state() private _newType: DeviceTypeId = "media_player";
     @state() private _newEmitterIds: string[] = [];
 
+    // Command name templates
+    @state() private _templates: CommandTemplate[] = [];
+    @state() private _customCommand = false;
+
     @state() private _busy = false;
     @state() private _error: string | null = null;
 
@@ -69,6 +74,7 @@ export class IrAssignSignalDialog extends LitElement {
             this._newName = this.suggestedDeviceName;
         }
         void this._loadDevices();
+        void this._loadTemplates(this._newType);
     }
 
     private async _loadDevices(): Promise<void> {
@@ -89,12 +95,37 @@ export class IrAssignSignalDialog extends LitElement {
         }
     }
 
+    private async _loadTemplates(deviceType: DeviceTypeId): Promise<void> {
+        try {
+            this._templates = await this.api.listTemplates(deviceType);
+        } catch {
+            this._templates = [];
+        }
+        // Reset command name when templates change, unless user typed custom.
+        if (!this._customCommand) {
+            this._commandName = "";
+        }
+    }
+
+    /** Get the device type for the currently-selected target. */
+    private _activeDeviceType(): DeviceTypeId {
+        if (this._mode === "new") return this._newType;
+        const dev = this._devices.find((d) => d.id === this._selectedDeviceId);
+        return (dev?.device_type as DeviceTypeId) ?? "other";
+    }
+
     private _onDeviceSelected(e: Event): void {
         this._selectedDeviceId = (e.target as HTMLSelectElement).value;
+        // Reload templates for the selected device's type.
+        const dev = this._devices.find((d) => d.id === this._selectedDeviceId);
+        if (dev) {
+            void this._loadTemplates(dev.device_type as DeviceTypeId);
+        }
     }
 
     private _onNewTypeChanged(e: Event): void {
         this._newType = (e.target as HTMLSelectElement).value as DeviceTypeId;
+        void this._loadTemplates(this._newType);
     }
 
     private _close(): void {
@@ -330,15 +361,66 @@ export class IrAssignSignalDialog extends LitElement {
         `;
     }
 
+    private _onCommandSelect(e: Event) {
+        const val = (e.target as HTMLSelectElement).value;
+        if (val === "__custom__") {
+            this._customCommand = true;
+            this._commandName = "";
+            this.updateComplete.then(() => {
+                const input = this.shadowRoot?.querySelector<HTMLInputElement>(".custom-cmd-input");
+                input?.focus();
+            });
+        } else {
+            this._customCommand = false;
+            this._commandName = val;
+        }
+    }
+
     private _renderCommandPicker() {
+        if (this._customCommand) {
+            return html`
+                <div class="field">
+                    <label>Command name</label>
+                    <div class="custom-cmd-row">
+                        <input
+                            class="custom-cmd-input"
+                            type="text"
+                            placeholder="Enter command name"
+                            .value=${this._commandName}
+                            @input=${(e: Event) =>
+                                (this._commandName = (e.target as HTMLInputElement).value)}
+                        />
+                        <button
+                            class="back-link"
+                            @click=${() => { this._customCommand = false; this._commandName = ""; }}
+                        >Templates</button>
+                    </div>
+                </div>
+            `;
+        }
         return html`
-            <ha-textfield
-                label="Command name"
-                .value=${this._commandName}
-                required
-                @input=${(e: Event) =>
-                    (this._commandName = (e.target as HTMLInputElement).value)}
-            ></ha-textfield>
+            <div class="field">
+                <label>Command name</label>
+                <select
+                    .value=${this._commandName}
+                    @change=${this._onCommandSelect}
+                >
+                    <option value="" disabled ?selected=${!this._commandName}>
+                        Select command...
+                    </option>
+                    ${this._templates.map(
+                        (t) => html`
+                            <option
+                                value=${t.name}
+                                ?selected=${this._commandName === t.name}
+                            >
+                                ${t.name}
+                            </option>
+                        `,
+                    )}
+                    <option value="__custom__">Custom...</option>
+                </select>
+            </div>
         `;
     }
 
@@ -467,6 +549,40 @@ export class IrAssignSignalDialog extends LitElement {
         }
         .assign-btn:hover:not(:disabled) {
             opacity: 0.9;
+        }
+
+        /* --- Custom command input --- */
+        .custom-cmd-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .custom-cmd-input {
+            flex: 1;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .custom-cmd-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .back-link {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            font-size: 0.8rem;
+            font-family: inherit;
+            cursor: pointer;
+            padding: 4px 8px;
+            white-space: nowrap;
+        }
+        .back-link:hover {
+            text-decoration: underline;
         }
     `;
 }

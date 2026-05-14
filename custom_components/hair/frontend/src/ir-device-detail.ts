@@ -36,6 +36,9 @@ export class IrDeviceDetail extends LitElement {
     // Action mapping
     @state() private _actionOptions: ActionOption[] = [];
     @state() private _mappingCommandName: string | null = null;
+    @state() private _popoverTop = 0;
+    @state() private _popoverLeft = 0;
+    private _dismissHandler: ((e: MouseEvent) => void) | null = null;
 
     // Inline name editing
     @state() private _editingName = false;
@@ -241,12 +244,55 @@ export class IrDeviceDetail extends LitElement {
     private _onMapAction(e: CustomEvent) {
         const { command } = e.detail as { command: IRCommand };
         if (!command) return;
+
+        // Position popover near the badge button that fired the event.
+        const badge = (e.target as LitElement).shadowRoot?.querySelector(".badge-btn") as HTMLElement | null;
+        if (badge) {
+            const rect = badge.getBoundingClientRect();
+            const hostRect = this.getBoundingClientRect();
+            this._popoverTop = rect.bottom - hostRect.top + 4;
+            this._popoverLeft = Math.max(0, rect.left - hostRect.left - 60);
+        }
+
         this._mappingCommandName = command.name;
+
+        // Dismiss on outside click (next tick so this click doesn't immediately close).
+        requestAnimationFrame(() => {
+            this._dismissHandler = (ev: MouseEvent) => {
+                const path = ev.composedPath();
+                const popover = this.shadowRoot?.querySelector(".action-popover");
+                if (popover && !path.includes(popover)) {
+                    this._closePopover();
+                }
+            };
+            document.addEventListener("click", this._dismissHandler, true);
+        });
     }
 
-    private async _onMappingChanged(e: Event, commandName: string) {
-        const value = (e.target as HTMLSelectElement).value;
-        const actionKey = value === "" ? null : value;
+    private _closePopover() {
+        this._mappingCommandName = null;
+        if (this._dismissHandler) {
+            document.removeEventListener("click", this._dismissHandler, true);
+            this._dismissHandler = null;
+        }
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        if (this._dismissHandler) {
+            document.removeEventListener("click", this._dismissHandler, true);
+            this._dismissHandler = null;
+        }
+    }
+
+    /** Get the command name currently mapped to a given action key. */
+    private _getCommandForAction(actionKey: string): string | null {
+        const mapping = this.device.entity_config?.command_mapping ?? {};
+        return mapping[actionKey] ?? null;
+    }
+
+    private async _selectAction(commandName: string, actionKey: string | null) {
+        this._closePopover();
         this._busy = true;
         try {
             const result = await this.api.updateMapping(
@@ -254,7 +300,6 @@ export class IrDeviceDetail extends LitElement {
                 commandName,
                 actionKey,
             );
-            // Update local entity_config so UI reflects immediately.
             this.device = {
                 ...this.device,
                 entity_config: {
@@ -270,7 +315,6 @@ export class IrDeviceDetail extends LitElement {
             this._flash(`Mapping failed: ${(err as Error).message}`);
         } finally {
             this._busy = false;
-            this._mappingCommandName = null;
         }
     }
 
@@ -470,36 +514,49 @@ export class IrDeviceDetail extends LitElement {
                                       @test=${this._onTest}
                                       @delete=${this._onDelete}
                                   ></ir-command-row>
-                                  ${this._mappingCommandName === cmd.name
-                                      ? html`
-                                            <div class="mapping-row">
-                                                <select
-                                                    @change=${(e: Event) =>
-                                                        this._onMappingChanged(e, cmd.name)}
-                                                    .value=${this._getCurrentActionKey(cmd.name)}
-                                                >
-                                                    <option value="">None</option>
-                                                    ${this._actionOptions.map(
-                                                        (opt) => html`
-                                                            <option
-                                                                value=${opt.key}
-                                                                ?selected=${this._getCurrentActionKey(cmd.name) === opt.key}
-                                                            >
-                                                                ${opt.label}
-                                                            </option>
-                                                        `,
-                                                    )}
-                                                </select>
-                                                <button
-                                                    class="action-btn"
-                                                    @click=${() => (this._mappingCommandName = null)}
-                                                >Cancel</button>
-                                            </div>
-                                        `
-                                      : ""}
                               `,
                           )
                         : html`<div class="empty">No commands yet. Add one below.</div>`}
+
+                    ${this._mappingCommandName
+                        ? html`
+                              <div
+                                  class="action-popover"
+                                  style="top:${this._popoverTop}px; left:${this._popoverLeft}px"
+                              >
+                                  <div class="popover-header">Map action</div>
+                                  ${this._getCurrentActionKey(this._mappingCommandName)
+                                      ? html`
+                                            <button
+                                                class="popover-item clear"
+                                                @click=${() => this._selectAction(this._mappingCommandName!, null)}
+                                            >
+                                                <span class="popover-label">None (clear)</span>
+                                            </button>
+                                        `
+                                      : ""}
+                                  ${this._actionOptions.map((opt) => {
+                                      const current = this._getCurrentActionKey(this._mappingCommandName!);
+                                      const isCurrent = current === opt.key;
+                                      const existing = this._getCommandForAction(opt.key);
+                                      const isOther = existing && existing.toLowerCase() !== this._mappingCommandName!.toLowerCase();
+                                      return html`
+                                          <button
+                                              class="popover-item ${isCurrent ? "active" : ""}"
+                                              @click=${() => this._selectAction(this._mappingCommandName!, opt.key)}
+                                          >
+                                              <span class="popover-label">${opt.label}</span>
+                                              ${isCurrent
+                                                  ? html`<span class="popover-check">&#10003;</span>`
+                                                  : isOther
+                                                    ? html`<span class="popover-existing">${existing}</span>`
+                                                    : ""}
+                                          </button>
+                                      `;
+                                  })}
+                              </div>
+                          `
+                        : ""}
                 </div>
             </div>
 
@@ -703,26 +760,67 @@ export class IrDeviceDetail extends LitElement {
         .commands-list {
             display: flex;
             flex-direction: column;
+            position: relative;
         }
-        .mapping-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            padding: 4px 10px 8px 44px;
-            background: var(--secondary-background-color);
-            border-radius: 0 0 4px 4px;
-            margin-top: -4px;
-            margin-bottom: 4px;
-        }
-        .mapping-row select {
-            flex: 1;
-            padding: 4px 8px;
-            border-radius: 4px;
+        /* --- Action popover --- */
+        .action-popover {
+            position: absolute;
+            z-index: 50;
+            min-width: 200px;
+            max-width: 280px;
+            background: var(--card-background-color, #1c1c1c);
             border: 1px solid var(--divider-color);
-            background: var(--card-background-color);
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+            padding: 4px 0;
+            overflow: auto;
+            max-height: 320px;
+        }
+        .popover-header {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--secondary-text-color);
+            padding: 6px 12px 4px;
+        }
+        .popover-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding: 7px 12px;
+            background: none;
+            border: none;
             color: var(--primary-text-color);
+            font-size: 0.82rem;
             font-family: inherit;
-            font-size: 0.8rem;
+            cursor: pointer;
+            text-align: left;
+            transition: background 100ms ease;
+        }
+        .popover-item:hover {
+            background: var(--secondary-background-color);
+        }
+        .popover-item.active {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        .popover-item.clear {
+            color: var(--secondary-text-color);
+            font-style: italic;
+            border-bottom: 1px solid var(--divider-color);
+            margin-bottom: 2px;
+        }
+        .popover-check {
+            color: var(--primary-color);
+            font-size: 0.9rem;
+        }
+        .popover-existing {
+            font-size: 0.72rem;
+            color: var(--secondary-text-color);
+            font-style: italic;
+            margin-left: 8px;
+            flex-shrink: 0;
         }
         .empty {
             color: var(--secondary-text-color);
