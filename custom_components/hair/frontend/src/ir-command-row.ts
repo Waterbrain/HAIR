@@ -98,7 +98,7 @@ export class IrCommandRow extends LitElement {
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("map-action")}
                                   title="Assign action mapping"
-                              >${this.actionLabel || "NONE"}</button>
+                              >${this.actionLabel || "ACTIONS"}</button>
                               <button
                                   class="action-btn test-btn"
                                   ?disabled=${this.busy}

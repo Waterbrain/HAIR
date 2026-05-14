@@ -171,12 +171,12 @@ export class IrEmitterPicker extends LitElement {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            background: rgba(46, 125, 50, 0.12);
-            color: #2e7d32;
+            background: var(--secondary-background-color);
+            color: #ff9800;
             font-size: 0.82rem;
             font-weight: 500;
             padding: 4px 8px;
-            border-radius: 14px;
+            border-radius: 4px;
             line-height: 1;
         }
         .chip-name {

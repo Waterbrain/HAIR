@@ -541,15 +541,15 @@ export class IrDeviceList extends LitElement {
             color: #2e7d32;
         }
 
-        /* TX badge (amber -- matches diamond short) */
+        /* TX badge (amber text, dark bg) */
         .tx-badge {
-            background: rgba(255, 152, 0, 0.15);
+            background: var(--secondary-background-color);
             color: #ff9800;
         }
 
-        /* RX badge (blue -- matches diamond long / primary) */
+        /* RX badge (blue text, dark bg) */
         .rx-badge {
-            background: rgba(33, 150, 243, 0.15);
+            background: var(--secondary-background-color);
             color: var(--primary-color, #2196f3);
         }
 
