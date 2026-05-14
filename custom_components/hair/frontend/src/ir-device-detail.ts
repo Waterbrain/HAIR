@@ -724,11 +724,11 @@ export class IrDeviceDetail extends LitElement {
             cursor: default;
         }
         .action-btn.delete-btn {
-            color: #b71c1c;
-            border-color: rgba(183, 28, 28, 0.2);
+            color: #e65100;
+            border-color: rgba(230, 81, 0, 0.25);
         }
         .action-btn.delete-btn:hover {
-            background: rgba(183, 28, 28, 0.06);
+            background: rgba(230, 81, 0, 0.08);
         }
         .action-btn.collapse-btn {
             font-size: 1rem;

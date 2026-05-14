@@ -118,8 +118,8 @@ export class IrConfirmDialog extends LitElement {
             opacity: 0.9;
         }
         .confirm.destructive {
-            background: var(--error-color, #db4437);
-            border-color: var(--error-color, #db4437);
+            background: #e65100;
+            border-color: #e65100;
         }
     `;
 }

@@ -1,10 +1,11 @@
-# HAIR — Brand Guide v2
+# HAIR — Brand Guide v2.1
 
 **Project:** HAIR (Home Assistant IR)
 **Author:** David Bailey
-**Date:** 2026-05-13 *(v2 reset — see Section 14 for change history)*
+**Date:** 2026-05-13 *(v2.1 — first locked Device Gallery hero. See Section 14 for change history.)*
 **Status:** Living document
-**Previous version:** [`brand-guide-v1.3-archive.md`](./brand-guide-v1.3-archive.md)
+**Previous versions:** [`brand-guide-v2.0-archive.md`](./brand-guide-v2.0-archive.md), [`brand-guide-v1.3-archive.md`](./brand-guide-v1.3-archive.md)
+**Locked canonical asset:** [`assets/gallery-ha-box-mullet-hero.png`](./assets/gallery-ha-box-mullet-hero.png) — see [`assets/gallery-ha-box-mullet-hero-prompt.md`](./assets/gallery-ha-box-mullet-hero-prompt.md) for the locked prompt and iteration history.
 
 ---
 
@@ -31,7 +32,7 @@ A turn-of-the-century barbershop with brass fittings, pneumatic tubes, and gauge
 | **Sailor Jerry** | Bold black linework, limited flat-color palette, banners, swallows, daggers, roses, the timeless tattoo-flash craft layered over everything |
 | **Steampunk** | Brass and copper, exposed rivets, pneumatic tubes, pressure gauges, polished wood, oxidized metal, leather straps, oil-lamp warmth, mechanical gears, the sense that this technology is built to last 100 years |
 | **Barbershop** | The pole, the chair, the mirror, the towel, the comb-and-shears ritual, "walk-ins welcome" — the working-class craft tradition |
-| **Hair on things** *(the punchline)* | Photoreal human hairstyles grafted onto IR-controllable devices. A pompadour on a Home Assistant Yellow. A handlebar mustache on a wall-mount AC. A Victorian beard on a candle. The HAIR shop styles your hardware. |
+| **Hair on things** *(the punchline)* | Photoreal human hairstyles grafted onto IR-controllable devices. A dark-brown mullet on a Home Assistant Box. A handlebar mustache on a wall-mount AC. A Victorian beard on a candle. The HAIR shop styles your hardware. |
 
 Together it reads as: **crafted, confident, a little weird, definitely not corporate, the only barbershop in town that does mini-splits.**
 
@@ -221,65 +222,81 @@ Eight device archetypes, each with a single signature hairstyle. These are the r
 
 | # | Device | Signature Cut | Personality |
 |---|---|---|---|
-| 1 | **Home Assistant Yellow** *(hero device)* | 1950s greaser pompadour, deep black, perfectly waved | The hometown favorite. The reason the shop exists. The face on the window sticker. |
+| 1 | **Home Assistant Box** *(hero device — LOCKED v2.1)* | 1980s steampunk-styled mullet, dark brown, dramatic top volume with flowing back curtain, small leather-and-brass hair tie | The hometown favorite. The reason the shop exists. The face on the window sticker. *See [`assets/gallery-ha-box-mullet-hero.png`](./assets/gallery-ha-box-mullet-hero.png) for the locked render.* |
 | 2 | **Wall-mount AC / mini-split** | Tom Selleck handlebar mustache across the bottom face | Quiet, dependable, slightly intimidating. Has stories. |
 | 3 | **Soundbar** | Long Fabio-style rocker mane, blonde, flowing | Loud, dramatic, fronts the band. |
 | 4 | **Ceiling fan** | Twin braided pigtails hanging from opposing blades | Spins all day. Pigtails fly out. Cheerful idiot. |
 | 5 | **Pillar candle** | Full Victorian gentleman's beard with waxed mustache tips | The shop's eccentric professor. Burns the midnight oil. |
 | 6 | **Projector** | Sharp pencil mustache (because it projects a fine line) | Theatrical. Slightly French. Insists on dimmed lights. |
-| 7 | **TV** | 1980s mullet — short cropped top, long flow down the back | Business up front, party in back. Plays sports. |
+| 7 | **TV** | *TBD — open candidates: rat tail (short cropped cut with one thin braid trailing down the back), or 90s curtains parted in the middle. Mullet was originally assigned here but moved to device #1 (HA Box).* | Business up front, party in back. Plays sports. *Awaiting cut decision.* |
 | 8 | **IR remote control** | Comb-over (the remote is losing its hair on the inside, too) | Aging, dignified, doing its best. Crowd favorite. |
 
-### Master Prompt Template — Device Gallery Hero Portrait
+### Master Prompt Template — Device Gallery Hero (Collage Approach, LOCKED v2.1)
 
-This is the canonical prompt template for any device-gallery hero portrait. Swap in the device-and-hairstyle pairing from the locked cast. Every gallery hero render starts here.
+The brand hero is a **mixed-media collage**: a flat Sailor Jerry tattoo flash illustration of the device, with a single photoreal element (the hair) composited on top. This approach was validated against the HA Box render and is now the canonical hero treatment. See [`assets/gallery-ha-box-mullet-hero-prompt.md`](./assets/gallery-ha-box-mullet-hero-prompt.md) for the full validated reference prompt.
 
-> A high-resolution photorealistic studio portrait of a {DEVICE_DESCRIPTION} sitting on a polished dark walnut barber's counter. The device has a perfectly styled {HAIRSTYLE_DESCRIPTION} of fully photorealistic human hair growing from {HAIR_ANCHOR_POINT_ON_DEVICE}. The hair is rendered with full strand-level detail, natural sheen, realistic light response, and a styled finish — as if it was just cut and combed by a real barber. The hair color is {HAIR_COLOR}. The styling is precise, intentional, and freshly done.
+The template below is a shortened scaffold; the full validated reference prompt has the iteration-tested specifics for hair anchoring, prop placement, text suppression, and palette discipline. Use that as the actual generator input. The scaffold here is for understanding the structure.
+
+**Scaffold structure:**
+
+> A Sailor Jerry American traditional tattoo flash style illustration with comic-book panel composition, rendered as a wide 16:9 banner. Bold uniform-weight black outlines, flat color fills in a limited Sailor Jerry palette, no gradients.
 >
-> Behind the device on the counter sit period barbershop tools and steampunk accents: a brass-handled straight razor, a copper-banded bottle of pomade, a small pressure gauge, an oil lamp with brass fittings, a folded white linen towel, a worn leather strop hanging from a brass hook on the wall behind. The wall behind the counter is dark stained wood with hammered copper sheet panels and exposed riveted brass piping running horizontally. A single warm tungsten bulb hangs above the counter casting soft directional light on the device. Subtle steam curls from one corner of the frame. The lighting is warm, cinematic, slightly underexposed in the shadows.
+> **MIXED-MEDIA RULE:** Everything except the hair is a flat illustration. The hair is a high-resolution photograph composited onto the illustration. The contrast is the joke.
 >
-> The mood is dignified, slightly absurd, and unmistakably a barbershop portrait — as if this device just got a $90 haircut and is sitting for its glamour shot. No banners or text in the image itself.
+> The {DEVICE_DESCRIPTION} sits on a muted bench against a cream paper background. The device is illustrated in flat Sailor Jerry style with the Home Assistant logo (rounded-corner house silhouette containing a circuit-tree design — vertical stem with three filled circular nodes) on its visible face.
+>
+> Growing through the upper surface of the device — which has no top-edge outline, the chassis surface acting as scalp — is a photoreal {HAIRSTYLE_DESCRIPTION} of real human hair, color {HAIR_COLOR}, with full strand-level studio-photography detail. Individual hair shafts emerge directly through the chassis surface; small slivers of chassis-blue are visible between parted strands as the implied scalp.
+>
+> The hair is rendered as a magazine-style photograph collaged onto the tattoo flash drawing. No outline around the hair silhouette. No comic shading on the hair.
+>
+> Sailor Jerry secondary props (shears, comb, ribbon banner reading the device's tagline) sit distributed around the device, never grouped. The headline reads "HAIR Styling." in deep red bold serif tattoo lettering across the top of the frame.
 
 **Field substitutions for each archetype:**
 
-| Archetype | DEVICE_DESCRIPTION | HAIRSTYLE_DESCRIPTION | HAIR_ANCHOR_POINT | HAIR_COLOR |
-|---|---|---|---|---|
-| HA Yellow | a Home Assistant Yellow device (small square computer with a yellow front face and dark grey case) | classic 1950s greaser pompadour swept up and back, sharp side part, comb lines visible | top edge of the yellow front face | jet black with a single grey streak at the temple |
-| Wall AC | a white wall-mounted ductless mini-split air conditioner with a long horizontal vent | Tom Selleck handlebar mustache with full, thick, waxed and curled tips | along the upper edge of the air output vent | rich chestnut brown |
-| Soundbar | a slim black horizontal soundbar with a fabric speaker grille | long Fabio-style flowing rocker mane reaching well past the unit, gently windswept | the top edge of the soundbar along its full length | sun-bleached blonde with caramel lowlights |
-| Ceiling Fan | a five-blade dark wood ceiling fan with brass-finish accents, viewed slightly from below | two long braided pigtails tied with red ribbons, hanging from two opposite blades | the underside of two opposing fan blades | warm chestnut brown |
-| Candle | a tall ivory pillar candle, lit, with a soft visible flame | full Victorian gentleman's beard and intricately waxed and curled handlebar mustache | wrapping the entire upper third of the candle just below the wick | silver-grey, distinguished |
-| Projector | a small black home cinema projector with a single front lens | sharp pencil mustache, thin and precise | directly above the projector lens | jet black |
-| TV | a slim modern flat-screen TV (off, dark screen) on a small wooden stand | classic 1980s mullet, short on top with long straight hair flowing down the back | the top edge of the TV bezel, flowing down behind | dirty blonde |
-| IR Remote | a vintage chunky black plastic TV remote with rubber buttons, lying flat | distinguished comb-over, thin grey hairs carefully arranged across the top | the upper third of the remote, where a forehead would be | thin silver-grey |
+| Archetype | DEVICE_DESCRIPTION | HAIRSTYLE_DESCRIPTION | HAIR_COLOR |
+|---|---|---|---|
+| **HA Box** *(locked)* | a compact Home Assistant mini-PC, a small rounded-edge cube in Home Assistant brand blue (#41BDF5) with antique brass rivets at the corners and the Home Assistant logo centered on the front face | a large, dramatic 1980s mullet with steampunk grooming sensibility: dramatic top volume, swept up and back with a clean side part, with a long flowing back curtain trailing behind. A small leather-and-brass hair tie binds a section of the back curtain | rich dark brown with multi-tonal variation (five tones: espresso roots #2E1A0F, dark chocolate body #4B2E1E, walnut mid-tones #6B4423, chestnut warmth #7A4B2E, walnut highlights #8B5A3C) |
+| Wall AC | a white wall-mounted ductless mini-split air conditioner with a long horizontal vent, illustrated in flat Sailor Jerry style | a thick Tom Selleck handlebar mustache spanning the unit, with full waxed and curled tips, anchored along the upper edge of the air output vent | rich chestnut brown |
+| Soundbar | a slim black horizontal soundbar with a fabric speaker grille, illustrated in flat Sailor Jerry style | a long Fabio-style flowing rocker mane reaching well past the unit, gently windswept, anchored along the top edge of the soundbar | sun-bleached blonde with caramel lowlights |
+| Ceiling Fan | a five-blade dark wood ceiling fan with brass-finish accents, viewed slightly from below, illustrated in flat Sailor Jerry style | two long braided pigtails tied with red ribbons, hanging from two opposing fan blades | warm chestnut brown |
+| Candle | a tall ivory pillar candle, lit with a soft visible flame, illustrated in flat Sailor Jerry style | a full Victorian gentleman's beard with intricately waxed and curled handlebar mustache, wrapping the upper third of the candle just below the wick | silver-grey, distinguished |
+| Projector | a small black home cinema projector with a single front lens, illustrated in flat Sailor Jerry style | a sharp pencil mustache, thin and precise, directly above the projector lens | jet black |
+| TV | a slim modern flat-screen TV (off, dark screen) on a small wooden stand, illustrated in flat Sailor Jerry style | *TBD — see Locked Cast above* | *TBD* |
+| IR Remote | a vintage chunky black plastic TV remote with rubber buttons, lying flat, illustrated in flat Sailor Jerry style | a distinguished comb-over of thin grey hairs carefully arranged across the upper third of the remote, where a forehead would be | thin silver-grey |
 
 ### Style Juxtaposition Rules
 
 The brand operates in three visual modes (defined in Section 8). The Device Gallery shows up in all three, with these rules for how realistic the hair gets in each:
 
-- **Mode 1 — Photoreal hero portraits.** Hair photoreal. Device photoreal. Environment photoreal. Sailor Jerry tattoo flash appears as **overlay**: a hand-drawn cream banner with the device's nickname in tattoo-flash lettering, optional decorative roses or daggers as corner stamps. The illustration sits *on top* of the photo, never blended into it. Print-style "tattoo over photograph" energy.
-- **Mode 2 — Tattoo flash sheets.** Device illustrated in flat Sailor Jerry tattoo flash style (bold black outlines, limited flat fills, banners, decorative flourishes). The hair, however, stays **photoreal-textured** inside the flat illustration — full strand detail, real sheen, real color depth. The contrast between flat illustrated device and detailed real hair *is the entire joke*. Print sheets, stickers, social.
+- **Mode 1 — Collage hero (LOCKED, validated against HA Box render).** Device illustrated in flat Sailor Jerry tattoo flash style (bold black outlines, limited flat fills, brand palette). The hair is a high-resolution photograph composited onto the flat illustration as a magazine-style collage. The contrast between the flat illustrated device and the detailed real hair is the entire joke. Print sheets, hero banners, marketing, social.
+- **Mode 2 — Pure tattoo flash flat (stickers, merch-style art).** Same flat Sailor Jerry treatment as Mode 1, but the hair is also illustrated flat (no photoreal element). Used when the print medium can't reproduce photo-illustration mixing cleanly, or when a fully flat sticker is preferred. Lower priority than Mode 1.
 - **Mode 3 — In-product illustrations.** Device illustrated cleanly in the simplified house style. Hair rendered with visible strand texture but in 2-3 tonal zones (no full photoreal here — would be too busy in a UI). Bold black outlines on the device, finer linework inside the hair. Restrained.
+
+The historical Mode 1 framing (full photoreal device + photoreal hair + photoreal environment) was explored during v2.0 iteration and not validated. The collage approach in current Mode 1 is the brand hero treatment.
 
 ### Gallery Usage Rules
 
-- **The cast is the cast.** New devices can join the gallery (with David's signoff), but the existing eight don't get redesigned. Pompadour TV is wrong. Mullet HA Yellow is wrong. Lock and respect.
-- **One signature look per device.** No scenario variations on hair. The HA Yellow always has a pomp. The candle always has the Victorian beard. Variety comes from *which device* is on screen, not from "today the HA Yellow has bangs."
-- **No props on the hair.** No tiny Santa hats on the pompadour, no sunglasses on the candle. The brand stays clean. Seasonal beats come from the *environment* (December counter has a tiny wreath on the wall, not on the device).
-- **Hair color is locked per device.** See the substitution table above. The HA Yellow's pomp is always jet black with a grey streak. Drift on hair color drifts the character.
-- **Devices appear alone in hero portraits.** Group shots (the "shop floor" lineup) are allowed for marketing — see Mode 1 — but each individual gallery render is one device, centered, getting its glamour shot.
+- **The cast is the cast.** New devices can join the gallery (with David's signoff), but the existing eight don't get redesigned. Pompadour TV is wrong. Mullet AC is wrong. Lock and respect.
+- **One signature look per device.** No scenario variations on hair. The HA Box always has a mullet. The candle always has the Victorian beard. Variety comes from *which device* is on screen, not from "today the HA Box has bangs."
+- **No props on the hair.** No tiny Santa hats on the mullet, no sunglasses on the candle. The brand stays clean. Seasonal beats come from the *environment* (December counter has a tiny wreath on the wall, not on the device). The small leather-and-brass hair tie on the HA Box mullet is the exception that proves the rule — it's a steampunk grooming detail that's part of the locked look, not a seasonal prop.
+- **Hair color is locked per device.** See the substitution table above. The HA Box mullet is always the five-tone dark brown palette specified. Drift on hair color drifts the character.
+- **Devices appear alone in hero portraits.** Group shots (the "shop floor" lineup) are allowed for marketing — see the Family Portrait below — but each individual gallery render is one device, centered, getting its glamour shot.
 - **No human faces or hands in gallery renders.** The shop is staffed by ghosts. The hair appeared overnight. Keep the focus on the device.
 - **No merch, AI-generated assets only.** Same posture as v1.3: this is a software project with a fun visual layer, not a streetwear brand.
 
 ### Gallery Family Portrait (the "Shop Floor" Hero)
 
-The hero marketing image for the brand is the **family portrait** — all eight archetypes lined up on a counter or row of chairs, each in profile, each with its signature cut. This is the HAIR equivalent of the wall of headshots in a real barbershop. It runs across the top of the README, the HACS listing, and the project's launch announcement.
+The hero marketing image for the brand is the **family portrait** — all eight archetypes lined up on a counter, each in profile, each with its signature cut. This is the HAIR equivalent of the wall of headshots in a real barbershop. It runs across the top of the README, the HACS listing, and the project's launch announcement.
 
-**Family Portrait Prompt:**
+The family portrait follows the same mixed-media collage approach as the individual hero (Sailor Jerry illustration + photoreal hair), scaled out to all eight devices in one frame.
 
-> A photorealistic horizontal group portrait of eight household electronic devices lined up in a row on a polished dark walnut barbershop counter. Each device is wearing a different fully photorealistic human hairstyle as if freshly cut by a real barber. From left to right: (1) a Home Assistant Yellow computer with a jet-black 1950s greaser pompadour, (2) a white wall-mount mini-split AC with a thick chestnut-brown handlebar mustache across its vent, (3) a slim black soundbar with a long blonde flowing Fabio rocker mane, (4) a dark wood five-blade ceiling fan with two braided chestnut pigtails tied in red ribbons hanging from opposing blades, (5) a tall lit ivory pillar candle with a silver-grey Victorian beard and waxed handlebar mustache, (6) a small black home projector with a precise jet-black pencil mustache above the lens, (7) a slim flat-screen TV with a dirty-blonde 1980s mullet, (8) a vintage chunky black plastic TV remote with a thin silver comb-over.
+**Family Portrait Prompt (will need a render-time pass once the TV cut is locked):**
+
+> A wide horizontal Sailor Jerry American traditional tattoo flash style illustration on a cream textured paper background. Bold black tattoo outlines, flat color fills, Sailor Jerry palette. Eight household electronic devices stand in a row on a muted bench, each illustrated in flat Sailor Jerry style. From left to right: (1) a compact Home Assistant mini-PC cube in HA brand blue (#41BDF5) with the HA logo on its face, (2) a white wall-mount mini-split AC with a long horizontal vent, (3) a slim black soundbar with a fabric grille, (4) a dark wood five-blade ceiling fan viewed slightly from below, (5) a tall lit ivory pillar candle, (6) a small black home projector with a front lens, (7) a slim modern flat-screen TV on a wooden stand, (8) a vintage chunky black plastic TV remote.
 >
-> The background is a steampunk barbershop wall: dark stained wood paneling, hammered copper sheets, exposed brass piping running horizontally, a row of small pressure gauges, oil lamps on brass sconces, a leather strop hanging on a brass hook. A single brass-and-glass barber pole stands on the far right edge of the frame, the red-white-navy spiral visible inside the glass cylinder. Warm tungsten lighting from above, slight steam curling from one corner. Cinematic, dignified, slightly absurd. No people, no text, no banners in the image.
+> Each device wears a different signature hairstyle of fully photorealistic human hair, composited on top of the flat illustration as a magazine-style collage: (1) HA Box with a dramatic 1980s dark-brown steampunk mullet with leather-and-brass hair tie, (2) AC with a chestnut-brown Tom Selleck handlebar mustache, (3) soundbar with a long blonde Fabio mane, (4) fan with two braided chestnut pigtails tied in red ribbons on opposing blades, (5) candle with a silver-grey Victorian beard and waxed handlebar mustache, (6) projector with a precise jet-black pencil mustache, (7) TV with [TBD cut], (8) remote with a thin silver comb-over.
+>
+> The background is a flat-illustrated steampunk barbershop wall: hammered copper sheets, exposed brass piping running horizontally, a row of small pressure gauges, oil lamps on brass sconces, a leather strop hanging on a brass hook. A single brass-and-glass barber pole stands on the far right edge of the frame, drawn in flat Sailor Jerry style. The hair on each device is the only photoreal element. The hair-on-illustration contrast is the entire visual joke, repeated eight times across the frame. No people, no banners with text other than possibly a single "HAIR — IR Stylists" sign painted on the back wall.
 
 ### Why This Replaces a Mascot
 
@@ -294,20 +311,39 @@ A mascot is a single character that has to carry the brand's warmth across every
 
 ## 6. Color Palette
 
-The v2 palette drops cyberpunk neon (Neon Pink, Electric Cyan) and tropical accents (Tiki Wood) and mascot-specific colors (Hank Orange, Sailor Jerry Yellow). It adds the warm-metal range that anchors the steampunk world. The Barber Red / Deep Navy / Cream Linen / Bone White anchor stays intact.
+The v2 palette drops cyberpunk neon (Neon Pink, Electric Cyan) and tropical accents (Tiki Wood) and mascot-specific colors (Hank Orange, Sailor Jerry Yellow). It adds the warm-metal range that anchors the steampunk world. The Barber Red / Deep Navy / Cream Linen / Bone White anchor stays intact. The v2.1 update adds the **HA Brand Blue** (the chassis color of the HA Box hero device) and documents the **Hair Palette** (a separate five-tone palette used for the photographic hair element in the Device Gallery).
+
+### Primary Brand Palette
 
 | Color | Hex | Role |
 |---|---|---|
 | **Cream Linen** | `#F4EBD9` | Primary background, paper, "shop wall" |
-| **Barber Red** | `#C8102E` | Primary brand red, the pole stripe |
-| **Deep Navy** | `#1A2B4A` | Primary text, ink lines, the pole stripe |
+| **Barber Red** | `#C8102E` | Primary brand red, the pole stripe, headline lettering |
+| **Deep Navy** | `#1A2B4A` | Primary text, ink lines, the pole stripe, illustration outlines |
 | **Bone White** | `#FBF8F1` | Surfaces, cards, the pole stripe |
+| **HA Brand Blue** | `#41BDF5` | The Home Assistant Box chassis color. The single high-saturation cool color in the palette. Standardized to match the SMART Sniffer sibling brand. |
 | **Ocean Teal** | `#2A8B8B` | Secondary accent, oxidized patina, retained from v1 |
-| **Antique Brass** | `#B08D57` | Steampunk apparatus, gauges, plinth, frames |
+| **Antique Brass** | `#B08D57` | Steampunk apparatus, gauges, plinth, frames, rivets, shear blades |
 | **Oxidized Copper** | `#A85A3A` | Copper banding, exhaust tubing, secondary metal accent |
 | **Gunmetal** | `#3B3F45` | Riveted plate, mechanical gears, restrained accent |
 | **Oxblood** | `#6E1E1E` | Leather strop, smock detail, deep accent over Barber Red |
-| **Tobacco Leather** | `#8A5A3B` | Aged leather, chair upholstery, warm secondary |
+| **Tobacco Leather** | `#8A5A3B` | Aged leather, hair-tie wraps, chair upholstery, warm secondary |
+| **Sailor Jerry Gold** | `#F2C14E` | Headline drop shadow, brass tone highlights, accent only |
+| **Muted Bench** | `#E6D5B8` | Recessive bench / surface color in the Device Gallery hero renders — fades into the cream background |
+
+### Hair Palette (for photographic hair compositing)
+
+Used for any Device Gallery character wearing dark hair (HA Box and others as they get rendered). These tones are not flat zones — they appear as multi-tonal variation across individual strands in photographic rendering, never as a single block. Documented here so future hero renders match the locked HA Box reference.
+
+| Color | Hex | Role |
+|---|---|---|
+| **Espresso Root** | `#2E1A0F` | Deepest tone, at the very base of strands where they emerge from the chassis |
+| **Dark Chocolate** | `#4B2E1E` | Dominant base color through the body of the hair |
+| **Walnut Brown** | `#6B4423` | Mid-tone strands woven through, visible especially in the styled top |
+| **Chestnut Warm** | `#7A4B2E` | Warmer strands threaded sparingly for variation |
+| **Walnut Highlight** | `#8B5A3C` | Lightest tone, only at the peaks of the styled crown where studio light reflects off the pomaded surface |
+
+Other devices in the gallery wear different hair colors (the AC's chestnut brown, the soundbar's blonde, the candle's silver-grey, etc.). Each device-specific palette will be documented in its prompt file as it's locked.
 
 ### Palette Usage Rules
 
@@ -361,54 +397,62 @@ A bold brush script for occasional flair — captions on illustrations, signed n
 
 The brand operates in **three visual modes**, each suited to different surfaces. The Device Gallery (Section 5.5) shows up in all three; the modes define *how* the gallery is rendered for that surface.
 
-### Mode 1: Photoreal Hero (Marketing)
+The v2.1 update reorders the modes based on what was actually validated during iteration: the **collage approach** (illustrated device + photoreal hair) is the locked brand hero, not the pure-photoreal cinematic shot that v2.0 originally proposed.
 
-**Cinematic studio photography of the device gallery, shot like real barbershop glamour portraits.**
+### Mode 1: Collage Hero — Illustrated Device + Photoreal Hair (LOCKED)
 
-Two canonical Mode 1 shots:
+**Sailor Jerry tattoo flash illustration of the device, with a single photoreal element (the hair) composited on top.**
 
-**1a — Solo Hero Portrait.** A single device from the gallery sits on a polished dark walnut counter, in full photoreal styling, with its locked human hairstyle perfectly rendered. The steampunk barbershop wall sits behind it: hammered copper sheets, exposed brass piping, oil lamps, leather strop. Warm tungsten lighting. A subtle wisp of steam in the corner. The device looks like it just paid $90 and is sitting for its glamour shot. (See the master prompt template in Section 5.5.)
+This is the brand hero mode, validated against the HA Box render ([`assets/gallery-ha-box-mullet-hero.png`](./assets/gallery-ha-box-mullet-hero.png)). It's used for the README header, HACS thumbnail, launch announcements, marketing carousels, and large-format posters.
 
-**1b — Family Portrait.** The full gallery lined up across a counter, each device wearing its signature cut, the steampunk shop behind them. This is the README header, the HACS thumbnail, the launch announcement hero. (See the Family Portrait prompt in Section 5.5.)
+How it works:
 
-**The Sailor Jerry overlay.** Photoreal images get a hand-drawn tattoo-flash overlay applied *on top*: a cream-colored ribbon banner with the device's nickname or tagline ("THE POMPADOUR," "WALK-INS WELCOME"), optional corner stamps (a small rose, a dagger, a swallow). The overlay sits like a real tattoo over a photograph — the photo and the illustration never blend. This is the brand stamp that says "yes, this is HAIR."
+- The device sits in flat Sailor Jerry tattoo flash style: bold black outlines, flat-fill colors in the brand palette, decorative banners and Sailor Jerry flourishes around it
+- The hair grows through the top of the device as a high-resolution photograph composited onto the illustration — magazine-collage style, no outline, no comic shading
+- A "HAIR Styling." headline anchors the top of the frame; a small Sailor Jerry ribbon banner (often reading "HA·IR" or the device's tagline) anchors a corner
+- Small props (shears, comb) sit distributed around the device, never grouped
+- A muted bench surface and cream paper background carry the scene; the bench fades into the background at the edges to focus the eye on the device-and-hair centerpiece
 
-**Tagline overlay default:** *Style Your HAIR.*
+**Two canonical Mode 1 shots:**
 
-**Use for:** Website hero, README header, HACS listing thumbnail, launch announcement, large-format posters, marketing carousel cards.
+**1a — Solo Hero.** A single device with its locked cut. See [`assets/gallery-ha-box-mullet-hero-prompt.md`](./assets/gallery-ha-box-mullet-hero-prompt.md) for the full validated reference prompt and per-device substitutions.
 
-### Mode 2: Sailor Jerry Tattoo Flash (Social, Stickers, Posters)
+**1b — Family Portrait.** All eight devices in a row, each with its signature cut, each with a photoreal hair element on top of the flat illustration. See the Family Portrait prompt in Section 5.5.
 
-**Devices illustrated as American traditional tattoo designs — with photoreal hair as the contrast element.**
+**Use for:** Website hero, README header, HACS listing thumbnail, launch announcements, large-format posters, marketing carousel cards.
 
-Each gallery device gets a tattoo-flash treatment: bold black ink outlines, flat-fill colors in the brand palette, classic decorative flourishes (banners, roses, daggers, swallows, gears, brass plates). **The one element that stays photoreal is the hair.** Inside the flat illustrated device, the hairstyle is rendered with full strand-level texture and natural sheen, so it looks like a real haircut got stamped onto a tattoo. That seam between flat illustration and detailed real hair is the joke.
+### Mode 2: Pure Flat Tattoo Flash (Stickers, Merch-style, Print)
+
+**Same Sailor Jerry tattoo flash style as Mode 1, but the hair is also flat-illustrated (no photoreal element).**
+
+Used when the printing medium can't reproduce mixed-media collage cleanly, or when a fully flat sticker is preferred. Mode 2 is the alternative to Mode 1 for surfaces where the photographic element doesn't render well (cheap printing, screen-print stickers, embroidery, etc.).
 
 Tattoo flash scene seeds:
 
-- HA Yellow with its jet-black pompadour, banner reading "WALK-INS WELCOME"
+- HA Box with its dark-brown mullet (flat-illustrated), banner reading "WALK-INS WELCOME"
 - Mini-split AC with handlebar mustache, classic roses, banner reading "COOL & WELL-GROOMED"
 - Soundbar with Fabio mane, two swallows flanking, banner reading "LOUD AND PROUD"
-- Ceiling fan with photoreal pigtails, banner reading "ROUND AND ROUND"
+- Ceiling fan with pigtails, banner reading "ROUND AND ROUND"
 - Pillar candle with Victorian beard, classic rose, banner reading "BURNS LATE"
 - Projector with pencil mustache, classic dagger, banner reading "DRAMA"
-- TV with photoreal mullet, banner reading "BUSINESS / PARTY"
-- IR remote with photoreal comb-over, dagger through it, banner reading "STILL TICKING"
+- TV with [TBD cut], banner reading "BUSINESS / PARTY" *(awaiting TV cut decision)*
+- IR remote with comb-over, dagger through it, banner reading "STILL TICKING"
 
 **Style rules:**
-- Bold black tattoo outlines on the device
+- Bold black tattoo outlines on the device and the hair
 - Flat fills only in brand palette
-- Hair is photoreal-textured, not flat — full strand detail inside the illustration
+- Hair rendered in 2-3 tonal color zones, not photoreal
 - Banner curls and Sailor Jerry shading on text
 - Steampunk accents (brass plate frame, copper rivets, small gauge) allowed as flourishes
 - One device per design, centered, print-ready
 
-**Use for:** Stickers, posters, social posts, secondary marketing, fan-shareable assets, t-shirt mockups (no merch shipped, but the art reads as merch-ready).
+**Use for:** Stickers, screen-print posters, social cards where the collage doesn't reproduce, fan-shareable flat assets, t-shirt mockups (no merch shipped, but the art reads as merch-ready).
 
 ### Mode 3: Illustrated In-Product
 
 **Cleaner, restrained illustrations of the gallery devices for in-product UI states.**
 
-The shop has been quietly cleaning up. Mode 3 illustrations are flatter than Mode 1, simpler than Mode 2, and tuned to sit calmly inside a Home Assistant admin panel without screaming for attention. Devices appear with their signature hair, but the hair is rendered in 2-3 tonal zones (visible strand linework, no full photoreal). Bold black outlines on the device silhouette, finer linework inside the hair. Limited palette: Cream Linen background, Barber Red / Deep Navy / Bone White for the device, Antique Brass / Tobacco Leather for environment accents.
+The shop has been quietly cleaning up. Mode 3 illustrations are simpler than Modes 1 and 2, tuned to sit calmly inside a Home Assistant admin panel without screaming for attention. Devices appear with their signature hair rendered in 2-3 tonal zones (visible strand linework, no photoreal). Bold black outlines on the device silhouette, finer linework inside the hair. Limited palette: Cream Linen background, Barber Red / Deep Navy / Bone White for the device, Antique Brass / Tobacco Leather for environment accents.
 
 Scene library:
 
@@ -431,17 +475,18 @@ Scene library:
 
 | Surface | Mode |
 |---|---|
-| Marketing hero, README, HACS thumbnail | Mode 1 (Photoreal hero portrait or family) |
-| Social, stickers, posters, fan-shareable assets | Mode 2 (Tattoo flash with photoreal hair) |
+| Marketing hero, README, HACS thumbnail, launch posters | Mode 1 (Collage: illustrated device + photoreal hair) |
+| Stickers, screen-print, flat social cards, merch-style art | Mode 2 (Pure flat tattoo flash) |
 | In-product UI states | Mode 3 (Illustrated in-product) |
 | Logo marks (everywhere) | Logo system (Section 5) |
 
 ### Cross-Mode Consistency Rules
 
-- **The Device Gallery cast is constant across all three modes.** A device's signature hairstyle doesn't change between modes. The HA Yellow's pompadour is a pomp in Mode 1 (photoreal), Mode 2 (illustrated outline with photoreal hair), and Mode 3 (illustrated with simplified strand texture).
-- **The steampunk environment scales with the mode.** Photoreal in Mode 1, decorative accent in Mode 2, restrained background in Mode 3. Never absent.
-- **Sailor Jerry linework is the brand seal.** It overlays photos in Mode 1, defines the device in Mode 2, and outlines everything in Mode 3.
+- **The Device Gallery cast is constant across all three modes.** A device's signature hairstyle doesn't change between modes. The HA Box's mullet is a photographic mullet in Mode 1, a flat-illustrated mullet in Mode 2, and a simplified strand-textured mullet in Mode 3.
+- **The steampunk environment scales with the mode.** Decorative flat accents in Modes 1 and 2, restrained background in Mode 3. Never absent.
+- **Sailor Jerry linework is the brand seal.** It defines the device in all three modes; the difference is whether the hair is photoreal (Mode 1), flat-illustrated (Mode 2), or simplified-strand (Mode 3).
 - **No cyberpunk neon, no tropical motifs, no glowing surfaces.** The shop runs on tungsten and brass.
+- **The historical pure-photoreal v2.0 Mode 1 framing is deprecated.** It was explored during iteration and didn't validate. If a future render attempts pure photoreal (device + hair + environment all photographic), confirm against the brand owner before shipping.
 
 ---
 
@@ -574,13 +619,13 @@ Tracking what we need to actually produce for v2. All v1 / v1.3 assets are consi
 - [ ] Horizontal lockup (site headers, social cards)
 
 ### Device Gallery hero portraits (Mode 1 — eight needed)
-- [ ] HA Yellow with pompadour *(hero device, ship first)*
+- [x] **HA Box with mullet** — LOCKED 2026-05-13. See [`assets/gallery-ha-box-mullet-hero.png`](./assets/gallery-ha-box-mullet-hero.png) and the [locked prompt](./assets/gallery-ha-box-mullet-hero-prompt.md).
 - [ ] Wall-mount AC with handlebar mustache
 - [ ] Soundbar with Fabio mane
 - [ ] Ceiling fan with pigtails
 - [ ] Pillar candle with Victorian beard
 - [ ] Projector with pencil mustache
-- [ ] TV with 1980s mullet
+- [ ] TV with [TBD cut — rat tail or 90s curtains, mullet moved to HA Box]
 - [ ] IR remote with comb-over
 
 ### Family portrait (Mode 1)
@@ -619,6 +664,7 @@ This document evolves. Track major changes here.
 | v1.2 | 2026-05-08 | **Hairy Hank LOCKED as mascot.** Added new Section 5.5 with full character design, locked master prompt, 10-scenario library, wardrobe variants, and usage rules. Hank's hair uses Sailor Jerry tattoo color shading (red→orange→yellow flame) as the default; flame color shifts function as a brand-wide mood indicator across scenarios. Added **Hank Orange (#F28C3F)** to the color palette as the middle band of the flame. AI-generated only, no merch posture confirmed. Pin and pole logo system unchanged — Hank is the *mascot*, the wordmark + pole is the *logo*. |
 | v1.3 | 2026-05-08 | **Hank v8 LOCKED as final mascot.** After 8 iteration rounds, the canonical Hank is locked: middle-aged plastic troll doll with a pronounced receded hairline, towering 65-70%-of-canvas Sailor Jerry flame hair (with fluffy fur strand texture), thin gold wireframe glasses on a bulbous nose, working as a barbershop barber in a tobacco-brown leather smock with brass rivets and a small red "HAIR" patch — dressed underneath like a suburban dad on a Saturday (polo collar, cargo shorts, white New Balance, crew socks all visible peeking around the smock). Three-act visual storytelling: hair = "HOLY HAIR," middle = "he's a barber," bottom = "wait, he's a dad too." All scenarios and wardrobe variants updated to reference v8 as the locked baseline. Created `branding/assets/` folder with README pointing to the canonical reference render. Usage rules expanded to lock the hair-to-body ratio, fur texture, troll face, wireframes, hairline, smock, dad-outfit underneath, and belly-button peek as non-negotiable elements. |
 | **v2.0** | **2026-05-13** | **Brand reset — Steampunk Sailor Jerry Barbershop direction locked.** Hairy Hank is retired (archived to `assets/_archive/`). Tiki and cyberpunk are dropped entirely. Steampunk joins as an equal partner to Sailor Jerry tattoo flash. The new central concept is **"hair on things"** — photoreal human hairstyles grafted onto IR-controllable devices, with the Device Gallery (Section 5.5) as the recurring ensemble cast in place of a single mascot. Eight archetypes locked: HA Yellow (pompadour), wall AC (handlebar mustache), soundbar (Fabio mane), ceiling fan (pigtails), pillar candle (Victorian beard), projector (pencil mustache), TV (mullet), IR remote (comb-over). Logo system rewritten: barber pole reframed as brass-and-glass steampunk apparatus on a riveted brass plinth, no tiki base. Color palette refreshed: dropped Neon Pink, Electric Cyan, Tiki Wood, Hank Orange, Sailor Jerry Yellow; added Antique Brass, Oxidized Copper, Gunmetal, Oxblood, Tobacco Leather. Visual modes rewritten with explicit photoreal-vs-illustrated juxtaposition rules so the three modes stay coherent. Previous guide archived to `brand-guide-v1.3-archive.md`. |
+| **v2.1** | **2026-05-13** | **First Device Gallery hero locked. Collage approach validated; v2.0 pure-photoreal Mode 1 deprecated.** After roughly a dozen iteration rounds against Gemini, the **HA Box with a 1980s steampunk mullet** is locked as the first canonical Device Gallery render and the brand hero asset. The collage approach — flat Sailor Jerry tattoo flash illustration of the device with photographic hair composited on top — became the validated brand mode and is now the new Mode 1. The original v2.0 Mode 1 (pure photoreal cinematic photography) was explored and did not validate; it is deprecated as a primary mode. The original v2.0 Mode 2 (tattoo flash + photoreal hair) is promoted to Mode 1; a new Mode 2 (pure flat tattoo flash, no photographic element) is documented for print/sticker surfaces. **Device #1 renamed from "Home Assistant Yellow" to "Home Assistant Box"** to reflect the actual hardware target. **Hair changed from 1950s pompadour to 1980s steampunk-influenced mullet** with steampunk gentleman's grooming sensibility (visible pomade hold, small leather-and-brass hair tie on the back curtain). **Hair color changed from jet black to a five-tone dark brown palette** (espresso roots, dark chocolate body, walnut mid-tones, chestnut warmth, walnut highlights), explicitly documented with hex codes in the palette section. **HA Brand Blue (#41BDF5)** added to the primary palette as the HA Box chassis color, standardized to match the SMART Sniffer sibling brand. **HA logo description borrowed from SMART Sniffer**: "rounded-corner house silhouette containing a circuit-tree design — vertical stem with three filled circular nodes." **TV signature cut is now TBD** because the mullet moved to the HA Box. Open candidates: rat tail or 90s curtains. Family Portrait prompt updated to reference the new device names and the collage approach. Master Prompt Template in Section 5.5 rewritten as a scaffold that references the validated reference prompt at `assets/gallery-ha-box-mullet-hero-prompt.md`. v2.0 guide archived to `brand-guide-v2.0-archive.md`. |
 
 ---
 

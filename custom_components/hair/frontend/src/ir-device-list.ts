@@ -263,7 +263,7 @@ export class IrDeviceList extends LitElement {
                                       </div>
                                       <div class="card-footer">
                                           <span class="badge cmd-badge">
-                                              ${device.command_count} commands
+                                              CMD: ${device.command_count}
                                           </span>
                                           ${device.emitter_entity_ids.length > 0
                                               ? html`<span class="badge tx-badge">TX: ${device.emitter_entity_ids.length}</span>`
@@ -472,7 +472,7 @@ export class IrDeviceList extends LitElement {
             font-size: 0.75rem;
             font-weight: 600;
             padding: 1px 7px;
-            border-radius: 999px;
+            border-radius: 4px;
             background: var(--secondary-background-color);
             color: var(--secondary-text-color);
         }
@@ -541,16 +541,16 @@ export class IrDeviceList extends LitElement {
             color: #2e7d32;
         }
 
-        /* TX badge (blue) */
+        /* TX badge (amber -- matches diamond short) */
         .tx-badge {
-            background: rgba(30, 136, 229, 0.15);
-            color: #e65100;
+            background: rgba(255, 152, 0, 0.15);
+            color: #ff9800;
         }
 
-        /* RX badge */
+        /* RX badge (blue -- matches diamond long / primary) */
         .rx-badge {
-            background: rgba(255, 152, 0, 0.15);
-            color: #1565c0;
+            background: rgba(33, 150, 243, 0.15);
+            color: var(--primary-color, #2196f3);
         }
 
         /* No TX warning (muted) */
