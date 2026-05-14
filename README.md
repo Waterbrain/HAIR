@@ -16,7 +16,7 @@ Before the infrared platform, IR in HA was fragmented. Broadlink had its own int
 
 The infrared platform solves the transport layer. HAIR solves everything above it: the admin experience for capturing signals, fingerprinting and deduplicating them, organizing them into device profiles, and automatically creating the right HA entities with proper feature mappings. Think of it like how the Z-Wave JS UI manages Z-Wave devices, but for IR.
 
-HAIR also introduces signal fingerprinting using Pronto hex pulse-duration analysis. Every captured IR signal is reduced to a short/long (S/L) pattern that identifies it regardless of the minor timing jitter between presses. This works across all major consumer IR protocols including NEC, Samsung, JVC, LG, Sony, and RC-5/RC-6. The Sniffer groups signals by source remote, deduplicates repeated button presses, filters out repeat frames, and tracks how often each signal appears, all without needing to decode the specific IR protocol.
+HAIR also introduces signal fingerprinting using short/long (S/L) pulse-duration analysis. Every captured IR signal is reduced to an S/L pattern that identifies it regardless of timing jitter between presses. This works across all major consumer IR protocols including NEC, Samsung, JVC, LG, Sony, and RC-5/RC-6. The Sniffer groups signals by source remote, deduplicates repeated button presses, and tracks how often each signal appears, all in real time.
 
 As HA's IR ecosystem matures (receiver entities are expected in 2026.6-2026.7), HAIR will grow alongside it. The goal is to be the go-to admin tool for anyone with IR-controlled devices in their home.
 
@@ -126,11 +126,9 @@ HAIR discovers capture-capable hardware automatically:
 
 ### Signal Fingerprinting
 
-Captured IR signals are converted to Pronto hex and fingerprinted using pulse-duration analysis. Each timing word in the Pronto data is classified as short (S) or long (L) relative to a threshold. The resulting S/L pattern identifies the signal regardless of minor timing variations between presses. In the UI, these patterns are shown as two-tone diamond sequences for quick visual identification.
+Captured IR signals are fingerprinted using S/L (short/long) pulse-duration classification. Each pulse in the signal is classified as short or long, producing a pattern that uniquely identifies the signal regardless of minor timing jitter between presses. In the UI, these patterns are shown as two-tone diamond sequences for quick visual identification.
 
-This works across the full range of consumer IR protocols, including NEC-family protocols (NEC, Samsung, JVC, LG) whose lead-in marks are much longer than normal data pulses. HAIR recognizes these lead-in signatures and classifies them correctly rather than treating them as end-of-signal gaps. NEC-style repeat frames (short transmissions sent while a button is held) are filtered automatically so the Sniffer only shows actual command signals.
-
-Signals are grouped by source device using the carrier frequency and protocol-aware preamble analysis. For NEC-family signals, HAIR extracts the device address portion of the S/L pattern to distinguish between remotes. For other protocols, the first burst pair serves as the preamble fingerprint. This is how the Sniffer knows which remote a signal came from without needing to decode the specific IR protocol.
+S/L fingerprinting covers all major consumer IR protocols including NEC, Samsung, JVC, LG, Sony, and RC-5/RC-6. Repeat frames (sent while a button is held) are filtered automatically. Signals are grouped by source device using carrier frequency and preamble analysis, so the Sniffer knows which remote a signal came from without needing to decode the specific protocol.
 
 ### Architecture
 

@@ -16,6 +16,7 @@ env/
 
 # Testing
 .pytest_cache/
+pytest-cache-files-*/
 .coverage
 htmlcov/
 *.cover
@@ -30,6 +31,7 @@ htmlcov/
 # Backups
 *.bak
 *.bak2
+.backups/
 
 # OS
 .DS_Store
@@ -42,3 +44,6 @@ custom_components/hair/frontend/node_modules/
 # Claude local settings
 .claude/
 images/internal/
+
+# Internal docs (not for public repo)
+docs/internal/
