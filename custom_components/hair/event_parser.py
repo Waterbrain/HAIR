@@ -82,6 +82,30 @@ class EventParser:
         return False
 
     @staticmethod
+    def is_pronto_repeat(event_data: dict[str, Any]) -> bool:
+        """Return True if event is a Pronto-encoded repeat frame.
+
+        NEC-family repeat frames arrive as very short Pronto codes
+        (2 burst pairs = 4 timing words after the header).  They carry
+        no command data -- just a lead-in mark + space + stop bit.
+
+        Threshold: <= 3 burst pairs covers NEC/Samsung/JVC/LG repeats
+        while leaving real short protocols (like RC-5 toggles) alone.
+        """
+        protocol = (event_data.get("protocol") or "").upper()
+        if protocol != "PRONTO":
+            return False
+        code = event_data.get("code") or ""
+        words = EventParser._parse_pronto_words(code)
+        if words is None:
+            return False
+        # Pronto header: [type, freq, burst1_count, burst2_count]
+        burst1 = words[2]
+        burst2 = words[3]
+        total_pairs = burst1 + burst2
+        return total_pairs <= 3
+
+    @staticmethod
     def extract_device_address(
         protocol: str | None, code: str | None
     ) -> str | None:

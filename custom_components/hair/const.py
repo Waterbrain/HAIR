@@ -56,7 +56,10 @@ SIGNAL_RAW_FINGERPRINT_LEN = 64
 # with a clear gap between ~0x24 and ~0x3D.
 PRONTO_SL_THRESHOLD = 0x30
 # Timing words above this are treated as end-of-signal gaps.
-PRONTO_GAP_THRESHOLD = 0x100
+# Must be high enough to include NEC/Samsung/JVC/LG lead-in marks
+# (0x100-0x200 range) but low enough to catch real inter-frame gaps
+# (typically 0x0800+).
+PRONTO_GAP_THRESHOLD = 0x0400
 # Number of S/L pairs from the preamble used for device grouping.
 PRONTO_DEVICE_PREAMBLE_PAIRS = 1
 ASSIGN_SERVICE_TIMEOUT_S = 10

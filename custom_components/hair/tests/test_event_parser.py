@@ -402,3 +402,147 @@ class TestProntoHelpers:
     def test_pronto_sl_pattern_malformed(self):
         assert EventParser._pronto_sl_pattern("0000 006D") is None
         assert EventParser._pronto_sl_pattern(None) is None
+
+    def test_pronto_sl_pattern_nec_lead_in_not_treated_as_gap(self):
+        """NEC lead-in marks (~0x159) should classify as L, not stop the pattern.
+
+        A real NEC power button in Pronto format starts with a 9ms lead-in
+        (0x0159) followed by a 4.5ms space (0x00AC), then data pulses.
+        The old gap threshold (0x100) would stop at the lead-in, returning None.
+        """
+        # Simplified NEC-style: lead-in (0x159), space (0xAC), then data
+        code = "0000 006D 0006 0000 0159 00AC 0015 0015 0015 0041 0015 0015 0015 0041 0015 0BBA"
+        sl = EventParser._pronto_sl_pattern(code)
+        assert sl is not None
+        assert sl.startswith("LL")  # Lead-in + space are both "L"
+        assert "S" in sl  # Data pulses contain short values
+
+    def test_pronto_sl_pattern_true_gap_still_stops(self):
+        """Values >= 0x0400 (true inter-frame gaps) still terminate the pattern."""
+        code = "0000 006D 0004 0000 0020 0040 0020 0800"
+        sl = EventParser._pronto_sl_pattern(code)
+        assert sl == "SLS"
+
+
+class TestIsProntoRepeat:
+    """Tests for Pronto repeat frame detection."""
+
+    def test_nec_repeat_frame_detected(self):
+        """NEC repeat frame: 2 burst pairs (lead-in + stop bit)."""
+        assert EventParser.is_pronto_repeat({
+            "protocol": "PRONTO",
+            "code": "0000 006D 0002 0000 015A 0057 0014 0181",
+        })
+
+    def test_single_burst_pair_detected(self):
+        """Even shorter codes are also repeats."""
+        assert EventParser.is_pronto_repeat({
+            "protocol": "PRONTO",
+            "code": "0000 006D 0001 0000 015A 0057",
+        })
+
+    def test_three_burst_pairs_detected(self):
+        """3 burst pairs is still below command threshold."""
+        assert EventParser.is_pronto_repeat({
+            "protocol": "PRONTO",
+            "code": "0000 006D 0002 0001 015A 0057 0014 0181 0014 0057",
+        })
+
+    def test_full_command_not_repeat(self):
+        """A real NEC command frame (34 burst pairs) is not a repeat."""
+        # 34 data pairs (burst1=0x22=34)
+        code = "0000 006D 0022 0000" + " 0015 0015" * 34
+        assert not EventParser.is_pronto_repeat({
+            "protocol": "PRONTO",
+            "code": code,
+        })
+
+    def test_non_pronto_not_repeat(self):
+        assert not EventParser.is_pronto_repeat({
+            "protocol": "NEC",
+            "code": "0x1234",
+        })
+
+    def test_no_protocol_not_repeat(self):
+        assert not EventParser.is_pronto_repeat({
+            "code": "0000 006D 0002 0000 015A 0057 0014 0181",
+        })
+
+    def test_malformed_code_not_repeat(self):
+        assert not EventParser.is_pronto_repeat({
+            "protocol": "PRONTO",
+            "code": "garbage",
+        })
+
+
+class TestNecProntoFingerprinting:
+    """Integration tests: NEC-style Pronto codes should dedup properly."""
+
+    # A realistic NEC power button in Pronto format (simplified to 10 data pairs).
+    # Lead-in: 0x0159 (9ms mark), 0x00AC (4.5ms space), then alternating
+    # short (0x0015 ~560us) and long (0x0041 ~1690us) data pulses.
+    NEC_BUTTON_A = (
+        "0000 006D 000C 0000"
+        " 0159 00AC"  # lead-in mark + space
+        " 0015 0015 0015 0041 0015 0015 0015 0041"
+        " 0015 0015 0015 0041 0015 0015 0015 0041"
+        " 0015 0015 0015 0041"
+        " 0015 0BBA"  # stop bit + gap
+    )
+
+    # Same button, timing jitter: 0x0015->0x0016, 0x0041->0x0042, lead-in 0x015A
+    NEC_BUTTON_A_JITTERED = (
+        "0000 006D 000C 0000"
+        " 015A 00AB"
+        " 0016 0016 0016 0042 0016 0016 0016 0042"
+        " 0016 0016 0016 0042 0016 0016 0016 0042"
+        " 0016 0016 0016 0042"
+        " 0016 0BBA"
+    )
+
+    # Different button: different S/L data pattern
+    NEC_BUTTON_B = (
+        "0000 006D 000C 0000"
+        " 0159 00AC"
+        " 0015 0041 0015 0041 0015 0015 0015 0015"
+        " 0015 0041 0015 0015 0015 0041 0015 0015"
+        " 0015 0041 0015 0015"
+        " 0015 0BBA"
+    )
+
+    def test_nec_pronto_signal_fingerprint_stable(self):
+        """Same NEC button produces the same signal fingerprint."""
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
+        assert fp1 == fp2
+        assert len(fp1) == 16
+
+    def test_nec_pronto_signal_fingerprint_jitter_tolerant(self):
+        """Jittered NEC captures produce the same signal fingerprint (dedup)."""
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A_JITTERED, None)
+        assert fp1 == fp2
+
+    def test_nec_pronto_different_buttons_differ(self):
+        """Different NEC buttons produce different signal fingerprints."""
+        fp1 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_A, None)
+        fp2 = EventParser.signal_fingerprint("PRONTO", self.NEC_BUTTON_B, None)
+        assert fp1 != fp2
+
+    def test_nec_pronto_device_fingerprint_groups_buttons(self):
+        """Different NEC buttons from the same remote share a device fingerprint."""
+        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A)
+        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_B)
+        assert fp1 == fp2
+
+    def test_nec_pronto_device_fingerprint_jitter_tolerant(self):
+        """Jittered captures from same remote produce same device fingerprint."""
+        fp1 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A)
+        fp2 = EventParser.device_fingerprint("PRONTO", None, None, code=self.NEC_BUTTON_A_JITTERED)
+        assert fp1 == fp2
+
+    def test_nec_pronto_sl_pattern_not_none(self):
+        """NEC-style Pronto codes now produce a valid S/L pattern."""
+        sl = EventParser._pronto_sl_pattern(self.NEC_BUTTON_A)
+        assert sl is not None
+        assert len(sl) > 4

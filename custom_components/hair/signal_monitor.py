@@ -107,8 +107,10 @@ class SignalMonitor:
         """
         event_data = event.data or {}
 
-        # Step 1: Parse.
+        # Step 1: Parse.  Filter out repeat frames (no command data).
         if EventParser.is_nec_repeat(event_data):
+            return
+        if EventParser.is_pronto_repeat(event_data):
             return
         parsed = EventParser.parse(event_data)
         if parsed is None:
