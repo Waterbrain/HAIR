@@ -8,8 +8,9 @@ import "./ir-command-row.js";
 import "./ir-capture-dialog.js";
 import "./ir-confirm-dialog.js";
 import "./ir-emitter-picker.js";
+import "./ir-trigger-dialog.js";
 import type { HairApi } from "./api.js";
-import type { ActionOption, IRCommand, IRDevice, DeviceTypeId } from "./types.js";
+import type { ActionOption, IRCommand, IRDevice, IRTrigger, DeviceTypeId } from "./types.js";
 
 const DEVICE_TYPES: { value: DeviceTypeId; label: string }[] = [
     { value: "media_player", label: "Media Player" },
@@ -43,6 +44,10 @@ export class IrDeviceDetail extends LitElement {
     // Inline name editing
     @state() private _editingName = false;
     @state() private _draftName = "";
+
+    // Triggers
+    @state() private _triggers: IRTrigger[] = [];
+    @state() private _triggerCommand: IRCommand | null = null;
 
     // ---------------------------------------------------------------
     // Helpers
@@ -213,11 +218,13 @@ export class IrDeviceDetail extends LitElement {
     connectedCallback(): void {
         super.connectedCallback();
         void this._loadActionOptions();
+        void this._loadTriggers();
     }
 
     updated(changed: Map<string, unknown>): void {
         if (changed.has("device")) {
             void this._loadActionOptions();
+            void this._loadTriggers();
         }
     }
 
@@ -227,6 +234,35 @@ export class IrDeviceDetail extends LitElement {
         } catch {
             this._actionOptions = [];
         }
+    }
+
+    private async _loadTriggers() {
+        try {
+            this._triggers = await this.api.listTriggers();
+        } catch {
+            this._triggers = [];
+        }
+    }
+
+    /** Check if a command has an associated trigger (by matching its signal fingerprint). */
+    private _commandHasTrigger(cmd: IRCommand): boolean {
+        // A trigger's source_command_id links it back to the command.
+        return this._triggers.some((t) => t.source_command_id === cmd.id);
+    }
+
+    private _onToggleTrigger(ev: CustomEvent): void {
+        const cmd = ev.detail?.command as IRCommand | null;
+        if (!cmd) return;
+        this._triggerCommand = cmd;
+    }
+
+    private _closeTriggerDialog(): void {
+        this._triggerCommand = null;
+    }
+
+    private async _onTriggerSaved(): Promise<void> {
+        this._triggerCommand = null;
+        await this._loadTriggers();
     }
 
     /** Look up the human label for the action mapped to a command. */
@@ -509,8 +545,10 @@ export class IrDeviceDetail extends LitElement {
                                       .command=${cmd}
                                       .busy=${this._busy}
                                       .actionLabel=${this._getActionLabel(cmd.name)}
+                                      .hasTrigger=${this._commandHasTrigger(cmd)}
                                       @map-action=${this._onMapAction}
                                       @test=${this._onTest}
+                                      @toggle-trigger=${this._onToggleTrigger}
                                       @delete=${this._onDelete}
                                   ></ir-command-row>
                               `,
@@ -607,6 +645,19 @@ export class IrDeviceDetail extends LitElement {
                           @confirmed=${this._confirmCommandDelete}
                           @closed=${() => (this._commandToDelete = null)}
                       ></ir-confirm-dialog>
+                  `
+                : ""}
+            ${this._triggerCommand
+                ? html`
+                      <ir-trigger-dialog
+                          .api=${this.api}
+                          .protocol=${this._triggerCommand.protocol}
+                          .code=${this._triggerCommand.code}
+                          .sourceDeviceId=${this.device.id}
+                          .sourceCommandId=${this._triggerCommand.id}
+                          @trigger-saved=${this._onTriggerSaved}
+                          @closed=${this._closeTriggerDialog}
+                      ></ir-trigger-dialog>
                   `
                 : ""}
             ${this._toast

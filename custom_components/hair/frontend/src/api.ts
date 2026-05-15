@@ -18,8 +18,10 @@ import type {
     DeviceTypeId,
     IRCommand,
     IRDevice,
+    IRTrigger,
     SignalRemovedEvent,
     TestSignalResult,
+    TriggerFiredEvent,
     UnknownDevice,
     UnknownDeviceSummary,
     UnknownSignalEvent,
@@ -331,6 +333,64 @@ export class HairApi {
         return this.hass.connection.subscribeEvents<SignalRemovedEvent>(
             (ev) => onEvent(ev.data),
             "hair_signal_removed",
+        );
+    }
+
+    // --- Triggers ---
+
+    listTriggers(): Promise<IRTrigger[]> {
+        return this.hass.connection.sendMessagePromise<IRTrigger[]>({
+            type: "hair/triggers",
+        });
+    }
+
+    createTrigger(payload: {
+        name: string;
+        signal_fingerprint?: string;
+        protocol?: string | null;
+        code?: string | null;
+        min_hits?: number;
+        source_device_id?: string | null;
+        source_command_id?: string | null;
+    }): Promise<IRTrigger> {
+        return this.hass.connection.sendMessagePromise<IRTrigger>({
+            type: "hair/trigger/create",
+            ...payload,
+        });
+    }
+
+    updateTrigger(
+        triggerId: string,
+        patch: Partial<{
+            name: string;
+            min_hits: number;
+            enabled: boolean;
+        }>,
+    ): Promise<IRTrigger> {
+        return this.hass.connection.sendMessagePromise<IRTrigger>({
+            type: "hair/trigger/update",
+            trigger_id: triggerId,
+            ...patch,
+        });
+    }
+
+    deleteTrigger(triggerId: string): Promise<{ removed: boolean }> {
+        return this.hass.connection.sendMessagePromise<{ removed: boolean }>({
+            type: "hair/trigger/delete",
+            trigger_id: triggerId,
+        });
+    }
+
+    /**
+     * Subscribe to real-time trigger-fired events via WS subscription.
+     * Returns an unsubscribe function.
+     */
+    async subscribeTriggerFired(
+        onEvent: (event: TriggerFiredEvent) => void,
+    ): Promise<() => Promise<void>> {
+        return this.hass.connection.subscribeMessage<TriggerFiredEvent>(
+            onEvent,
+            { type: "hair/triggers/subscribe" },
         );
     }
 }

@@ -9,9 +9,11 @@ import { HairApi } from "./api.js";
 import "./ir-assign-signal-dialog.js";
 import "./ir-confirm-dialog.js";
 import "./ir-promote-dialog.js";
+import "./ir-trigger-dialog.js";
 import type {
     AssignResult,
     DeviceSummary,
+    IRTrigger,
     SignalRemovedEvent,
     UnknownDeviceSummary,
     UnknownDevice,
@@ -98,6 +100,13 @@ export class IrSignalMonitor extends LitElement {
     @state() private _hitFlashFingerprints = new Set<string>();
     @state() private _confirmClearAll = false;
 
+    // Trigger state
+    @state() private _triggers: IRTrigger[] = [];
+    @state() private _triggerDialog: {
+        signal: UnknownSignal;
+        deviceId: string;
+    } | null = null;
+
     // Inline rename state
     @state() private _editingDeviceId: string | null = null;
     @state() private _editLabel = "";
@@ -145,14 +154,16 @@ export class IrSignalMonitor extends LitElement {
     private async _load(): Promise<void> {
         this._loading = true;
         try {
-            const [unknowns, hairDevs] = await Promise.all([
+            const [unknowns, hairDevs, triggers] = await Promise.all([
                 this.api.getUnknownDevices({
                     include_dismissed: this._showDismissed,
                 }),
                 this.api.listDevices(),
+                this.api.listTriggers(),
             ]);
             this._devices = unknowns;
             this._hairDevices = hairDevs;
+            this._triggers = triggers;
             this._error = null;
         } catch (err) {
             this._error = `Failed to load: ${(err as Error).message}`;
@@ -340,6 +351,31 @@ export class IrSignalMonitor extends LitElement {
             this._testResult = null;
             this._testingFingerprint = null;
         }, 3000);
+    }
+
+    // --- Trigger helpers ---
+
+    /** Check if a signal fingerprint already has a trigger. */
+    private _hasTrigger(fingerprint: string): boolean {
+        return this._triggers.some((t) => t.signal_fingerprint === fingerprint);
+    }
+
+    private _openTriggerDialog(deviceId: string, signal: UnknownSignal): void {
+        this._triggerDialog = { signal, deviceId };
+    }
+
+    private _closeTriggerDialog(): void {
+        this._triggerDialog = null;
+    }
+
+    private async _onTriggerSaved(): Promise<void> {
+        this._triggerDialog = null;
+        // Reload triggers list.
+        try {
+            this._triggers = await this.api.listTriggers();
+        } catch {
+            // Non-fatal.
+        }
     }
 
     private _onLiveSignal(ev: UnknownSignalEvent): void {
@@ -598,6 +634,20 @@ export class IrSignalMonitor extends LitElement {
                       ></ir-confirm-dialog>
                   `
                 : ""}
+
+            ${this._triggerDialog
+                ? html`
+                      <ir-trigger-dialog
+                          .api=${this.api}
+                          .signalFingerprint=${this._triggerDialog.signal.fingerprint}
+                          .protocol=${this._triggerDialog.signal.protocol}
+                          .code=${this._triggerDialog.signal.code}
+                          .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}
+                          @trigger-saved=${this._onTriggerSaved}
+                          @closed=${this._closeTriggerDialog}
+                      ></ir-trigger-dialog>
+                  `
+                : ""}
         `;
     }
 
@@ -743,6 +793,13 @@ export class IrSignalMonitor extends LitElement {
                                     >${this._testingFingerprint === sig.fingerprint
                                         ? (this._testResult ?? "Sending...")
                                         : "Test"}</button>
+                                    <button
+                                        class="action-btn trigger-btn ${this._hasTrigger(sig.fingerprint) ? "trigger-on" : ""}"
+                                        @click=${(e: Event) => {
+                                            e.stopPropagation();
+                                            this._openTriggerDialog(device.id, sig);
+                                        }}
+                                    >Trigger</button>
                                     <button
                                         class="action-btn delete-btn"
                                         @click=${(e: Event) => {
@@ -1052,6 +1109,21 @@ export class IrSignalMonitor extends LitElement {
         }
         .action-btn.test-btn {
             color: var(--primary-color);
+        }
+        .action-btn.trigger-btn {
+            color: #b89930;
+            border-color: rgba(184, 153, 48, 0.3);
+        }
+        .action-btn.trigger-btn:hover {
+            background: rgba(184, 153, 48, 0.08);
+        }
+        .action-btn.trigger-btn.trigger-on {
+            color: #fff;
+            background: #b89930;
+            border-color: #b89930;
+        }
+        .action-btn.trigger-btn.trigger-on:hover {
+            background: #a08328;
         }
         .action-btn.delete-btn {
             color: #e65100;

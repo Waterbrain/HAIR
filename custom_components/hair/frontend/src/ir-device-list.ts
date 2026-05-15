@@ -11,12 +11,15 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import "./ir-device-detail.js";
+import "./ir-trigger-dialog.js";
 import type { HairApi } from "./api.js";
 import type {
     CaptureProviderInfo,
     DeviceSummary,
     DeviceTypeId,
     IRDevice,
+    IRTrigger,
+    TriggerFiredEvent,
 } from "./types.js";
 
 const DEVICE_TYPE_ICONS: Record<DeviceTypeId, string> = {
@@ -55,6 +58,10 @@ const ICON_RECEIVER =
 const ICON_PROXY =
     "M20,13A8,8 0 0,0 12,5A8,8 0 0,0 4,13H2A10,10 0 0,1 12,3A10,10 0 0,1 22,13H20M16,13A4,4 0 0,0 12,9A4,4 0 0,0 8,13H6A6,6 0 0,1 12,7A6,6 0 0,1 18,13H16M13,18H11V14H13V18M13,21H11V19H13V21Z";
 
+// MDI: flash (lightning bolt) for triggers
+const ICON_TRIGGER =
+    "M7,2V13H10V22L17,10H13L17,2H7Z";
+
 @customElement("ir-device-list")
 export class IrDeviceList extends LitElement {
     @property({ attribute: false }) public devices: DeviceSummary[] = [];
@@ -66,10 +73,22 @@ export class IrDeviceList extends LitElement {
     @state() private _emitters: { entity_id: string; name: string }[] = [];
     @state() private _captureProviders: CaptureProviderInfo[] = [];
     @state() private _expandedDevice: IRDevice | null = null;
+    @state() private _triggers: IRTrigger[] = [];
+    @state() private _glowTriggerIds = new Set<string>();
+    @state() private _editTrigger: IRTrigger | null = null;
+
+    private _unsubTriggerFired: (() => Promise<void>) | null = null;
 
     connectedCallback(): void {
         super.connectedCallback();
         this._discoverHardware();
+        void this._loadTriggers();
+        void this._subscribeTriggerFired();
+    }
+
+    disconnectedCallback(): void {
+        super.disconnectedCallback();
+        void this._unsubscribeTriggerFired();
     }
 
     updated(changed: PropertyValues): void {
@@ -165,6 +184,82 @@ export class IrDeviceList extends LitElement {
         window.dispatchEvent(new PopStateEvent("popstate"));
     }
 
+    // --- Triggers ---
+
+    private async _loadTriggers(): Promise<void> {
+        if (!this.api) return;
+        try {
+            this._triggers = await this.api.listTriggers();
+        } catch {
+            // Non-fatal.
+        }
+    }
+
+    private async _subscribeTriggerFired(): Promise<void> {
+        if (!this.api) return;
+        try {
+            this._unsubTriggerFired = await this.api.subscribeTriggerFired(
+                (ev: TriggerFiredEvent) => {
+                    // Glow the card briefly.
+                    this._glowTriggerIds = new Set([
+                        ...this._glowTriggerIds,
+                        ev.trigger_id,
+                    ]);
+                    setTimeout(() => {
+                        const next = new Set(this._glowTriggerIds);
+                        next.delete(ev.trigger_id);
+                        this._glowTriggerIds = next;
+                    }, 1200);
+                },
+            );
+        } catch {
+            // Non-fatal.
+        }
+    }
+
+    private async _unsubscribeTriggerFired(): Promise<void> {
+        if (this._unsubTriggerFired) {
+            await this._unsubTriggerFired();
+            this._unsubTriggerFired = null;
+        }
+    }
+
+    private _openEditTrigger(trigger: IRTrigger, e: Event): void {
+        e.stopPropagation();
+        this._editTrigger = trigger;
+    }
+
+    private _closeEditTrigger(): void {
+        this._editTrigger = null;
+    }
+
+    private async _onTriggerUpdated(): Promise<void> {
+        this._editTrigger = null;
+        await this._loadTriggers();
+    }
+
+    private async _toggleTriggerEnabled(trigger: IRTrigger, e: Event): Promise<void> {
+        e.stopPropagation();
+        try {
+            await this.api!.updateTrigger(trigger.id, {
+                enabled: !trigger.enabled,
+            });
+            await this._loadTriggers();
+        } catch {
+            // Non-fatal.
+        }
+    }
+
+    private async _deleteTrigger(trigger: IRTrigger, e: Event): Promise<void> {
+        e.stopPropagation();
+        try {
+            await this.api!.deleteTrigger(trigger.id);
+            await this._loadTriggers();
+        } catch {
+            // Non-fatal.
+        }
+    }
+
     private _emitterIntegrationDomain(entityId: string): string {
         const entityReg = this.hass?.entities?.[entityId];
         if (entityReg?.platform) return entityReg.platform;
@@ -204,6 +299,7 @@ export class IrDeviceList extends LitElement {
         const { receivers, proxies } = this._classifyHardware();
         const hasReceivers = receivers.length > 0;
         const hasProxies = proxies.length > 0;
+        const hasTriggers = this._triggers.length > 0;
         const hasNothing = !hasDevices && !hasEmitters && !hasReceivers && !hasProxies;
 
         if (hasNothing) {
@@ -403,6 +499,72 @@ export class IrDeviceList extends LitElement {
                       </div>
                   `
                 : nothing}
+
+            <!-- Triggers -->
+            ${hasTriggers
+                ? html`
+                      <div class="section-header trigger-header">
+                          <h2>Triggers</h2>
+                          <span class="section-count trigger-count">${this._triggers.length}</span>
+                      </div>
+                      <div class="grid">
+                          ${this._triggers.map(
+                              (t) => html`
+                                  <div
+                                      class="card trigger-card ${this._glowTriggerIds.has(t.id) ? "trigger-glow" : ""} ${!t.enabled ? "trigger-disabled" : ""}"
+                                      tabindex="0"
+                                      @click=${(e: Event) => this._openEditTrigger(t, e)}
+                                      @keydown=${(e: KeyboardEvent) => {
+                                          if (e.key === "Enter" || e.key === " ") {
+                                              e.preventDefault();
+                                              this._openEditTrigger(t, e);
+                                          }
+                                      }}
+                                  >
+                                      <div class="card-header">
+                                          <ha-svg-icon
+                                              class="trigger-icon"
+                                              .path=${ICON_TRIGGER}
+                                          ></ha-svg-icon>
+                                          <div class="card-name">${t.name}</div>
+                                      </div>
+                                      <div class="card-meta">
+                                          ${t.protocol
+                                              ? t.protocol.toUpperCase()
+                                              : "IR Signal"}
+                                      </div>
+                                      <div class="card-footer">
+                                          ${t.min_hits > 1
+                                              ? html`<span class="badge trigger-hits-badge">
+                                                    ${t.min_hits}x hits
+                                                </span>`
+                                              : nothing}
+                                          <span
+                                              class="badge trigger-toggle ${t.enabled ? "trigger-enabled" : "trigger-off"}"
+                                              @click=${(e: Event) => this._toggleTriggerEnabled(t, e)}
+                                          >${t.enabled ? "ON" : "OFF"}</span>
+                                          <span
+                                              class="badge trigger-delete-badge"
+                                              @click=${(e: Event) => this._deleteTrigger(t, e)}
+                                          >Delete</span>
+                                      </div>
+                                  </div>
+                              `,
+                          )}
+                      </div>
+                  `
+                : nothing}
+
+            ${this._editTrigger
+                ? html`
+                      <ir-trigger-dialog
+                          .api=${this.api}
+                          .trigger=${this._editTrigger}
+                          @trigger-saved=${this._onTriggerUpdated}
+                          @closed=${this._closeEditTrigger}
+                      ></ir-trigger-dialog>
+                  `
+                : nothing}
         `;
     }
 
@@ -583,6 +745,67 @@ export class IrDeviceList extends LitElement {
         /* --- Hardware cards inherit shared .card styles --- */
         .hw-card {
             /* Neutral -- no per-section color backgrounds */
+        }
+
+        /* --- Trigger section --- */
+        .trigger-header h2 {
+            color: #b89930;
+        }
+        .trigger-count {
+            background: rgba(184, 153, 48, 0.15);
+            color: #b89930;
+        }
+        .trigger-card {
+            border-color: rgba(184, 153, 48, 0.25);
+            transition: transform 120ms ease, box-shadow 300ms ease, border-color 300ms ease;
+        }
+        .trigger-card .trigger-icon {
+            color: #b89930;
+        }
+        .trigger-card.trigger-disabled {
+            opacity: 0.5;
+        }
+        .trigger-card.trigger-glow {
+            border-color: #b89930;
+            box-shadow: 0 0 12px 2px rgba(184, 153, 48, 0.4);
+            animation: trigger-pulse 1.2s ease-out;
+        }
+        @keyframes trigger-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(184, 153, 48, 0.6); }
+            50% { box-shadow: 0 0 14px 4px rgba(184, 153, 48, 0.35); }
+            100% { box-shadow: 0 0 0 0 rgba(184, 153, 48, 0); }
+        }
+        .trigger-hits-badge {
+            background: rgba(184, 153, 48, 0.15);
+            color: #b89930;
+        }
+        .trigger-toggle {
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .trigger-toggle.trigger-enabled {
+            background: rgba(46, 125, 50, 0.15);
+            color: #2e7d32;
+        }
+        .trigger-toggle.trigger-enabled:hover {
+            background: rgba(46, 125, 50, 0.25);
+        }
+        .trigger-toggle.trigger-off {
+            background: var(--secondary-background-color);
+            color: var(--disabled-text-color, #999);
+        }
+        .trigger-toggle.trigger-off:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .trigger-delete-badge {
+            cursor: pointer;
+            background: none;
+            color: #e65100;
+            font-size: 0.7rem;
+            transition: background 150ms ease;
+        }
+        .trigger-delete-badge:hover {
+            background: rgba(230, 81, 0, 0.1);
         }
     `;
 }

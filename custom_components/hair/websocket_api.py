@@ -977,7 +977,7 @@ async def ws_get_triggers(
 @websocket_api.websocket_command({
     vol.Required("type"): f"{WS_PREFIX}/trigger/create",
     vol.Required("name"): str,
-    vol.Required("signal_fingerprint"): str,
+    vol.Optional("signal_fingerprint", default=""): str,
     vol.Optional("protocol"): vol.Any(str, None),
     vol.Optional("code"): vol.Any(str, None),
     vol.Optional("min_hits", default=1): int,
@@ -991,14 +991,48 @@ async def ws_create_trigger(
     msg: dict[str, Any],
 ) -> None:
     """Create a new trigger."""
+    from .event_parser import EventParser
+
     data = _get_first_entry_data(hass)
     if data is None:
         connection.send_error(msg["id"], "not_configured", "HAIR not configured")
         return
     store = data["store"]
 
+    sig_fp = msg.get("signal_fingerprint", "")
+    protocol = msg.get("protocol")
+    code = msg.get("code")
+
+    # Auto-compute fingerprint from protocol+code when not provided.
+    if not sig_fp and (protocol or code):
+        sig_fp = EventParser.signal_fingerprint(protocol, code, None)
+
+    # If a source command was given, derive fingerprint from that command.
+    if not sig_fp and msg.get("source_command_id") and msg.get("source_device_id"):
+        dm = data.get("device_manager")
+        if dm:
+            device = dm.get_device(msg["source_device_id"])
+            if device:
+                cmd = device.get_command(msg["source_command_id"])
+                if cmd:
+                    sig_fp = EventParser.signal_fingerprint(
+                        cmd.protocol, cmd.code, cmd.raw_timings,
+                    )
+                    if not protocol:
+                        protocol = cmd.protocol
+                    if not code:
+                        code = cmd.code
+
+    if not sig_fp:
+        connection.send_error(
+            msg["id"], "missing_fingerprint",
+            "Cannot compute signal fingerprint. Provide signal_fingerprint, "
+            "protocol+code, or source_device_id+source_command_id."
+        )
+        return
+
     # Reject duplicate fingerprint.
-    existing = store.get_trigger_by_fingerprint(msg["signal_fingerprint"])
+    existing = store.get_trigger_by_fingerprint(sig_fp)
     if existing is not None:
         connection.send_error(
             msg["id"], "duplicate",
@@ -1008,9 +1042,9 @@ async def ws_create_trigger(
 
     trigger = IRTrigger(
         name=msg["name"],
-        signal_fingerprint=msg["signal_fingerprint"],
-        protocol=msg.get("protocol"),
-        code=msg.get("code"),
+        signal_fingerprint=sig_fp,
+        protocol=protocol,
+        code=code,
         min_hits=msg.get("min_hits", 1),
         source_device_id=msg.get("source_device_id"),
         source_command_id=msg.get("source_command_id"),

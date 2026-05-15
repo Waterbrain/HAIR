@@ -16,6 +16,9 @@ export class IrCommandRow extends LitElement {
     /** Label of the mapped action (e.g. "Power On"), or empty/null if unmapped. */
     @property({ attribute: false }) public actionLabel: string | null = null;
 
+    /** Whether this command already has an associated trigger. */
+    @property({ type: Boolean }) public hasTrigger = false;
+
     /** Human-friendly label for a captured command (plain text fallback). */
     private _commandLabel(): string {
         const cmd = this.command!;
@@ -104,6 +107,12 @@ export class IrCommandRow extends LitElement {
                                   ?disabled=${this.busy}
                                   @click=${() => this._emit("test")}
                               >Test</button>
+                              <button
+                                  class="action-btn trigger-btn ${this.hasTrigger ? "trigger-on" : ""}"
+                                  ?disabled=${this.busy}
+                                  @click=${() => this._emit("toggle-trigger")}
+                                  title=${this.hasTrigger ? "Edit trigger" : "Create trigger"}
+                              >Trigger</button>
                               <button
                                   class="action-btn delete-btn"
                                   ?disabled=${this.busy}
@@ -243,6 +252,21 @@ export class IrCommandRow extends LitElement {
         }
         .action-btn.badge-btn:hover {
             background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.12);
+        }
+        .action-btn.trigger-btn {
+            color: #b89930;
+            border-color: rgba(184, 153, 48, 0.3);
+        }
+        .action-btn.trigger-btn:hover {
+            background: rgba(184, 153, 48, 0.08);
+        }
+        .action-btn.trigger-btn.trigger-on {
+            color: #fff;
+            background: #b89930;
+            border-color: #b89930;
+        }
+        .action-btn.trigger-btn.trigger-on:hover {
+            background: #a08328;
         }
         .action-btn.delete-btn {
             color: #e65100;

@@ -202,3 +202,31 @@ export interface SignalRemovedEvent {
     signal_fingerprint: string;
     device_removed: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Triggers
+// ---------------------------------------------------------------------------
+
+export interface IRTrigger {
+    id: string;
+    name: string;
+    signal_fingerprint: string;
+    protocol: string | null;
+    code: string | null;
+    min_hits: number;
+    enabled: boolean;
+    source_device_id: string | null;
+    source_command_id: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TriggerFiredEvent {
+    trigger_id: string;
+    trigger_name: string;
+    hit_count: number;
+    protocol: string | null;
+    code: string | null;
+    source_remote: string | null;
+    timestamp: string;
+}
