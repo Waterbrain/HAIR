@@ -101,6 +101,10 @@ export class IrDeviceList extends LitElement {
         if (changed.has("hass") || changed.has("api")) {
             this._discoverHardware();
         }
+        if (changed.has("api") && this.api && !this._unsubTriggerFired) {
+            void this._loadTriggers();
+            void this._subscribeTriggerFired();
+        }
         if (changed.has("expandedDeviceId")) {
             void this._loadExpandedDevice();
         }
@@ -206,7 +210,7 @@ export class IrDeviceList extends LitElement {
         try {
             this._unsubTriggerFired = await this.api.subscribeTriggerFired(
                 (ev: TriggerFiredEvent) => {
-                    // Glow the card briefly.
+                    // Glow the card and flash the bolt.
                     this._glowTriggerIds = new Set([
                         ...this._glowTriggerIds,
                         ev.trigger_id,
@@ -215,7 +219,7 @@ export class IrDeviceList extends LitElement {
                         const next = new Set(this._glowTriggerIds);
                         next.delete(ev.trigger_id);
                         this._glowTriggerIds = next;
-                    }, 1200);
+                    }, 2500);
                 },
             );
         } catch {
@@ -421,7 +425,7 @@ export class IrDeviceList extends LitElement {
                                       }}
                                   >
                                       <div class="card-header">
-                                          <ha-svg-icon .path=${ICON_TRIGGER}></ha-svg-icon>
+                                          <ha-svg-icon class="trigger-icon" .path=${ICON_TRIGGER}></ha-svg-icon>
                                           <div class="card-name">${t.name}</div>
                                       </div>
                                       <div class="card-meta">Trigger Event</div>
@@ -770,20 +774,53 @@ export class IrDeviceList extends LitElement {
 
         /* --- Trigger section --- */
         .trigger-card {
-            transition: transform 120ms ease, box-shadow 300ms ease, border-color 300ms ease;
+            transition: transform 120ms ease, box-shadow 300ms ease,
+                        border-color 300ms ease, background 400ms ease;
+        }
+        .trigger-card .trigger-icon {
+            transition: color 200ms ease, transform 200ms ease;
         }
         .trigger-card.trigger-disabled {
             opacity: 0.5;
         }
+
+        /* --- Trigger fire animation (card + bolt) --- */
         .trigger-card.trigger-glow {
-            border-color: #b89930;
-            box-shadow: 0 0 12px 2px rgba(184, 153, 48, 0.4);
-            animation: trigger-pulse 1.2s ease-out;
+            border-color: #d4a017;
+            background: rgba(212, 160, 23, 0.08);
+            animation: trigger-card-flash 2.4s ease-out;
         }
-        @keyframes trigger-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(184, 153, 48, 0.6); }
-            50% { box-shadow: 0 0 14px 4px rgba(184, 153, 48, 0.35); }
-            100% { box-shadow: 0 0 0 0 rgba(184, 153, 48, 0); }
+        .trigger-card.trigger-glow .trigger-icon {
+            color: #f5a623;
+            animation: trigger-bolt-pulse 2.4s ease-out;
+        }
+        @keyframes trigger-card-flash {
+            0% {
+                background: rgba(212, 160, 23, 0.18);
+                border-color: #f5a623;
+                box-shadow: 0 0 16px 4px rgba(245, 166, 35, 0.4);
+            }
+            30% {
+                background: rgba(212, 160, 23, 0.1);
+                border-color: #d4a017;
+                box-shadow: 0 0 8px 2px rgba(245, 166, 35, 0.2);
+            }
+            60% {
+                background: rgba(212, 160, 23, 0.06);
+                box-shadow: 0 0 4px 1px rgba(245, 166, 35, 0.1);
+            }
+            100% {
+                background: transparent;
+                border-color: var(--divider-color);
+                box-shadow: none;
+            }
+        }
+        @keyframes trigger-bolt-pulse {
+            0% { color: #ffb300; transform: scale(1.4); }
+            15% { color: #f5a623; transform: scale(1.0); }
+            30% { color: #ffb300; transform: scale(1.35); }
+            50% { color: #d4a017; transform: scale(1.0); }
+            100% { color: var(--secondary-text-color); transform: scale(1.0); }
         }
         .trigger-hits-badge {
             background: rgba(184, 153, 48, 0.15);

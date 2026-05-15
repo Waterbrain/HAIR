@@ -28,6 +28,8 @@ As HA's IR ecosystem matures (receiver entities are expected in 2026.6-2026.7), 
 
 **Action Mapping** - Explicitly bind IR commands to HA entity features through a popover UI. When you map a command to "Volume Up," the media_player entity knows to call that command when the HA volume service is used. Features are only exposed when commands are mapped, so your entities stay clean.
 
+**Triggers** - Turn any IR signal into a native HA event entity. Create a trigger from a learned device command or from an unknown signal in the Sniffer. Each trigger gets an `event` entity under a virtual "HAIR Triggers" device, firing an `ir_command_received` event whenever the matching signal is received. Use triggers to build HA automations that react to physical remote presses (e.g., pressing a TV power button also turns off the room lights). A configurable "min hits" threshold lets you require multiple presses within a 5-second window before the trigger fires, which is useful for preventing accidental activations. The Devices tab shows all active triggers with real-time fire animations.
+
 **Multi-Emitter TX** - Assign one or more IR emitters to each device. Commands broadcast to all assigned emitters simultaneously, so a single "TV Power" button can fire through emitters in multiple rooms.
 
 **Command Templates** - Guided setup suggests which commands to capture based on device type. Select from predefined names (Power On, Volume Up, Mode: Cool, etc.) or enter custom names for anything not in the list.
@@ -47,6 +49,8 @@ Devices automatically get native HA entities based on their type:
 | Other | `remote` | Generic IR command sender |
 
 Every device also gets a `remote` entity for sending arbitrary Pronto hex codes and a `button` entity for each learned command. The button entities give you one-tap access to any IR command from dashboards, automations, or scripts, regardless of device type.
+
+Triggers create `event` entities under a shared "HAIR Triggers" device. Each trigger entity fires an `ir_command_received` event when its signal is detected, making it available as an automation trigger in HA's automation editor.
 
 Entity features are driven by explicit action mappings. A media_player only exposes volume control if you map commands to the volume actions. This keeps your entities clean and avoids exposing features your remote doesn't support.
 
@@ -73,9 +77,11 @@ Entity features are driven by explicit action mappings. A media_player only expo
 
 ### The Devices Tab
 
-The main view shows four sections:
+The main view shows five sections:
 
 **HAIR Devices** - Your managed IR device profiles. Each card shows the device name, type, command count, and how many emitters are assigned. Click a device to expand its detail view inline, where you can change the device type, manage emitters, and see all learned commands with their S/L diamond fingerprint patterns. From here you can test commands, delete them, re-learn them, or assign action mappings.
+
+**Triggers** - Active IR triggers that fire HA event entities when their signal is detected. Each trigger card shows the trigger name with a lightning bolt icon. When a trigger fires, the card flashes with an amber glow animation in real time.
 
 **Emitters** - Your IR transmitter hardware (e.g., ESPHome infrared entities). These are the physical IR LEDs that send commands. Each emitter card shows its entity ID and a TX badge.
 
@@ -102,6 +108,18 @@ Navigate to the Sniffer tab and press buttons on your physical remote. HAIR capt
 ### Action Mapping
 
 After learning commands, open a device's detail view and click the "ACTIONS" badge on any command row. A popover shows all available actions for that device type. Pick an action to bind it to that command. For example, mapping "Power On" to the `turn_on` action means the HA media_player's power button will fire that IR command. Actions already mapped to other commands are shown with their current assignment so you can reassign with a single click.
+
+### Triggers
+
+Triggers let you use incoming IR signals as automation triggers in Home Assistant. There are two ways to create a trigger.
+
+From a device command: expand a device in the Devices tab and click the lightning bolt button on any command row. This creates a trigger linked to that command's signal. If a trigger already exists for that command, the button opens the trigger in edit mode instead.
+
+From the Sniffer: expand an unknown device and click the lightning bolt on any signal row. This creates a trigger from the raw signal fingerprint, which is useful for signals you want to react to without assigning them to a HAIR device.
+
+Each trigger has a configurable "min hits" value (1 to 10) that controls how many times the signal must be received within a 5-second window before the trigger fires. Setting this to 2 or 3 is useful for preventing triggers from firing on stray or accidental presses.
+
+Active triggers appear in the Triggers section at the bottom of the Devices tab. When a trigger fires, its card flashes with an amber glow animation. Each trigger creates an `event` entity (e.g., `event.hair_triggers_tv_power`) that you can use directly in HA's automation editor as a trigger condition.
 
 ## Requirements
 
@@ -159,6 +177,8 @@ Remote Control
   HA Event Bus (esphome.remote_received)
       |
   HAIR Signal Monitor --> Signal Store (fingerprint + dedup)
+      |                         |
+      |                   Trigger Manager --> Event Entities (HA automations)
       |
   HAIR Admin Panel (Sniffer view)
       |

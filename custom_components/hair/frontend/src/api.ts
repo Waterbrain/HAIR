@@ -390,7 +390,7 @@ export class HairApi {
     ): Promise<() => Promise<void>> {
         return this.hass.connection.subscribeMessage<TriggerFiredEvent>(
             onEvent,
-            { type: "hair/triggers/subscribe" },
+            { type: "hair/trigger/subscribe" },
         );
     }
 }
