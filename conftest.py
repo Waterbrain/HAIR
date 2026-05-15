@@ -77,6 +77,7 @@ class _Platform(StrEnum):
     SWITCH = "switch"
     COVER = "cover"
     BUTTON = "button"
+    EVENT = "event"
 
 class _UnitOfTemperature:
     FAHRENHEIT = "°F"
@@ -319,7 +320,7 @@ _stub("homeassistant.components.cover", {
     "CoverEntityFeature": _CoverEntityFeature,
 })
 
-# --- Button (used by remote platform, no entity in HAIR yet) ---
+# --- Button ---
 
 class _ButtonEntity:
     _attr_has_entity_name = True
@@ -328,6 +329,20 @@ class _ButtonEntity:
 
 _stub("homeassistant.components.button", {
     "ButtonEntity": _ButtonEntity,
+})
+
+# --- Event ---
+
+class _EventEntity:
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_event_types = []
+    def __init_subclass__(cls, **kw): pass
+    def _trigger_event(self, event_type, event_attributes=None): pass
+    def async_write_ha_state(self): pass
+
+_stub("homeassistant.components.event", {
+    "EventEntity": _EventEntity,
 })
 
 # ---------------------------------------------------------------------------

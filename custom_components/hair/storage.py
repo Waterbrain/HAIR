@@ -12,7 +12,7 @@ from .const import (
     STORAGE_VERSION,
     STORAGE_VERSION_MINOR,
 )
-from .models import IRDevice
+from .models import IRDevice, IRTrigger
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class HAIRStore:
             atomic_writes=True,
         )
         self._data: dict[str, IRDevice] = {}
+        self._triggers: dict[str, IRTrigger] = {}
         self._loaded = False
 
     @property
@@ -45,6 +46,7 @@ class HAIRStore:
         raw = await self._store.async_load()
         if raw is None:
             self._data = {}
+            self._triggers = {}
             self._loaded = True
             return
 
@@ -61,6 +63,21 @@ class HAIRStore:
                 )
                 continue
             self._data[device.id] = device
+
+        triggers_raw = raw.get("triggers") or []
+        self._triggers = {}
+        for entry in triggers_raw:
+            try:
+                trigger = IRTrigger.from_dict(entry)
+            except Exception as err:
+                _LOGGER.warning(
+                    "Skipping malformed trigger entry %s: %s",
+                    entry.get("id"),
+                    err,
+                )
+                continue
+            self._triggers[trigger.id] = trigger
+
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -70,6 +87,7 @@ class HAIRStore:
     def _serialize(self) -> dict[str, Any]:
         return {
             "devices": [d.to_dict() for d in self._data.values()],
+            "triggers": [t.to_dict() for t in self._triggers.values()],
         }
 
     async def _async_migrate_func(
@@ -124,3 +142,61 @@ class HAIRStore:
             d for d in self._data.values()
             if str(d.device_type) == str(device_type)
         ]
+
+    # -----------------------------------------------------------------
+    # Trigger CRUD
+    # -----------------------------------------------------------------
+
+    def get_trigger(self, trigger_id: str) -> IRTrigger | None:
+        return self._triggers.get(trigger_id)
+
+    def get_all_triggers(self) -> list[IRTrigger]:
+        return list(self._triggers.values())
+
+    def get_enabled_triggers(self) -> list[IRTrigger]:
+        return [t for t in self._triggers.values() if t.enabled]
+
+    def add_trigger(self, trigger: IRTrigger) -> None:
+        self._triggers[trigger.id] = trigger
+
+    def update_trigger(self, trigger: IRTrigger) -> None:
+        self._triggers[trigger.id] = trigger
+
+    def remove_trigger(self, trigger_id: str) -> bool:
+        if trigger_id in self._triggers:
+            del self._triggers[trigger_id]
+            return True
+        return False
+
+    def get_trigger_by_fingerprint(
+        self, fingerprint: str
+    ) -> IRTrigger | None:
+        """Find a trigger by signal fingerprint."""
+        for t in self._triggers.values():
+            if t.signal_fingerprint == fingerprint:
+                return t
+        return None
+
+    def get_triggers_for_signal(
+        self, protocol: str | None, code: str | None, fingerprint: str
+    ) -> list[IRTrigger]:
+        """Find all enabled triggers matching a signal.
+
+        Matches on protocol+code first (exact), falls back to fingerprint.
+        """
+        matches = []
+        for t in self._triggers.values():
+            if not t.enabled:
+                continue
+            if (
+                t.protocol
+                and t.code
+                and protocol
+                and code
+                and t.protocol == protocol
+                and t.code == code
+            ):
+                matches.append(t)
+            elif t.signal_fingerprint == fingerprint:
+                matches.append(t)
+        return matches

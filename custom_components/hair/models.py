@@ -224,6 +224,54 @@ class IRDevice:
 
 
 @dataclass
+class IRTrigger:
+    """An IR trigger that fires an HA event entity on signal match."""
+
+    id: str = field(default_factory=_new_id)
+    name: str = ""
+    signal_fingerprint: str = ""
+    protocol: str | None = None
+    code: str | None = None
+    min_hits: int = 1
+    enabled: bool = True
+    source_device_id: str | None = None
+    source_command_id: str | None = None
+    created_at: str = field(default_factory=_now_iso)
+    updated_at: str = field(default_factory=_now_iso)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "signal_fingerprint": self.signal_fingerprint,
+            "protocol": self.protocol,
+            "code": self.code,
+            "min_hits": self.min_hits,
+            "enabled": self.enabled,
+            "source_device_id": self.source_device_id,
+            "source_command_id": self.source_command_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> IRTrigger:
+        return cls(
+            id=data.get("id") or _new_id(),
+            name=data.get("name", ""),
+            signal_fingerprint=data.get("signal_fingerprint", ""),
+            protocol=data.get("protocol"),
+            code=data.get("code"),
+            min_hits=int(data.get("min_hits", 1)),
+            enabled=bool(data.get("enabled", True)),
+            source_device_id=data.get("source_device_id"),
+            source_command_id=data.get("source_command_id"),
+            created_at=data.get("created_at") or _now_iso(),
+            updated_at=data.get("updated_at") or _now_iso(),
+        )
+
+
+@dataclass
 class CaptureResult:
     """Result from a capture provider."""
 

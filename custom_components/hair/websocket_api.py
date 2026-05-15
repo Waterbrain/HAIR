@@ -27,9 +27,10 @@ from .const import (
     DeviceType,
 )
 from .device_manager import DeviceManager, category_for_command_name
-from .models import IRDevice
+from .models import IRDevice, IRTrigger
 from .signal_monitor import SignalMonitor
 from .signal_store import SignalStore
+from .trigger_manager import TriggerManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,6 +73,13 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     # Action mapping
     websocket_api.async_register_command(hass, ws_get_action_options)
     websocket_api.async_register_command(hass, ws_update_mapping)
+
+    # Triggers
+    websocket_api.async_register_command(hass, ws_get_triggers)
+    websocket_api.async_register_command(hass, ws_create_trigger)
+    websocket_api.async_register_command(hass, ws_update_trigger)
+    websocket_api.async_register_command(hass, ws_delete_trigger)
+    websocket_api.async_register_command(hass, ws_subscribe_triggers)
 
 
 def _get_first_entry_data(hass: HomeAssistant) -> dict[str, Any] | None:
@@ -940,3 +948,194 @@ async def ws_update_mapping(
     connection.send_result(msg["id"], {
         "mapping": dict(mapping),
     })
+
+
+# --- Triggers ---
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/triggers",
+})
+@websocket_api.async_response
+async def ws_get_triggers(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return all triggers."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_result(msg["id"], [])
+        return
+    store = data["store"]
+    triggers = store.get_all_triggers()
+    connection.send_result(msg["id"], [t.to_dict() for t in triggers])
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/trigger/create",
+    vol.Required("name"): str,
+    vol.Required("signal_fingerprint"): str,
+    vol.Optional("protocol"): vol.Any(str, None),
+    vol.Optional("code"): vol.Any(str, None),
+    vol.Optional("min_hits", default=1): int,
+    vol.Optional("source_device_id"): vol.Any(str, None),
+    vol.Optional("source_command_id"): vol.Any(str, None),
+})
+@websocket_api.async_response
+async def ws_create_trigger(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Create a new trigger."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    store = data["store"]
+
+    # Reject duplicate fingerprint.
+    existing = store.get_trigger_by_fingerprint(msg["signal_fingerprint"])
+    if existing is not None:
+        connection.send_error(
+            msg["id"], "duplicate",
+            f"A trigger already exists for this signal: {existing.name}"
+        )
+        return
+
+    trigger = IRTrigger(
+        name=msg["name"],
+        signal_fingerprint=msg["signal_fingerprint"],
+        protocol=msg.get("protocol"),
+        code=msg.get("code"),
+        min_hits=msg.get("min_hits", 1),
+        source_device_id=msg.get("source_device_id"),
+        source_command_id=msg.get("source_command_id"),
+    )
+    store.add_trigger(trigger)
+    await store.async_save()
+
+    # Create the event entity.
+    from .event import sync_trigger_entities
+
+    entry_id = data["config_entry"].entry_id
+    sync_trigger_entities(hass, entry_id, trigger=trigger)
+
+    connection.send_result(msg["id"], trigger.to_dict())
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/trigger/update",
+    vol.Required("trigger_id"): str,
+    vol.Optional("name"): str,
+    vol.Optional("min_hits"): int,
+    vol.Optional("enabled"): bool,
+})
+@websocket_api.async_response
+async def ws_update_trigger(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Update a trigger's name, min_hits, or enabled state."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    store = data["store"]
+    trigger = store.get_trigger(msg["trigger_id"])
+    if trigger is None:
+        connection.send_error(msg["id"], "not_found", "Trigger not found")
+        return
+
+    from datetime import UTC, datetime
+
+    if "name" in msg:
+        trigger.name = msg["name"]
+    if "min_hits" in msg:
+        trigger.min_hits = max(1, msg["min_hits"])
+    if "enabled" in msg:
+        trigger.enabled = msg["enabled"]
+    trigger.updated_at = datetime.now(UTC).isoformat()
+
+    store.update_trigger(trigger)
+    await store.async_save()
+
+    # Update event entity name if changed.
+    entities = data.get("_trigger_entities", {})
+    entity = entities.get(trigger.id)
+    if entity is not None:
+        entity.update_trigger(trigger)
+
+    connection.send_result(msg["id"], trigger.to_dict())
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/trigger/delete",
+    vol.Required("trigger_id"): str,
+})
+@websocket_api.async_response
+async def ws_delete_trigger(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Delete a trigger."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    store = data["store"]
+    removed = store.remove_trigger(msg["trigger_id"])
+    if not removed:
+        connection.send_error(msg["id"], "not_found", "Trigger not found")
+        return
+    await store.async_save()
+
+    # Remove the event entity.
+    from .event import sync_trigger_entities
+
+    entry_id = data["config_entry"].entry_id
+    sync_trigger_entities(hass, entry_id, removed_id=msg["trigger_id"])
+
+    connection.send_result(msg["id"], {"removed": True})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/trigger/subscribe",
+})
+@websocket_api.async_response
+async def ws_subscribe_triggers(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Subscribe to real-time trigger fire events (for card glow)."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+
+    trigger_manager: TriggerManager = data["trigger_manager"]
+
+    @callback
+    def _on_trigger_fired(event_data: dict[str, Any]) -> None:
+        connection.send_event(msg["id"], {
+            "type": "trigger_fired",
+            **event_data,
+        })
+
+    trigger_manager.subscribe(_on_trigger_fired)
+
+    @callback
+    def _on_disconnect() -> None:
+        trigger_manager.unsubscribe(_on_trigger_fired)
+
+    connection.subscriptions[msg["id"]] = _on_disconnect
+    connection.send_result(msg["id"], {"subscribed": True})

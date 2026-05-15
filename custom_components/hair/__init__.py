@@ -18,16 +18,19 @@ from .entity_factory import EntityFactory
 from .signal_monitor import SignalMonitor
 from .signal_store import SignalStore
 from .storage import HAIRStore
+from .trigger_manager import TriggerManager
 from .websocket_api import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
 _BUTTON_PLATFORM = getattr(Platform, "BUTTON", None)
+_EVENT_PLATFORM = getattr(Platform, "EVENT", None)
 
 PLATFORMS_LIST: list[Platform] = [
     p
     for p in [
         _BUTTON_PLATFORM,
+        _EVENT_PLATFORM,
         Platform.REMOTE,
         Platform.MEDIA_PLAYER,
         Platform.CLIMATE,
@@ -66,7 +69,8 @@ async def async_setup_entry(
     entity_factory = EntityFactory(hass)
     orchestrator = CaptureOrchestrator(hass)
     device_manager = DeviceManager(hass, store, entity_factory, entry.entry_id)
-    signal_monitor = SignalMonitor(hass, signal_store, store)
+    trigger_manager = TriggerManager(hass, store)
+    signal_monitor = SignalMonitor(hass, signal_store, store, trigger_manager)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
@@ -76,6 +80,7 @@ async def async_setup_entry(
         "orchestrator": orchestrator,
         "entity_factory": entity_factory,
         "signal_monitor": signal_monitor,
+        "trigger_manager": trigger_manager,
         "config_entry": entry,
     }
 

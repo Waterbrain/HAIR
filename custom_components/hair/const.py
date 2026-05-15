@@ -50,6 +50,12 @@ SIGNAL_WS_PUSH_RATE_LIMIT = 5
 SIGNAL_RAW_QUANTIZE_BIN_US = 50
 SIGNAL_RAW_FINGERPRINT_LEN = 64
 
+# ---------------------------------------------------------------------------
+# Triggers
+# ---------------------------------------------------------------------------
+TRIGGER_HIT_RESET_WINDOW_S = 5
+EVENT_TRIGGER_FIRED = f"{DOMAIN}_trigger_fired"
+
 # Pronto S/L classification threshold (in Pronto timing units).
 # Timing words below this are "short" (S), above are "long" (L).
 # Real-world IR remotes cluster around ~0x20 (short) and ~0x40 (long)

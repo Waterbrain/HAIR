@@ -49,10 +49,12 @@ class SignalMonitor:
         hass: HomeAssistant,
         signal_store: SignalStore,
         hair_store: HAIRStore,
+        trigger_manager: Any | None = None,
     ) -> None:
         self._hass = hass
         self._signal_store = signal_store
         self._hair_store = hair_store
+        self._trigger_manager = trigger_manager
         self._unsub: CALLBACK_TYPE | None = None
         self._lock = asyncio.Lock()
 
@@ -128,6 +130,13 @@ class SignalMonitor:
             parsed.protocol, device_address, parsed.raw_timings,
             code=parsed.code,
         )
+
+        # Step 3a: Check triggers (before known-command skip so triggers
+        # work for both assigned commands and unknown signals).
+        if self._trigger_manager is not None:
+            self._trigger_manager.on_signal(
+                sig_fp, parsed.protocol, parsed.code, dev_fp
+            )
 
         # Step 3: Check known commands.
         if self._matches_known_command(parsed):

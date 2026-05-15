@@ -327,4 +327,5 @@ class TestPlatformsList:
         assert Platform.SWITCH in PLATFORMS_LIST
         assert Platform.COVER in PLATFORMS_LIST
         assert Platform.BUTTON in PLATFORMS_LIST
-        assert len(PLATFORMS_LIST) == 8
+        assert Platform.EVENT in PLATFORMS_LIST
+        assert len(PLATFORMS_LIST) == 9
