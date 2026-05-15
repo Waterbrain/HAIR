@@ -106,23 +106,57 @@ export class IrTriggerDialog extends LitElement {
         );
     }
 
-    /** Render S/L diamond pattern from a pattern string like "SLLSLLS". */
-    private _renderDiamonds(pattern: string) {
-        return html`<span class="diamonds">${[...pattern].map((ch) =>
-            ch === "L"
-                ? html`<span class="diamond long">&#9670;</span>`
-                : html`<span class="diamond short">&#9671;</span>`
-        )}</span>`;
+    /** Compute S/L boolean array from Pronto hex (mirrors backend logic). */
+    private _prontoSlArray(hex: string): boolean[] | null {
+        const words = hex.trim().split(/\s+/);
+        if (words.length < 6) return null;
+        const burst1 = parseInt(words[2], 16);
+        const burst2 = parseInt(words[3], 16);
+        const total = burst1 + burst2;
+        const timings = words.slice(4);
+        if (timings.length < total * 2) return null;
+        const result: boolean[] = [];
+        for (let i = 0; i < total * 2; i++) {
+            const val = parseInt(timings[i], 16);
+            result.push(val >= 0x30); // true = Long, false = Short
+        }
+        return result.length > 0 ? result : null;
+    }
+
+    /** Render diamonds from an S/L pattern string or Pronto hex code. */
+    private _renderSignalInfo() {
+        const isEdit = !!this.trigger;
+
+        // Try S/L pattern string first (from sniffer create mode).
+        const patternStr = isEdit ? null : this.slPattern;
+        if (patternStr) {
+            return html`<span class="diamonds">${[...patternStr].map((ch) =>
+                ch === "L"
+                    ? html`<span class="diamond long">&#9670;</span>`
+                    : html`<span class="diamond short">&#9671;</span>`
+            )}</span>`;
+        }
+
+        // Try computing from Pronto hex code.
+        const prontoCode = isEdit ? this.trigger!.code : this.code;
+        const protocol = isEdit ? this.trigger!.protocol : this.protocol;
+        if (protocol?.toUpperCase() === "PRONTO" && prontoCode) {
+            const arr = this._prontoSlArray(prontoCode);
+            if (arr) {
+                return html`<span class="diamonds">${arr.map((isLong) =>
+                    isLong
+                        ? html`<span class="diamond long">&#9670;</span>`
+                        : html`<span class="diamond short">&#9671;</span>`
+                )}</span>`;
+            }
+        }
+
+        // Fallback.
+        return html`<span class="proto">IR Signal</span>`;
     }
 
     render() {
         const isEdit = !!this.trigger;
-        const displayProtocol = isEdit
-            ? this.trigger!.protocol
-            : this.protocol;
-        const displayPattern = isEdit
-            ? null  // triggers don't store sl_pattern directly
-            : this.slPattern;
 
         return html`
             <div class="overlay" @click=${this._close}>
@@ -133,11 +167,7 @@ export class IrTriggerDialog extends LitElement {
 
                     <!-- Signal info (read-only) -->
                     <div class="signal-info">
-                        ${displayPattern
-                            ? this._renderDiamonds(displayPattern)
-                            : displayProtocol
-                              ? html`<span class="proto">${displayProtocol}</span>`
-                              : html`<span class="proto">IR Signal</span>`}
+                        ${this._renderSignalInfo()}
                     </div>
 
                     <!-- Name -->

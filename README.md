@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="custom_components/hair/frontend/hair-header.png" alt="HAIR" width="600" />
+  <img src="images/internal/HAIR-readme-hero.png" alt="HAIR brand banner showing the HA Box mascot acting as barber to a row of IR devices" width="900" />
 </p>
 
 # HAIR
