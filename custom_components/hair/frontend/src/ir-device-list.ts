@@ -424,7 +424,7 @@ export class IrDeviceList extends LitElement {
                                           <ha-svg-icon .path=${ICON_TRIGGER}></ha-svg-icon>
                                           <div class="card-name">${t.name}</div>
                                       </div>
-                                      <div class="card-meta">IR Signal</div>
+                                      <div class="card-meta">Trigger Event</div>
                                       <div class="card-footer">
                                           ${t.min_hits > 1
                                               ? html`<span class="badge trigger-hits-badge">

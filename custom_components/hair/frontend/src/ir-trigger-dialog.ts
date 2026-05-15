@@ -152,7 +152,7 @@ export class IrTriggerDialog extends LitElement {
         }
 
         // Fallback.
-        return html`<span class="proto">IR Signal</span>`;
+        return html`<span class="proto">Trigger Event</span>`;
     }
 
     render() {
