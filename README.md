@@ -28,9 +28,9 @@ As HA's IR ecosystem matures (receiver entities are expected in 2026.6-2026.7), 
 
 **Action Mapping** - Explicitly bind IR commands to HA entity features through a popover UI. When you map a command to "Volume Up," the media_player entity knows to call that command when the HA volume service is used. Features are only exposed when commands are mapped, so your entities stay clean.
 
-**Triggers** - Turn any IR signal into a native HA event entity. Create a trigger from a learned device command or from an unknown signal in the Sniffer. Each trigger gets an `event` entity under a virtual "HAIR Triggers" device, firing an `ir_command_received` event whenever the matching signal is received. Use triggers to build HA automations that react to physical remote presses (e.g., pressing a TV power button also turns off the room lights). A configurable "min hits" threshold lets you require multiple presses within a 5-second window before the trigger fires, which is useful for preventing accidental activations. The Devices tab shows all active triggers with real-time fire animations.
+**Triggers** - Turn any IR signal into a native HA event entity. Create a trigger from a learned device command or from an unknown signal in the Sniffer. Each trigger gets an `event` entity under a virtual "HAIR Triggers" device, firing an `ir_command_received` event whenever the matching signal is received. Use triggers to build HA automations that react to physical remote presses (e.g., pressing a TV power button also turns off the room lights). A configurable "min hits" threshold (minimum button presses) lets you require multiple presses within a 5-second window before the trigger fires, which is useful for preventing accidental activations. The Devices tab shows all active triggers with real-time fire animations.
 
-**Multi-Emitter TX** - Assign one or more IR emitters to each device. Commands broadcast to all assigned emitters simultaneously, so a single "TV Power" button can fire through emitters in multiple rooms.
+**Emitter Routing & Broadcast Control** - Assign one or more IR emitters to each device with explicit control over how commands are broadcast. Lock a device to a single emitter for room-scoped control (an AC pinned to the bedroom emitter so commands never leak to the living room), or assign multiple emitters for a wide broadcast (a single "TV Power" command fires through emitters in every room simultaneously). Routing is configured per-device, so you can mix tight per-room targeting for some devices with whole-house broadcast for others.
 
 **Command Templates** - Guided setup suggests which commands to capture based on device type. Select from predefined names (Power On, Volume Up, Mode: Cool, etc.) or enter custom names for anything not in the list.
 
@@ -79,7 +79,7 @@ Entity features are driven by explicit action mappings. A media_player only expo
 
 The main view shows five sections:
 
-**HAIR Devices** - Your managed IR device profiles. Each card shows the device name, type, command count, and how many emitters are assigned. Click a device to expand its detail view inline, where you can change the device type, manage emitters, and see all learned commands with their S/L diamond fingerprint patterns. From here you can test commands, delete them, re-learn them, or assign action mappings.
+**HAIR Devices** - Your managed IR device profiles. Each card shows the device name, type, command count, and how many emitters are assigned. Click a device to expand its detail view inline, where you can change the device type, manage emitters, and see all learned commands with their S/L diamond fingerprint patterns. From here you can test commands, delete them, or assign action mappings.
 
 **Triggers** - Active IR triggers that fire HA event entities when their signal is detected. Each trigger card shows the trigger name with a lightning bolt icon. When a trigger fires, the card flashes with an amber glow animation in real time.
 
@@ -93,13 +93,17 @@ The main view shows five sections:
 
 The Sniffer is a passive listener that shows every IR signal your receivers pick up. Signals are grouped by source device (identified by carrier frequency and preamble fingerprint) and displayed with hit counts, signal counts, and last-seen timestamps.
 
-Each source device row can be expanded to show individual signals with their S/L diamond fingerprint. From here you can assign a signal directly to a HAIR device as a named command, or promote an unknown source device into a full HAIR device profile.
+Each source device row can be expanded to show individual signals with their S/L diamond fingerprint. From here you can assign a signal directly to a HAIR device as a named command, or promote an unknown source device into a full HAIR device profile. Before promoting, click the pencil button on the source device row to give it a custom name — otherwise the new device inherits the auto-generated source name (e.g., "Unknown Remote 1"). Setting the name first means the promoted device lands in your Devices tab already labeled correctly.
 
 Devices already managed by HAIR are tagged with a "HAIR Device" badge. You can dismiss noisy sources (like a neighbor's remote leaking through a window) and bring them back later with the "Show Dismissed" toggle.
 
 ### Adding a Device
 
-Click the floating "Add Device" button on the Devices tab. Enter a name, pick a device type, and select which IR emitters should broadcast commands for this device. HAIR creates the device profile and the corresponding HA entities immediately.
+There are two ways to add a device.
+
+**From scratch:** Click the floating "Add Device" button on the Devices tab. Enter a name, pick a device type, and select which IR emitters should broadcast commands for this device. HAIR creates the device profile and the corresponding HA entities immediately.
+
+**From the Sniffer (promote an unknown source):** When HAIR detects a remote it doesn't recognize, it appears in the Sniffer as an unknown source device. Click the pencil button on the source row to give it a custom name first, then promote it to a full HAIR device. Setting the name before promoting means your new device shows up in the Devices tab already labeled the way you want it, instead of carrying the auto-generated "Unknown Remote N" name forward. This path is ideal when you have the physical remote in hand and want to capture its signals first.
 
 ### Learning Commands
 
@@ -113,11 +117,11 @@ After learning commands, open a device's detail view and click the "ACTIONS" bad
 
 Triggers let you use incoming IR signals as automation triggers in Home Assistant. There are two ways to create a trigger.
 
-From a device command: expand a device in the Devices tab and click the lightning bolt button on any command row. This creates a trigger linked to that command's signal. If a trigger already exists for that command, the button opens the trigger in edit mode instead.
+From a device command: expand a device in the Devices tab and click the trigger button on any command row. This creates a trigger linked to that command's signal. If a trigger already exists for that command, the button opens the trigger in edit mode instead.
 
-From the Sniffer: expand an unknown device and click the lightning bolt on any signal row. This creates a trigger from the raw signal fingerprint, which is useful for signals you want to react to without assigning them to a HAIR device.
+From the Sniffer: expand an unknown device and click the trigger button on any signal row. This creates a trigger from the raw signal fingerprint, which is useful for signals you want to react to without assigning them to a HAIR device.
 
-Each trigger has a configurable "min hits" value (1 to 10) that controls how many times the signal must be received within a 5-second window before the trigger fires. Setting this to 2 or 3 is useful for preventing triggers from firing on stray or accidental presses.
+Each trigger has a configurable "min hits" value (minimum button presses, 1 to 10) that controls how many times the signal must be received within a 5-second window before the trigger fires. Setting this to 2 or 3 is useful for preventing triggers from firing on stray or accidental presses.
 
 Active triggers appear in the Triggers section at the bottom of the Devices tab. When a trigger fires, its card flashes with an amber glow animation. Each trigger creates an `event` entity (e.g., `event.hair_triggers_tv_power`) that you can use directly in HA's automation editor as a trigger condition.
 
