@@ -156,6 +156,32 @@ Active triggers appear in the Triggers section at the bottom of the Devices tab.
 3. The config flow auto-detects your IR hardware (emitters and receivers)
 4. Once added, find **HAIR** in the sidebar
 
+### ESPHome Receiver Setup
+
+HAIR's Sniffer needs IR signals to arrive on the HA event bus. HA 2026.4 shipped the `infrared` platform for TX (emitters), but the RX side (`InfraredReceiverEntity`) is not yet available. It is approved and on the HA roadmap for 2026.6-2026.7 (architecture discussion #1372). Until then, ESPHome devices need a small YAML bridge to forward received signals to HA.
+
+Add this to your ESPHome device's `remote_receiver` block:
+
+```yaml
+remote_receiver:
+  id: ir_receiver
+  pin:
+    number: GPIO5   # your IR receiver data pin
+    inverted: true
+  dump: pronto
+  on_pronto:
+    then:
+      - homeassistant.event:
+          event: esphome.remote_received
+          data:
+            protocol: "PRONTO"
+            code: !lambda 'return x.data;'
+```
+
+The `on_pronto` trigger catches every IR signal regardless of protocol (NEC, Samsung, Sony, RC-5, etc.) and fires it as a `homeassistant.event` on the HA bus. HAIR's Signal Monitor subscribes to these events automatically.
+
+This bridge is temporary. When HA ships `InfraredReceiverEntity`, HAIR will migrate to the official `infrared.async_subscribe_receiver()` API and no ESPHome YAML customization will be needed. The existing `ir_rf_proxy` TX configuration is unaffected by this change.
+
 ## How It Works
 
 HAIR sits between you and HA's IR platform. It does not replace your IR hardware integrations (Broadlink, ESPHome, etc.). It complements them by providing the admin layer those integrations lack.
@@ -164,7 +190,7 @@ HAIR sits between you and HA's IR platform. It does not replace your IR hardware
 
 HAIR discovers capture-capable hardware automatically:
 
-- **ESPHome** - Devices with `remote_receiver` component
+- **ESPHome** - Devices with `remote_receiver` component (requires the `on_pronto` event bridge above until HA adds native receiver support)
 - **Broadlink** - RM series devices
 
 ### Signal Fingerprinting
