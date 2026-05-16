@@ -36,6 +36,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+.Trash/
+.trash/
 
 # Node (frontend build)
 node_modules/
