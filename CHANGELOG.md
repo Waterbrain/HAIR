@@ -5,7 +5,16 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-05-16
+## [0.1.2] - 2026-05-17
+
+### Fixed
+
+- Add "Add Device" button to the tab bar, visible in all states including the zero-device onboarding flow. Previously there was no way to add a device when hardware was detected but no HAIR devices existed yet.
+- Fix missing Name field in the Add Device dialog on HA 2026.5+ (`ha-textfield` component no longer renders). Replaced with a native input element.
+- Always show the HAIR Devices section header even when no devices exist, with an empty-state hint message.
+- Remove redundant floating action button from bottom-right corner.
+
+## [0.1.1] - 2026-05-16
 
 ### Fixed
 
