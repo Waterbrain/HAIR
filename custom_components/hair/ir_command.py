@@ -1,13 +1,20 @@
-"""Adapter bridging HAIR's stored IR data to infrared_protocols.Command."""
+"""Adapter bridging HAIR's stored IR data to infrared_protocols.Command.
+
+As of infrared-protocols v2.0.0 (HA 2026.5), ``get_raw_timings()`` returns
+``list[int]`` with signed microsecond values (positive = mark, negative =
+space).  Earlier versions (v1.x, HA 2026.4) used a ``Timing`` dataclass.
+This module targets the v2.0 contract so it works on HA 2026.5+ and remains
+forward-compatible.  The v1.x ESPHome emitter flattened ``Timing`` objects
+to signed ints at the call site, so flat ints also work there.
+"""
 from __future__ import annotations
 
 import logging
 
 try:
-    from infrared_protocols import Command, Timing
+    from infrared_protocols import Command
 except ImportError:  # test environment without infrared_protocols
     import abc
-    from dataclasses import dataclass
 
     class Command(abc.ABC):  # type: ignore[no-redef]
         """Minimal stand-in for infrared_protocols.Command."""
@@ -20,15 +27,8 @@ except ImportError:  # test environment without infrared_protocols
             self.repeat_count = repeat_count
 
         @abc.abstractmethod
-        def get_raw_timings(self) -> list:
-            """Get raw timings."""
-
-    @dataclass(frozen=True)
-    class Timing:  # type: ignore[no-redef]
-        """Minimal stand-in for infrared_protocols.Timing."""
-
-        high_us: int
-        low_us: int
+        def get_raw_timings(self) -> list[int]:
+            """Get raw timings as signed microsecond integers."""
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -69,21 +69,23 @@ class ProntoCommand(Command):
                 f"{len(timing_words)} timing words remain"
             )
 
-        self._timings: list[Timing] = []
+        self._timings: list[int] = []
         for i in range(total_pairs):
             mark_periods = timing_words[i * 2]
             space_periods = timing_words[i * 2 + 1]
-            high_us = round(mark_periods * self._period_us)
-            low_us = round(space_periods * self._period_us)
-            self._timings.append(Timing(high_us=high_us, low_us=low_us))
+            mark_us = round(mark_periods * self._period_us)
+            space_us = round(space_periods * self._period_us)
+            self._timings.append(mark_us)
+            if space_us > 0:
+                self._timings.append(-space_us)
 
         super().__init__(
             modulation=self._frequency,
             repeat_count=repeat_count,
         )
 
-    def get_raw_timings(self) -> list[Timing]:
-        """Return mark/space pairs as Timing objects."""
+    def get_raw_timings(self) -> list[int]:
+        """Return signed microsecond timings (positive=mark, negative=space)."""
         return list(self._timings)
 
 
@@ -97,26 +99,25 @@ class RawTimingsCommand(Command):
         frequency: int = 38000,
         repeat_count: int = 0,
     ) -> None:
-        # raw_timings is [mark, -space, mark, -space, ...] or [mark, space, ...]
-        # Normalise: take absolute values, pair them up.
-        absolutes = [abs(t) for t in raw_timings]
-        self._timings: list[Timing] = []
-        for i in range(0, len(absolutes) - 1, 2):
-            self._timings.append(
-                Timing(high_us=absolutes[i], low_us=absolutes[i + 1])
-            )
-        # If odd number of timings, last mark has no trailing space.
-        if len(absolutes) % 2 == 1:
-            self._timings.append(
-                Timing(high_us=absolutes[-1], low_us=0)
-            )
+        # Normalise to signed convention: positive=mark, negative=space.
+        # Input may be [mark, space, mark, space] (all positive) or
+        # [mark, -space, mark, -space] (already signed).
+        self._timings: list[int] = []
+        for i, val in enumerate(raw_timings):
+            if i % 2 == 0:
+                # Mark (odd index in 0-based = even position = mark)
+                self._timings.append(abs(val))
+            else:
+                # Space
+                self._timings.append(-abs(val))
 
         super().__init__(
             modulation=frequency,
             repeat_count=repeat_count,
         )
 
-    def get_raw_timings(self) -> list[Timing]:
+    def get_raw_timings(self) -> list[int]:
+        """Return signed microsecond timings (positive=mark, negative=space)."""
         return list(self._timings)
 
 

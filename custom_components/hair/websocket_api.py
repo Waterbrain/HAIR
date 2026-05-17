@@ -298,6 +298,7 @@ async def ws_send_command(
         connection.send_error(msg["id"], "not_found", str(err))
         return
     except Exception as err:
+        _LOGGER.error("Send command failed: %s", err, exc_info=True)
         connection.send_error(msg["id"], "send_failed", str(err))
         return
     connection.send_result(msg["id"], {"sent": True})
