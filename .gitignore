@@ -45,8 +45,12 @@ custom_components/hair/frontend/node_modules/
 
 # Claude local settings
 .claude/
+CLAUDE.md
 images/internal/
 images/gui/
 
 # Internal docs (not for public repo)
 docs/internal/
+
+# Working files
+trash/
