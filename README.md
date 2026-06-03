@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/HAIR-readme-hero.png" alt="HAIR brand banner showing the HA Box mascot acting as barber to a row of IR devices" width="900" />
+  <img src="images/HAIR-readme-hero-v0.2.png" alt="HAIR Full Service barbershop banner with the TX mascot welcoming the new RX mascot at the shop entrance, RX IS HERE speech bubble overhead" width="900" />
 </p>
 
 # HAIR
