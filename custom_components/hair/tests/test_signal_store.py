@@ -60,11 +60,18 @@ class TestLoadSave:
 
     @pytest.mark.asyncio
     async def test_load_with_devices(self):
+        """Load preserves devices and matching dismissed entries.
+
+        The dismissed fingerprint here matches the loaded device's
+        fingerprint so the v0.2.1 self-heal pass does NOT treat it as
+        an orphan. (Orphan-pruning behavior is covered separately in
+        test_load_self_heals_orphan_dismissed_fingerprints.)
+        """
         hass = _make_hass()
         store = SignalStore(hass)
         raw = {
             "devices": [_make_device("d1", "fp1", 5).to_dict()],
-            "dismissed": ["dismissed_fp"],
+            "dismissed": ["fp1"],
         }
         with patch.object(store, "_store") as mock_store:
             mock_store.async_load = AsyncMock(return_value=raw)
@@ -72,7 +79,7 @@ class TestLoadSave:
         assert store.loaded
         assert len(store.get_all_devices()) == 1
         assert store.get_device("d1") is not None
-        assert store.is_dismissed("dismissed_fp")
+        assert store.is_dismissed("fp1")
 
     @pytest.mark.asyncio
     async def test_load_skips_malformed(self):
