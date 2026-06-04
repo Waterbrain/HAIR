@@ -689,14 +689,6 @@ export class IrSignalMonitor extends LitElement {
                             ? html`<span class="dismiss-dot" aria-hidden="true"></span>`
                             : ""}
                     </button>
-                    ${this._devices.length > 0
-                        ? html`
-                              <button
-                                  class="action-btn delete-btn"
-                                  @click=${() => (this._confirmClearAll = true)}
-                              >Clear All</button>
-                          `
-                        : ""}
                 </div>
             </div>
 
@@ -726,6 +718,18 @@ export class IrSignalMonitor extends LitElement {
                             ${this._devices.map((d) => this._renderDevice(d))}
                         </div>
                     `}
+
+            ${this._devices.length > 0 || this._showDismissed
+                ? html`
+                      <div class="clear-all-row">
+                          <button
+                              class="action-btn delete-btn"
+                              title="Wipe the entire unknown catalog AND the dismiss list. Use Show Dismissed before Clear All if you want to retain individual dismissed entries."
+                              @click=${() => (this._confirmClearAll = true)}
+                          >Clear All</button>
+                      </div>
+                  `
+                : ""}
 
             ${this._assignSignal
                 ? html`
@@ -964,6 +968,10 @@ export class IrSignalMonitor extends LitElement {
                                             e.stopPropagation();
                                             this._openAssign(device.id, sig, device.label);
                                         }}
+                                        ?disabled=${device.dismissed}
+                                        title=${device.dismissed
+                                            ? "Restore this remote first"
+                                            : "Assign this signal to a HAIR device"}
                                     >Assign</button>
                                     <button
                                         class="action-btn test-btn"
@@ -971,7 +979,10 @@ export class IrSignalMonitor extends LitElement {
                                             e.stopPropagation();
                                             this._openTestDialog(sig);
                                         }}
-                                        ?disabled=${this._testingFingerprint === sig.fingerprint}
+                                        ?disabled=${device.dismissed || this._testingFingerprint === sig.fingerprint}
+                                        title=${device.dismissed
+                                            ? "Restore this remote first"
+                                            : "Send this signal through an emitter to test it"}
                                     >${this._testingFingerprint === sig.fingerprint
                                         ? (this._testResult ?? "Sending...")
                                         : "Test"}</button>
@@ -981,6 +992,10 @@ export class IrSignalMonitor extends LitElement {
                                             e.stopPropagation();
                                             this._openTriggerDialog(device.id, sig);
                                         }}
+                                        ?disabled=${device.dismissed}
+                                        title=${device.dismissed
+                                            ? "Restore this remote first"
+                                            : "Create an HA event entity that fires on this signal"}
                                     >Trigger</button>
                                     <button
                                         class="action-btn delete-btn"
@@ -1031,6 +1046,17 @@ export class IrSignalMonitor extends LitElement {
         .toolbar-actions {
             display: flex;
             gap: 8px;
+        }
+
+        /* Clear All anchor below the unknown-devices list.
+           Moved out of the top toolbar in v0.2.1 to pair visually with
+           the new "Clear All also wipes the dismiss list" semantic, and
+           to force the user to scroll past what they are about to delete
+           before pressing the destructive button. */
+        .clear-all-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
         }
 
         .loading,
