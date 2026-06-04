@@ -5,6 +5,19 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-04
+
+### Fixed
+
+- Sniffer would go silent for previously-seen remotes after a specific sequence of dismiss and assign actions, with no UI indication that anything was being dropped. Root cause was an orphaned entry in the persistent dismiss set that survived HA restarts and HACS reinstalls (the device record was removed when the last signal was assigned or deleted, but its fingerprint stayed in the dismiss list). Signals from affected remotes now reach the Sniffer again automatically on the next HA restart after upgrade thanks to a self-heal pass at load time. Reported by @KimmoJ (GH #9) and follow-up by @roblamoreaux.
+- Buffer eviction's second pass could independently produce the same orphan when a dismissed device with a low hit count was evicted to make room for new signals. The eviction now skips dismissed devices in both passes.
+
+### Changed
+
+- "Clear All" in the Sniffer now also clears the dismiss list, matching the user mental model of "clear all means clear all." Previously the dismiss list survived Clear All, which contributed to silent orphan accumulation. Users who hit the orphan bug above can use Clear All as an alternative recovery route if they prefer not to wait for the self-heal on restart.
+- The Sniffer's Clear All button has moved from the top toolbar to a position below the device list. The Show Dismissed toggle stays in the top toolbar. The relocation pairs visually with the new "clear everything including the dismiss list" semantic and adds a small scroll-past-it speed bump before the destructive action.
+- In the Show Dismissed view, the Assign / Test / Trigger buttons on individual signals are now disabled until the remote is restored. Delete stays enabled so users can still clean up unwanted entries. Disabled buttons show a "Restore this remote first" tooltip on hover.
+
 ## [0.2.0] - 2026-06-03
 
 ### Added
