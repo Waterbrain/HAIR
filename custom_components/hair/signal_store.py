@@ -74,6 +74,26 @@ class SignalStore:
                 _LOGGER.warning("Skipping malformed unknown device: %s", err)
 
         self._dismissed = set(raw.get("dismissed") or [])
+
+        # Self-heal: prune any fingerprint in ``_dismissed`` that has no
+        # matching ``_devices`` entry. Users upgrading from v0.2.0 or
+        # earlier may have accumulated orphan fingerprints on disk via
+        # the GH #9 bug. We clean them up at load time so the user
+        # auto-recovers on next HA restart after upgrading to v0.2.1
+        # without any manual intervention.
+        live_fingerprints = {d.fingerprint for d in self._devices.values()}
+        orphans = self._dismissed - live_fingerprints
+        if orphans:
+            self._dismissed -= orphans
+            self._dirty = True
+            _LOGGER.warning(
+                "Pruned %d orphan dismissed fingerprint(s) on load. "
+                "This was a v0.2.0 issue (GitHub issue #9) fixed in "
+                "v0.2.1; signals from previously-silent remotes should "
+                "now appear in the Sniffer normally.",
+                len(orphans),
+            )
+
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -158,10 +178,23 @@ class SignalStore:
         self._devices[device.id] = device
 
     def remove_device(self, device_id: str) -> bool:
-        if device_id in self._devices:
-            del self._devices[device_id]
-            return True
-        return False
+        """Remove an unknown device from the catalog.
+
+        Also discards the device's fingerprint from the persistent
+        dismiss set so that ``_dismissed`` can never hold a fingerprint
+        whose corresponding ``_devices`` entry has been removed. Without
+        this guarantee, a sequence like dismiss -> assign-last-signal or
+        dismiss -> delete-last-signal could leave an orphan fingerprint
+        in ``_dismissed`` that silently drops every future signal from
+        that physical remote at step 4 of the signal pipeline, with no
+        UI affordance to recover. Fixed in v0.2.1 (GitHub issue #9).
+        """
+        device = self._devices.get(device_id)
+        if device is None:
+            return False
+        self._dismissed.discard(device.fingerprint)
+        del self._devices[device_id]
+        return True
 
     @property
     def device_count(self) -> int:
@@ -218,12 +251,21 @@ class SignalStore:
             removed += 1
 
         # Pass 2: if still over limit, evict lowest activity.
+        # Also skip dismissed devices here so an orphan fingerprint can
+        # never form via eviction. Without this guard, a dismissed
+        # device with a low ``hit_count`` could be evicted while its
+        # fingerprint remains in ``_dismissed``, silently dropping every
+        # future signal from that physical remote (GitHub issue #9).
+        # Matches the Pass 1 skip behavior.
         if len(self._devices) > SIGNAL_BUFFER_MAX_DEVICES:
             sorted_devices = sorted(
-                self._devices.values(),
+                (d for d in self._devices.values() if not d.dismissed),
                 key=lambda d: (d.hit_count, d.last_seen),
             )
-            while len(self._devices) > SIGNAL_BUFFER_MAX_DEVICES:
+            while (
+                len(self._devices) > SIGNAL_BUFFER_MAX_DEVICES
+                and sorted_devices
+            ):
                 victim = sorted_devices.pop(0)
                 del self._devices[victim.id]
                 removed += 1
@@ -235,8 +277,18 @@ class SignalStore:
     # -----------------------------------------------------------------
 
     def clear_all(self) -> None:
-        """Wipe the entire unknown catalog (but keep dismiss list)."""
+        """Wipe the entire unknown catalog AND the dismiss list.
+
+        Behavior changed in v0.2.1: prior versions kept the dismiss
+        list across Clear All. That design choice contributed to silent
+        accumulation of orphan dismissed fingerprints (GitHub issue #9)
+        because the dismiss list was reachable only through devices that
+        had been Clear All'd away. Clear All now matches the user mental
+        model of "clear everything," and serves as a manual recovery
+        route for users who hit the orphan bug before upgrading.
+        """
         self._devices.clear()
+        self._dismissed.clear()
 
     async def async_shutdown(self) -> None:
         """Flush pending writes and cancel timers."""

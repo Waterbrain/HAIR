@@ -91,6 +91,55 @@ class TestLoadSave:
         assert store.loaded
 
     @pytest.mark.asyncio
+    async def test_load_self_heals_orphan_dismissed_fingerprints(self):
+        """async_load prunes orphan _dismissed entries on load.
+
+        Regression for GitHub issue #9: users upgrading from v0.2.0 or
+        earlier may have accumulated orphan fingerprints in their on-disk
+        dismiss set via the assign-from-dismissed bug. async_load now
+        prunes any fingerprint that has no matching device record, so
+        affected users auto-recover on next HA restart after upgrading
+        to v0.2.1 without manual file editing.
+        """
+        hass = _make_hass()
+        store = SignalStore(hass)
+        raw = {
+            # Only one device, fingerprint = "live_fp".
+            "devices": [_make_device("d1", "live_fp").to_dict()],
+            # Two dismissed entries: one matches the device, one is an
+            # orphan (no matching device record).
+            "dismissed": ["live_fp", "orphan_fp"],
+        }
+        with patch.object(store, "_store") as mock_store:
+            mock_store.async_load = AsyncMock(return_value=raw)
+            await store.async_load()
+
+        # Live fingerprint stays dismissed.
+        assert store.is_dismissed("live_fp")
+        # Orphan was pruned.
+        assert not store.is_dismissed("orphan_fp")
+        assert store.dismissed_count == 1
+        # Self-heal flags the store as dirty so the cleanup persists on
+        # next save.
+        assert store._dirty
+
+    @pytest.mark.asyncio
+    async def test_load_with_no_orphans_does_not_mark_dirty(self):
+        """If all _dismissed entries are valid, load leaves _dirty alone."""
+        hass = _make_hass()
+        store = SignalStore(hass)
+        raw = {
+            "devices": [_make_device("d1", "fp_a").to_dict()],
+            "dismissed": ["fp_a"],
+        }
+        with patch.object(store, "_store") as mock_store:
+            mock_store.async_load = AsyncMock(return_value=raw)
+            await store.async_load()
+
+        assert store.is_dismissed("fp_a")
+        assert not store._dirty
+
+    @pytest.mark.asyncio
     async def test_save_serializes_correctly(self):
         hass = _make_hass()
         store = SignalStore(hass)
@@ -157,14 +206,56 @@ class TestDeviceAccess:
         assert store.device_count == 2
 
     def test_clear_all(self):
+        """Clear All wipes both the device catalog AND the dismiss list.
+
+        Behavior changed in v0.2.1 (GitHub issue #9): previously the
+        dismiss list was preserved across Clear All, which contributed
+        to orphan-fingerprint accumulation. Clear All now matches the
+        user mental model of "clear everything".
+        """
         hass = _make_hass()
         store = SignalStore(hass)
         store.add_device(_make_device("d1"))
         store.add_dismissed("fp1")
         store.clear_all()
         assert store.device_count == 0
-        # Dismiss list preserved.
+        assert not store.is_dismissed("fp1")
+        assert store.dismissed_count == 0
+
+    def test_remove_device_discards_dismissed_fingerprint(self):
+        """Removing a device also discards its fingerprint from _dismissed.
+
+        Regression for GitHub issue #9: prior to v0.2.1, remove_device
+        did not touch _dismissed, so a dismiss -> assign-last-signal or
+        dismiss -> delete-last-signal sequence left an orphan fingerprint
+        in _dismissed that silently dropped every future signal from that
+        physical remote with no UI recovery path.
+        """
+        hass = _make_hass()
+        store = SignalStore(hass)
+        device = _make_device("d1", fingerprint="fp1", dismissed=True)
+        store.add_device(device)
+        store.add_dismissed("fp1")
         assert store.is_dismissed("fp1")
+
+        assert store.remove_device("d1")
+        assert store.get_device("d1") is None
+        # The invariant: remove_device must also discard the fingerprint.
+        assert not store.is_dismissed("fp1")
+        assert store.dismissed_count == 0
+
+    def test_remove_device_discards_for_non_dismissed_device_too(self):
+        """The discard runs even for non-dismissed devices (harmless no-op).
+
+        Belt-and-suspenders: even if the fingerprint isn't in _dismissed
+        (because the user never dismissed this device), the discard call
+        is a safe no-op.
+        """
+        hass = _make_hass()
+        store = SignalStore(hass)
+        store.add_device(_make_device("d1", fingerprint="fp_clean"))
+        assert store.remove_device("d1")
+        assert store.dismissed_count == 0
 
 
 class TestDismissList:
@@ -250,6 +341,38 @@ class TestEviction:
         store.add_device(_make_device("d1", hit_count=50))
         removed = store.evict()
         assert removed == 0
+
+    def test_evict_pass2_skips_dismissed_devices(self):
+        """Pass 2 must skip dismissed devices the same way Pass 1 does.
+
+        Regression for GitHub issue #9: prior to v0.2.1, eviction Pass 2
+        would evict a low-hit dismissed device without removing its
+        fingerprint from _dismissed, leaving an orphan that silently
+        dropped every future signal from that physical remote.
+        """
+        hass = _make_hass()
+        store = SignalStore(hass)
+        # Fill above the buffer limit with normal devices that all have
+        # higher hit_count than the dismissed one.
+        for i in range(SIGNAL_BUFFER_MAX_DEVICES + 1):
+            store.add_device(
+                _make_device(f"normal_{i}", f"fp_n{i}", hit_count=100 + i)
+            )
+        # Add one dismissed device at the bottom of the hit_count scale.
+        # Without the Pass 2 guard, this is the first thing to be evicted.
+        store.add_device(_make_device(
+            "dismissed_low",
+            fingerprint="fp_dismissed",
+            hit_count=1,
+            dismissed=True,
+        ))
+        store.add_dismissed("fp_dismissed")
+
+        store.evict()
+
+        # Dismissed device must survive Pass 2 just like Pass 1.
+        assert store.get_device("dismissed_low") is not None
+        assert store.is_dismissed("fp_dismissed")
 
 
 class TestScheduleSave:

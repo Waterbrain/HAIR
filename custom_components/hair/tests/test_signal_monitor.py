@@ -16,6 +16,7 @@ from custom_components.hair.const import (
     SIGNAL_REPEAT_SUPPRESS_MS,
     SIGNAL_WS_PUSH_RATE_LIMIT,
 )
+from custom_components.hair.event_parser import EventParser
 from custom_components.hair.models import (
     IRCommand,
     IRDevice,
@@ -707,6 +708,105 @@ class TestAssignSignal:
         assert store.get_device("ud1") is None
 
     @pytest.mark.asyncio
+    async def test_assign_from_dismissed_device_clears_dismiss_set(self):
+        """Assigning the last signal of a dismissed device must clear the
+        device's fingerprint from _dismissed.
+
+        Regression for GitHub issue #9: prior to v0.2.1, the orphan
+        fingerprint persisted in _dismissed and silently dropped every
+        future signal from that physical remote at step 4 of the signal
+        pipeline. The fix is in signal_store.remove_device(), which is
+        invoked from assign_signal when the device's last signal is
+        consumed.
+        """
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        hair_store = _make_hair_store()
+        monitor = SignalMonitor(hass, store, hair_store)
+
+        sig = UnknownSignal(
+            fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            frequency=38000, hit_count=5,
+        )
+        device = UnknownDevice(
+            id="ud1", fingerprint="dev_fp", signals=[sig], hit_count=5,
+            dismissed=True,
+        )
+        store.add_device(device)
+        store.add_dismissed("dev_fp")
+        assert store.is_dismissed("dev_fp")
+
+        hair_device = IRDevice(id="hd1", name="TV")
+        hair_store.get_device.return_value = hair_device
+
+        result = await monitor.assign_signal(
+            "ud1", "sig_fp", "hd1", "Power", "custom",
+        )
+        assert result["success"] is True
+        # Unknown device removed (no signals left).
+        assert store.get_device("ud1") is None
+        # And the fingerprint MUST also be discarded from _dismissed,
+        # otherwise step 4 of _process_parsed_signal will silently drop
+        # every future signal from this remote.
+        assert not store.is_dismissed("dev_fp")
+
+    @pytest.mark.asyncio
+    async def test_signal_arrival_after_assign_from_dismissed_device_reaches_storage(
+        self,
+    ):
+        """End-to-end regression: after assigning the last signal of a
+        dismissed device, the next IR arrival from the same physical
+        remote must actually land in the Sniffer instead of being
+        silently dropped by an orphan dismiss entry.
+
+        This is the user-visible repro of GitHub issue #9.
+        """
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        hair_store = _make_hair_store()
+        monitor = SignalMonitor(hass, store, hair_store)
+
+        # Seed: dismissed device with one signal, ready to be assigned.
+        sig = UnknownSignal(
+            fingerprint="sig_fp_first", protocol="NEC", code="0x1234",
+            frequency=38000, hit_count=1,
+        )
+        device = UnknownDevice(
+            id="ud1", fingerprint="dev_fp", signals=[sig], hit_count=1,
+            dismissed=True,
+        )
+        store.add_device(device)
+        store.add_dismissed("dev_fp")
+
+        hair_device = IRDevice(id="hd1", name="TV")
+        hair_store.get_device.return_value = hair_device
+
+        # 1. Assign the last signal (this triggered the original bug).
+        await monitor.assign_signal(
+            "ud1", "sig_fp_first", "hd1", "Power", "custom",
+        )
+
+        # 2. Press a DIFFERENT button on the same physical remote.
+        # _process_parsed_signal computes the same device_fingerprint
+        # because the device-grouping is by carrier-frequency + preamble,
+        # not by the per-button signal fingerprint. We simulate this by
+        # patching the device_fingerprint computation to return the same
+        # value as the original device.
+        with patch.object(
+            EventParser, "device_fingerprint", return_value="dev_fp"
+        ):
+            await monitor._on_ir_event(_make_event(_nec_event("0x5678")))
+
+        # The Sniffer should now show a fresh unknown device for the
+        # second button press. Without the fix, this assertion fails
+        # because the orphan dismiss entry silently dropped the signal
+        # at step 4.
+        devices_after = store.get_all_devices()
+        assert len(devices_after) == 1
+        # And the fingerprint must NOT be in _dismissed any more.
+        assert not store.is_dismissed("dev_fp")
+
+    @pytest.mark.asyncio
     async def test_assign_keeps_device_with_remaining_signals(self):
         hass = _make_hass()
         store = _make_signal_store(hass)
@@ -968,6 +1068,35 @@ class TestDeleteSignal:
         assert store.get_device("ud1") is None
 
     @pytest.mark.asyncio
+    async def test_delete_last_signal_from_dismissed_device_clears_dismiss_set(
+        self,
+    ):
+        """Deleting the last signal of a dismissed device also discards
+        the fingerprint from _dismissed.
+
+        Regression for GitHub issue #9 (parallel to the assign path).
+        Same orphan formation, same fix in signal_store.remove_device().
+        """
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+
+        sig = UnknownSignal(fingerprint="sig1", protocol="NEC", code="0x1")
+        device = UnknownDevice(
+            id="ud1", fingerprint="fp_dismissed", signals=[sig],
+            dismissed=True,
+        )
+        store.add_device(device)
+        store.add_dismissed("fp_dismissed")
+        assert store.is_dismissed("fp_dismissed")
+
+        result = await monitor.delete_signal("ud1", "sig1")
+        assert result["success"] is True
+        assert result["device_removed"] is True
+        assert store.get_device("ud1") is None
+        assert not store.is_dismissed("fp_dismissed")
+
+    @pytest.mark.asyncio
     async def test_delete_device_not_found(self):
         hass = _make_hass()
         store = _make_signal_store(hass)
@@ -1032,6 +1161,48 @@ class TestAssignToNewDevice:
 
         # Signal should be removed.
         assert store.get_device("ud1") is None
+
+    @pytest.mark.asyncio
+    async def test_assign_to_new_device_from_dismissed_clears_dismiss_set(
+        self,
+    ):
+        """Assigning the last signal of a dismissed device to a NEW HAIR
+        device also discards the fingerprint from _dismissed.
+
+        Regression for GitHub issue #9 (parallel to the assign-to-existing
+        path). Same orphan formation, same fix in
+        signal_store.remove_device().
+        """
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        hair_store = _make_hair_store()
+        monitor = SignalMonitor(hass, store, hair_store)
+
+        sig = UnknownSignal(
+            fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            frequency=38000, hit_count=1,
+        )
+        device = UnknownDevice(
+            id="ud1", fingerprint="dev_fp", signals=[sig], hit_count=1,
+            dismissed=True,
+        )
+        store.add_device(device)
+        store.add_dismissed("dev_fp")
+        assert store.is_dismissed("dev_fp")
+
+        result = await monitor.assign_to_new_device(
+            device_id="ud1",
+            signal_fingerprint="sig_fp",
+            device_name="Living Room TV",
+            device_type="media_player",
+            emitter_entity_ids=["remote.ir_blaster"],
+            command_name="Power",
+            command_category="power",
+        )
+        assert result["success"] is True
+        assert store.get_device("ud1") is None
+        # The invariant: remove_device discarded the fingerprint.
+        assert not store.is_dismissed("dev_fp")
 
         # HAIRStore should have been saved.
         hair_store.async_save.assert_called()
