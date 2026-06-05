@@ -25,10 +25,13 @@
 #   - Uses the official Athom package for hardware config. The package
 #     provides remote_transmitter, remote_receiver, ir_rf_proxy (infrared
 #     platform), BLE proxy, climate IR, and diagnostics out of the box.
-#   - The on_pronto bridge at the bottom is only needed on HA 2026.4-2026.5.
-#     On HA 2026.6+, HAIR subscribes to the ir_rf_proxy receiver entity
-#     natively and this block has no effect. It can be removed once you
-#     have confirmed 2026.6+ is working.
+#   - On HA 2026.6+ the Athom package's ir_rf_proxy receiver entity is a
+#     native InfraredReceiverEntity and HAIR subscribes to it directly.
+#     This is the active path; no extra YAML is needed here.
+#   - The legacy on_pronto bridge that HAIR used on HA 2026.4-2026.5 is
+#     preserved at the bottom as a commented-out remote_receiver !extend
+#     block. Uncomment it only if you are running an older HA version
+#     that predates native InfraredReceiverEntity support.
 #   - RF hardware is present but only IR is used by HAIR. The Athom
 #     package exposes the RF side via radio_frequency platform entries.
 # ============================================================================
@@ -64,19 +67,22 @@ wifi:
   password: !secret wifi_password
 
 # --- HAIR legacy bridge (pre-2026.6) ---
-# Extends the package's ir_receiver to add an on_pronto trigger that
-# forwards every captured IR signal to the HA event bus. HAIR's signal
-# monitor subscribes to these events on HA 2026.4-2026.5.
+# This block extends the Athom package's ir_receiver to add an
+# on_pronto trigger that forwards every captured IR signal to the HA
+# event bus. It is preserved here as commented-out historical reference
+# for users on HA 2026.4-2026.5.
 #
-# On HA 2026.6+, HAIR uses the native InfraredReceiverEntity from the
-# ir_rf_proxy block in the Athom package and this bridge is unused.
-# You can remove this block once you are on 2026.6+.
-remote_receiver:
-  - id: !extend ir_receiver
-    on_pronto:
-      then:
-        - homeassistant.event:
-            event: esphome.remote_received
-            data:
-              protocol: PRONTO
-              code: !lambda 'return x.data;'
+# On HA 2026.6+ the Athom package's ir_rf_proxy receiver entity is a
+# native InfraredReceiverEntity and HAIR subscribes to it directly,
+# so this bridge is no longer active and no longer needed. Uncomment
+# the block only if you are running an older HA version that predates
+# native InfraredReceiverEntity support.
+# remote_receiver:
+#   - id: !extend ir_receiver
+#     on_pronto:
+#       then:
+#         - homeassistant.event:
+#             event: esphome.remote_received
+#             data:
+#               protocol: PRONTO
+#               code: !lambda 'return x.data;'

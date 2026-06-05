@@ -76,12 +76,16 @@ remote_transmitter:
   non_blocking: true
 
 # --- IR Receiver (RX) ---
-# The on_pronto trigger catches every IR signal regardless of protocol
-# (NEC, Samsung, Sony, RC-5, etc.) and fires it as a homeassistant.event
-# on the HA bus. HAIR's Signal Monitor subscribes to these events
-# automatically. This bridge is temporary -- when HA ships native
-# InfraredReceiverEntity (expected 2026.6-2026.7), HAIR will migrate
-# to the official API and this YAML block will no longer be needed.
+# This hardware block defines the IR receiver pin and timing. The
+# infrared: platform below references its id to register the receiver
+# as a native HA InfraredReceiverEntity, which HAIR subscribes to via
+# infrared.async_subscribe_receiver() on HA 2026.6+.
+#
+# The legacy on_pronto event-bus bridge that HAIR used on HA
+# 2026.4-2026.5 is preserved below as commented-out historical
+# reference. It is no longer active and no longer needed on 2026.6+.
+# Uncomment it only if you are running an older HA version that
+# predates native InfraredReceiverEntity support.
 remote_receiver:
   id: ir_rx
   pin:
@@ -94,13 +98,14 @@ remote_receiver:
   tolerance: 25%
   idle: 10ms
 
-  on_pronto:
-    then:
-      - homeassistant.event:
-          event: esphome.remote_received
-          data:
-            protocol: "PRONTO"
-            code: !lambda 'return x.data;'
+  # Legacy HAIR bridge (pre-2026.6). No longer needed on HA 2026.6+.
+  # on_pronto:
+  #   then:
+  #     - homeassistant.event:
+  #         event: esphome.remote_received
+  #         data:
+  #           protocol: "PRONTO"
+  #           code: !lambda 'return x.data;'
 
 # --- HA Native Infrared Platform ---
 # These entries register the device as an infrared entity in HA, so HAIR
