@@ -619,7 +619,10 @@ export class IrClips extends LitElement {
                         : html`<span>${Math.round(sig.frequency / 1000)} kHz</span>`}
                 </div>
                 ${sig.code
-                    ? html`<ir-pronto-popover .code=${sig.code}></ir-pronto-popover>`
+                    ? html`<ir-pronto-popover
+                          .code=${sig.code}
+                          ?disabled=${dismissed}
+                      ></ir-pronto-popover>`
                     : ""}
                 <div class="signal-actions">
                     <button

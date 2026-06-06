@@ -2494,11 +2494,11 @@ function e(e,t,i,s){var o,r=arguments.length,a=r<3?t:null===s?s=Object.getOwnPro
         .create-btn:hover:not(:disabled) {
             opacity: 0.9;
         }
-    `,e([pe({attribute:!1})],Xi.prototype,"api",void 0),e([pe({attribute:!1})],Xi.prototype,"hass",void 0),e([pe()],Xi.prototype,"suggestedName",void 0),e([ge()],Xi.prototype,"_name",void 0),e([ge()],Xi.prototype,"_type",void 0),e([ge()],Xi.prototype,"_emitterIds",void 0),e([ge()],Xi.prototype,"_busy",void 0),e([ge()],Xi.prototype,"_error",void 0),Xi=e([de("ir-promote-dialog")],Xi);let Yi=class extends ne{constructor(){super(...arguments),this.code="",this._open=!1,this._copied=!1,this._top=0,this._left=0,this._onDocClick=e=>{this._open&&!e.composedPath().includes(this)&&(this._open=!1)},this._onDocKey=e=>{this._open&&"Escape"===e.key&&(this._open=!1)}}connectedCallback(){super.connectedCallback(),document.addEventListener("click",this._onDocClick),document.addEventListener("keydown",this._onDocKey)}disconnectedCallback(){super.disconnectedCallback(),document.removeEventListener("click",this._onDocClick),document.removeEventListener("keydown",this._onDocKey)}_toggle(e){if(e.stopPropagation(),this._open)return void(this._open=!1);const t=e.currentTarget.getBoundingClientRect();let i=t.left;i+320>window.innerWidth-8&&(i=window.innerWidth-320-8),this._left=Math.max(8,i),this._top=t.bottom+6,this._copied=!1,this._open=!0,this.updateComplete.then(()=>{const e=this.shadowRoot?.querySelector(".code-box");e?.focus(),e?.select()})}async _copy(e){e.stopPropagation(),await this._writeClipboard(this.code)&&(this._copied=!0,setTimeout(()=>{this._copied=!1},1500))}async _writeClipboard(e){try{if(navigator.clipboard&&window.isSecureContext)return await navigator.clipboard.writeText(e),!0}catch{}try{const t=document.createElement("textarea");t.value=e,t.style.position="fixed",t.style.top="-1000px",document.body.appendChild(t),t.focus(),t.select();const i=document.execCommand("copy");return t.remove(),i}catch{return!1}}render(){return j`
+    `,e([pe({attribute:!1})],Xi.prototype,"api",void 0),e([pe({attribute:!1})],Xi.prototype,"hass",void 0),e([pe()],Xi.prototype,"suggestedName",void 0),e([ge()],Xi.prototype,"_name",void 0),e([ge()],Xi.prototype,"_type",void 0),e([ge()],Xi.prototype,"_emitterIds",void 0),e([ge()],Xi.prototype,"_busy",void 0),e([ge()],Xi.prototype,"_error",void 0),Xi=e([de("ir-promote-dialog")],Xi);let Yi=class extends ne{constructor(){super(...arguments),this.code="",this.disabled=!1,this._open=!1,this._copied=!1,this._top=0,this._left=0,this._onDocClick=e=>{this._open&&!e.composedPath().includes(this)&&(this._open=!1)},this._onDocKey=e=>{this._open&&"Escape"===e.key&&(this._open=!1)}}connectedCallback(){super.connectedCallback(),document.addEventListener("click",this._onDocClick),document.addEventListener("keydown",this._onDocKey)}disconnectedCallback(){super.disconnectedCallback(),document.removeEventListener("click",this._onDocClick),document.removeEventListener("keydown",this._onDocKey)}_toggle(e){if(e.stopPropagation(),this.disabled)return;if(this._open)return void(this._open=!1);const t=e.currentTarget.getBoundingClientRect();let i=t.left;i+320>window.innerWidth-8&&(i=window.innerWidth-320-8),this._left=Math.max(8,i),this._top=t.bottom+6,this._copied=!1,this._open=!0,this.updateComplete.then(()=>{const e=this.shadowRoot?.querySelector(".code-box");e?.focus(),e?.select()})}async _copy(e){e.stopPropagation(),await this._writeClipboard(this.code)&&(this._copied=!0,setTimeout(()=>{this._copied=!1},1500))}async _writeClipboard(e){try{if(navigator.clipboard&&window.isSecureContext)return await navigator.clipboard.writeText(e),!0}catch{}try{const t=document.createElement("textarea");t.value=e,t.style.position="fixed",t.style.top="-1000px",document.body.appendChild(t),t.focus(),t.select();const i=document.execCommand("copy");return t.remove(),i}catch{return!1}}render(){return j`
             <ha-svg-icon
-                class="copy-icon"
+                class="copy-icon ${this.disabled?"disabled":""}"
                 .path=${"M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"}
-                title="Show Pronto"
+                title=${this.disabled?"":"Show Pronto"}
                 @click=${this._toggle}
             ></ha-svg-icon>
             ${this._open?j`<div
@@ -2523,15 +2523,20 @@ function e(e,t,i,s){var o,r=arguments.length,a=r<3?t:null===s?s=Object.getOwnPro
             align-items: center;
         }
         .copy-icon {
-            --mdc-icon-size: 16px;
+            --mdc-icon-size: 10px;
             color: var(--secondary-text-color);
             cursor: pointer;
-            opacity: 0.7;
+            opacity: 0.4;
             transition: opacity 150ms ease, color 150ms ease;
         }
         .copy-icon:hover {
             opacity: 1;
             color: var(--primary-text-color);
+        }
+        .copy-icon.disabled {
+            opacity: 0.25;
+            cursor: default;
+            pointer-events: none;
         }
         .popover {
             position: fixed;
@@ -2586,7 +2591,7 @@ function e(e,t,i,s){var o,r=arguments.length,a=r<3?t:null===s?s=Object.getOwnPro
         .close-btn:hover {
             background: var(--secondary-background-color);
         }
-    `,e([pe()],Yi.prototype,"code",void 0),e([ge()],Yi.prototype,"_open",void 0),e([ge()],Yi.prototype,"_copied",void 0),e([ge()],Yi.prototype,"_top",void 0),e([ge()],Yi.prototype,"_left",void 0),Yi=e([de("ir-pronto-popover")],Yi);let Wi=class extends ne{constructor(){super(...arguments),this.deviceId="",this.disabled=!1,this._editing=!1,this._draft=""}updated(e){if(e.has("_editing")&&this._editing){const e=this.shadowRoot?.querySelector(".alias-input");e?.focus(),e?.select()}}_startEdit(e){this.disabled||(e?.stopPropagation(),this._draft=this.signal.alias??"",this._editing=!0)}_onKeydown(e){"Enter"===e.key?this._commit():"Escape"===e.key&&(this._editing=!1)}async _commit(){if(!this._editing)return;const e=this._draft.trim();this._editing=!1,await this._save(e)}async _clear(){this._editing=!1,await this._save("")}async _save(e){try{await this.api.setSignalAlias(this.deviceId,this.signal.fingerprint,e),this.dispatchEvent(new CustomEvent("alias-changed",{detail:{fingerprint:this.signal.fingerprint,alias:e},bubbles:!0,composed:!0}))}catch(e){this.dispatchEvent(new CustomEvent("alias-error",{detail:e.message,bubbles:!0,composed:!0}))}}render(){const e=this.signal;return this._editing?j`
+    `,e([pe()],Yi.prototype,"code",void 0),e([pe({type:Boolean})],Yi.prototype,"disabled",void 0),e([ge()],Yi.prototype,"_open",void 0),e([ge()],Yi.prototype,"_copied",void 0),e([ge()],Yi.prototype,"_top",void 0),e([ge()],Yi.prototype,"_left",void 0),Yi=e([de("ir-pronto-popover")],Yi);let Wi=class extends ne{constructor(){super(...arguments),this.deviceId="",this.disabled=!1,this._editing=!1,this._draft=""}updated(e){if(e.has("_editing")&&this._editing){const e=this.shadowRoot?.querySelector(".alias-input");e?.focus(),e?.select()}}_startEdit(e){this.disabled||(e?.stopPropagation(),this._draft=this.signal.alias??"",this._editing=!0)}_onKeydown(e){"Enter"===e.key?this._commit():"Escape"===e.key&&(this._editing=!1)}async _commit(){if(!this._editing)return;const e=this._draft.trim();this._editing=!1,await this._save(e)}async _clear(){this._editing=!1,await this._save("")}async _save(e){try{await this.api.setSignalAlias(this.deviceId,this.signal.fingerprint,e),this.dispatchEvent(new CustomEvent("alias-changed",{detail:{fingerprint:this.signal.fingerprint,alias:e},bubbles:!0,composed:!0}))}catch(e){this.dispatchEvent(new CustomEvent("alias-error",{detail:e.message,bubbles:!0,composed:!0}))}}render(){const e=this.signal;return this._editing?j`
                 <span class="alias-edit" @click=${e=>e.stopPropagation()}>
                     <input
                         class="alias-input"
@@ -3017,7 +3022,10 @@ function e(e,t,i,s){var o,r=arguments.length,a=r<3?t:null===s?s=Object.getOwnPro
                                     >
                                     <span>${Math.round(t.frequency/1e3)} kHz</span>
                                 </div>
-                                ${t.code?j`<ir-pronto-popover .code=${t.code}></ir-pronto-popover>`:""}
+                                ${t.code?j`<ir-pronto-popover
+                                          .code=${t.code}
+                                          ?disabled=${e.dismissed}
+                                      ></ir-pronto-popover>`:""}
                                 <div class="signal-actions">
                                     <button
                                         class="action-btn assign-btn ${s?"recent-latest":""} ${o?"recent-previous":""} ${r?"glow":""}"
@@ -3963,7 +3971,10 @@ function e(e,t,i,s){var o,r=arguments.length,a=r<3?t:null===s?s=Object.getOwnPro
                 <div class="signal-meta">
                     ${o&&this._testResult?j`<span class="test-result">${this._testResult}</span>`:j`<span>${Math.round(t.frequency/1e3)} kHz</span>`}
                 </div>
-                ${t.code?j`<ir-pronto-popover .code=${t.code}></ir-pronto-popover>`:""}
+                ${t.code?j`<ir-pronto-popover
+                          .code=${t.code}
+                          ?disabled=${i}
+                      ></ir-pronto-popover>`:""}
                 <div class="signal-actions">
                     <button
                         class="action-btn assign-btn"

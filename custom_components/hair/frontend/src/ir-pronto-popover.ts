@@ -22,6 +22,7 @@ const POPOVER_WIDTH = 320;
 @customElement("ir-pronto-popover")
 export class IrProntoPopover extends LitElement {
     @property() public code = "";
+    @property({ type: Boolean }) public disabled = false;
 
     @state() private _open = false;
     @state() private _copied = false;
@@ -53,6 +54,7 @@ export class IrProntoPopover extends LitElement {
 
     private _toggle(e: Event): void {
         e.stopPropagation();
+        if (this.disabled) return;
         if (this._open) {
             this._open = false;
             return;
@@ -113,9 +115,9 @@ export class IrProntoPopover extends LitElement {
     render() {
         return html`
             <ha-svg-icon
-                class="copy-icon"
+                class="copy-icon ${this.disabled ? "disabled" : ""}"
                 .path=${ICON_COPY}
-                title="Show Pronto"
+                title=${this.disabled ? "" : "Show Pronto"}
                 @click=${this._toggle}
             ></ha-svg-icon>
             ${this._open
@@ -145,15 +147,20 @@ export class IrProntoPopover extends LitElement {
             align-items: center;
         }
         .copy-icon {
-            --mdc-icon-size: 16px;
+            --mdc-icon-size: 10px;
             color: var(--secondary-text-color);
             cursor: pointer;
-            opacity: 0.7;
+            opacity: 0.4;
             transition: opacity 150ms ease, color 150ms ease;
         }
         .copy-icon:hover {
             opacity: 1;
             color: var(--primary-text-color);
+        }
+        .copy-icon.disabled {
+            opacity: 0.25;
+            cursor: default;
+            pointer-events: none;
         }
         .popover {
             position: fixed;
