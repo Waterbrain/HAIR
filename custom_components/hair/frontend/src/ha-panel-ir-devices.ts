@@ -12,6 +12,7 @@ import "./ir-device-list.js";
 import "./ir-add-device-dialog.js";
 import "./ir-signal-monitor.js";
 import "./ir-clips.js";
+import type { IrClips } from "./ir-clips.js";
 import type { DeviceSummary, IRDevice } from "./types.js";
 
 type PanelTab = "devices" | "sniffer" | "clips";
@@ -70,6 +71,13 @@ export class HaPanelIrDevices extends LitElement {
 
     private _openAddDialog(): void {
         this._addDialogOpen = true;
+    }
+
+    /** Tab-bar "+ Create" on the Clipper tab opens the create-remote dialog
+     *  owned by the ir-clips component. */
+    private _openClipperCreate(): void {
+        const el = this.renderRoot.querySelector("ir-clips") as IrClips | null;
+        el?.openCreateRemote();
     }
 
     private _closeAddDialog(): void {
@@ -189,7 +197,19 @@ export class HaPanelIrDevices extends LitElement {
                               Add Device
                           </button>
                       `
-                    : ""}
+                    : this._activeTab === "clips"
+                      ? html`
+                            <button
+                                class="add-device-btn clipper-create-btn"
+                                @click=${this._openClipperCreate}
+                            >
+                                <ha-svg-icon
+                                    .path=${"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"}
+                                ></ha-svg-icon>
+                                Create
+                            </button>
+                        `
+                      : ""}
             </div>
 
             <div class="content">
@@ -292,6 +312,15 @@ export class HaPanelIrDevices extends LitElement {
         }
         .add-device-btn:hover {
             background: var(--secondary-background-color);
+        }
+        /* Clipper's tab-bar create button: same size/shape as Add Device,
+           copper to match the Clipper accent. */
+        .clipper-create-btn {
+            color: #b87333;
+            border-color: #b87333;
+        }
+        .clipper-create-btn:hover {
+            background: rgba(184, 115, 51, 0.08);
         }
         .add-device-btn ha-svg-icon {
             --mdc-icon-size: 14px;

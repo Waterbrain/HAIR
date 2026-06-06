@@ -5,6 +5,16 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A copy control on every signal row (Sniffer and Clipper) opens a small popover showing the signal's raw Pronto code in a selectable box, with a Copy button. Copy works on plain http via a clipboard fallback, and the code is always selectable so you can copy it by hand if needed.
+
+### Changed
+
+- The Clipper's "Create" button moved to the top-right of the tab bar, matching the Devices tab's "Add Device" button (kept in the Clipper's copper accent). The Show Dismissed toggle stays in the Clipper header.
+
 ## [0.3.0] - 2026-06-06
 
 ### Added

@@ -16,6 +16,7 @@ import "./ir-confirm-dialog.js";
 import "./ir-create-remote-dialog.js";
 import "./ir-create-signal-dialog.js";
 import "./ir-promote-dialog.js";
+import "./ir-pronto-popover.js";
 import "./ir-signal-alias.js";
 import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
@@ -141,7 +142,8 @@ export class IrClips extends LitElement {
 
     // --- Create remote / signal ---
 
-    private _openCreateRemote(): void {
+    /** Public so the panel's tab-bar "+ Create" button can open it. */
+    openCreateRemote(): void {
         this._createRemoteOpen = true;
     }
 
@@ -420,9 +422,6 @@ export class IrClips extends LitElement {
                         : ""}
                 </span>
                 <div class="toolbar-actions">
-                    <button class="create-btn" @click=${this._openCreateRemote}>
-                        + Create
-                    </button>
                     <button class="action-btn dismiss-btn" @click=${this._toggleDismissed}>
                         ${this._showDismissed ? "Hide Dismissed" : "Show Dismissed"}
                     </button>
@@ -619,6 +618,9 @@ export class IrClips extends LitElement {
                         ? html`<span class="test-result">${this._testResult}</span>`
                         : html`<span>${Math.round(sig.frequency / 1000)} kHz</span>`}
                 </div>
+                ${sig.code
+                    ? html`<ir-pronto-popover .code=${sig.code}></ir-pronto-popover>`
+                    : ""}
                 <div class="signal-actions">
                     <button
                         class="action-btn assign-btn"

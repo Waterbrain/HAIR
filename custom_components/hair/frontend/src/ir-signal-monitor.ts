@@ -9,6 +9,7 @@ import { HairApi } from "./api.js";
 import "./ir-assign-signal-dialog.js";
 import "./ir-confirm-dialog.js";
 import "./ir-promote-dialog.js";
+import "./ir-pronto-popover.js";
 import "./ir-signal-alias.js";
 import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
@@ -985,6 +986,9 @@ export class IrSignalMonitor extends LitElement {
                                     >
                                     <span>${Math.round(sig.frequency / 1000)} kHz</span>
                                 </div>
+                                ${sig.code
+                                    ? html`<ir-pronto-popover .code=${sig.code}></ir-pronto-popover>`
+                                    : ""}
                                 <div class="signal-actions">
                                     <button
                                         class="action-btn assign-btn ${isLatest ? "recent-latest" : ""} ${isPrevious ? "recent-previous" : ""} ${isGlowing ? "glow" : ""}"
