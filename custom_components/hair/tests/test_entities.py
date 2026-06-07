@@ -74,8 +74,16 @@ def _manager() -> MagicMock:
 
 
 def _patch_write_state(entity):
-    """Patch async_write_ha_state on an entity instance (stub base has no impl)."""
+    """Patch async_write_ha_state on an entity instance (stub base has no impl).
+
+    Also sets ``entity.hass`` to a sentinel so the v0.3.3 hass-None guard in
+    ``update_device`` (which mirrors the real HA Entity lifecycle) doesn't
+    short-circuit the call.  Tests that want to exercise the pre-registration
+    race should construct the entity without ``_patch_write_state`` (see
+    ``test_entity_lifecycle_race.py``).
+    """
     entity.async_write_ha_state = MagicMock()
+    entity.hass = MagicMock()
 
 
 # ===========================================================================

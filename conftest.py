@@ -159,6 +159,7 @@ _stub("homeassistant.components.diagnostics", {
 class _RemoteEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 class _MediaPlayerEntityFeature:
@@ -189,6 +190,7 @@ class _MediaPlayerEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_assumed_state = True
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 _stub("homeassistant.components.remote", {"RemoteEntity": _RemoteEntity})
@@ -251,6 +253,7 @@ class _FanEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_assumed_state = True
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 _stub("homeassistant.components.fan", {
@@ -268,6 +271,7 @@ class _LightEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_assumed_state = True
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 class _LightEntityFeature:
@@ -285,6 +289,7 @@ class _SwitchEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_assumed_state = True
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 _stub("homeassistant.components.switch", {
@@ -312,6 +317,7 @@ class _CoverEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_assumed_state = True
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 _stub("homeassistant.components.cover", {
@@ -325,6 +331,7 @@ _stub("homeassistant.components.cover", {
 class _ButtonEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
 
 _stub("homeassistant.components.button", {
@@ -337,6 +344,7 @@ class _EventEntity:
     _attr_has_entity_name = True
     _attr_should_poll = False
     _attr_event_types: list[str] = []  # noqa: RUF012
+    hass = None  # mirrors HA's Entity class attribute (None pre-registration)
     def __init_subclass__(cls, **kw): pass
     def _trigger_event(self, event_type, event_attributes=None): pass
     def async_write_ha_state(self): pass

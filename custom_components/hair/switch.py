@@ -97,6 +97,12 @@ class HAIRSwitchEntity(SwitchEntity):
     @callback
     def update_device(self, device: IRDevice) -> None:
         self._device = device
+        if self.hass is None:
+            # Race: entity instantiated and tracked in the platform's local
+            # dict but not yet registered with HA via async_add_entities.
+            # The state from __init__ is correct; HA writes it once the
+            # registration coroutine completes.
+            return
         self.async_write_ha_state()
 
     async def _send(self, *feature_keys: str) -> None:

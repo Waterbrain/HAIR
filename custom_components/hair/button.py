@@ -124,4 +124,10 @@ class HAIRButtonEntity(ButtonEntity):
         self._command_id = command_id
         if self._attr_name != command_name:
             self._attr_name = command_name
+            if self.hass is None:
+                # Race: entity instantiated and tracked in the platform's local
+                # dict but not yet registered with HA via async_add_entities.
+                # The state from __init__ is correct; HA writes it once the
+                # registration coroutine completes.
+                return
             self.async_write_ha_state()
