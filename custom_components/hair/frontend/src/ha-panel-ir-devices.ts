@@ -313,14 +313,10 @@ export class HaPanelIrDevices extends LitElement {
         .add-device-btn:hover {
             background: var(--secondary-background-color);
         }
-        /* Clipper's tab-bar create button: same size/shape as Add Device,
-           copper to match the Clipper accent. */
+        /* Clipper's tab-bar create button: identical to Add Device (gray
+           stroke, neutral hover), just with copper text + icon. */
         .clipper-create-btn {
             color: #b87333;
-            border-color: #b87333;
-        }
-        .clipper-create-btn:hover {
-            background: rgba(184, 115, 51, 0.08);
         }
         .add-device-btn ha-svg-icon {
             --mdc-icon-size: 14px;
