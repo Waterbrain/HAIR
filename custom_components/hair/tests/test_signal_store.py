@@ -34,6 +34,44 @@ async def test_signal_store_migration_hook_wired_on_subclass():
     assert migrated == old_data
 
 
+@pytest.mark.asyncio
+async def test_async_load_backfills_catalog_decoded_fields():
+    """v0.4.0 load decodes stored catalog signals into their decoded_*
+    fields where the library can read them."""
+    hass = _make_hass()
+    store = SignalStore(hass)
+    raw = {
+        "devices": [
+            {
+                "id": "dev1",
+                "fingerprint": "fpA",
+                "label": "Remote",
+                "source": "sniffed",
+                "signals": [
+                    {
+                        "id": "sig1",
+                        "fingerprint": "fpA",
+                        "raw_timings": [9000, -4500, 562, -562, 562, -1687],
+                        "frequency": 38000,
+                    }
+                ],
+            }
+        ],
+        "dismissed": [],
+    }
+    with patch(
+        "custom_components.hair.protocol_decode.try_decode",
+        return_value=("NEC", 0xFB04, 0x49),
+    ), patch.object(store, "_store") as mock_store:
+        mock_store.async_load = AsyncMock(return_value=raw)
+        await store.async_load()
+    sig = store.get_device("dev1").signals[0]
+    assert sig.decoded_protocol == "NEC"
+    assert sig.decoded_address == 0xFB04
+    assert sig.decoded_command == 0x49
+    assert sig.decoded_fingerprint == "NEC:0xfb04:0x49"
+
+
 def _make_hass():
     hass = MagicMock()
     hass.loop = MagicMock()

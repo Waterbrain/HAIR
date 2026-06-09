@@ -11,7 +11,8 @@ from custom_components.hair.const import (
     STORAGE_VERSION_MINOR,
     DeviceType,
 )
-from custom_components.hair.models import IRDevice
+from custom_components.hair.event_parser import EventParser
+from custom_components.hair.models import IRCommand, IRDevice
 from custom_components.hair.storage import HAIRStore, _HAIRDeviceStore
 
 
@@ -26,6 +27,97 @@ class _FakeStore:
 
     async def async_save(self, data):
         self._data = data
+
+
+_PRONTO_CODE = (
+    "0000 006D 0006 0000 00E0 0070 0014 000D 0014 002E "
+    "0014 000D 0014 000D 0014 0400"
+)
+
+
+def test_match_command_decoded_tier(fake_hass):
+    """The most precise tier matches on the decoded protocol identity."""
+    store = HAIRStore(fake_hass)
+    dev = IRDevice(
+        name="TV",
+        commands=[IRCommand(name="Power", decoded_fingerprint="NEC:0xfb04:0x08")],
+    )
+    store.add_device(dev)
+    ref = (dev.id, dev.commands[0].id)
+    assert store.match_command("NEC:0xfb04:0x08", "anyfp", None) == ref
+    assert store.match_command("NEC:0xffff:0x01", None, None) is None
+
+
+def test_match_command_fingerprint_and_bytehash_tiers(fake_hass):
+    """Composite (fingerprint, byte_hash) matches, and a byte_hash miss
+    falls through to the fingerprint-only tier."""
+    dev = IRDevice(
+        name="TV",
+        commands=[
+            IRCommand(
+                name="Power", protocol="PRONTO", code=_PRONTO_CODE, byte_hash="bh1"
+            )
+        ],
+    )
+    store = HAIRStore(fake_hass)
+    store.add_device(dev)
+    fp = EventParser.signal_fingerprint("PRONTO", _PRONTO_CODE, None)
+    ref = (dev.id, dev.commands[0].id)
+    assert store.match_command(None, fp, "bh1") == ref
+    assert store.match_command(None, fp, "other") == ref
+    assert store.match_command(None, "nope", None) is None
+
+
+def test_command_index_rebuilds_on_remove(fake_hass):
+    dev = IRDevice(
+        name="TV",
+        commands=[IRCommand(name="Power", decoded_fingerprint="NEC:0x1:0x2")],
+    )
+    store = HAIRStore(fake_hass)
+    store.add_device(dev)
+    assert store.match_command("NEC:0x1:0x2", None, None) is not None
+    store.remove_device(dev.id)
+    assert store.match_command("NEC:0x1:0x2", None, None) is None
+
+
+@pytest.mark.asyncio
+async def test_async_load_backfills_decoded_fields(fake_hass):
+    """v0.4.0 load decodes stored commands into their decoded_* fields and
+    the reverse index picks them up."""
+    backing = _FakeStore()
+    backing._data = {
+        "devices": [
+            {
+                "id": "d1",
+                "name": "TV",
+                "device_type": "media_player",
+                "commands": [
+                    {
+                        "id": "c1",
+                        "name": "Power",
+                        "protocol": "PRONTO",
+                        "code": _PRONTO_CODE,
+                    }
+                ],
+            }
+        ],
+        "triggers": [],
+    }
+    with patch(
+        "custom_components.hair.storage._HAIRDeviceStore",
+        lambda *a, **k: backing,
+    ), patch(
+        "custom_components.hair.protocol_decode.try_decode",
+        return_value=("NEC", 0xFB04, 0x08),
+    ):
+        store = HAIRStore(fake_hass)
+        await store.async_load()
+    cmd = store.get_device("d1").commands[0]
+    assert cmd.decoded_protocol == "NEC"
+    assert cmd.decoded_address == 0xFB04
+    assert cmd.decoded_command == 0x08
+    assert cmd.decoded_fingerprint == "NEC:0xfb04:0x08"
+    assert store.match_command("NEC:0xfb04:0x08", None, None) == ("d1", "c1")
 
 
 @pytest.mark.asyncio

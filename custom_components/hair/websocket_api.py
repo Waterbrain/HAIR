@@ -53,6 +53,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_device)
     websocket_api.async_register_command(hass, ws_duplicate_device)
     websocket_api.async_register_command(hass, ws_delete_command)
+    websocket_api.async_register_command(hass, ws_set_command_tx_force_raw)
     websocket_api.async_register_command(hass, ws_reorder_commands)
     websocket_api.async_register_command(hass, ws_reorder_devices)
     websocket_api.async_register_command(hass, ws_send_command)
@@ -342,6 +343,39 @@ async def ws_delete_command(
         connection.send_error(msg["id"], "not_found", "Command not found")
         return
     connection.send_result(msg["id"], {"removed": True})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/command/set-tx-force-raw",
+    vol.Required("device_id"): str,
+    vol.Required("command_id"): str,
+    vol.Required("tx_force_raw"): bool,
+})
+@websocket_api.async_response
+async def ws_set_command_tx_force_raw(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Toggle a command's ``tx_force_raw`` (use captured timings) flag.
+
+    When True, transmit replays the captured Pronto/raw timings rather
+    than re-encoding from the decoded value. The per-command escape hatch
+    for the rare destination that wants the captured timings.
+    """
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    manager: DeviceManager = data["device_manager"]
+    updated = await manager.async_set_command_tx_force_raw(
+        msg["device_id"], msg["command_id"], msg["tx_force_raw"]
+    )
+    if not updated:
+        connection.send_error(msg["id"], "not_found", "Command not found")
+        return
+    connection.send_result(msg["id"], {"tx_force_raw": msg["tx_force_raw"]})
 
 
 @websocket_api.require_admin

@@ -141,6 +141,44 @@ class SignalStore:
         if legacy_signals:
             self._dirty = True
 
+        # v0.4.0 backfill: decode stored catalog signals into their
+        # decoded_* fields. For each signal with no decoded_fingerprint,
+        # decode the stored raw timings (or timings derived from the
+        # Pronto code) and populate the identity. Non-decodable signals are
+        # left untouched. Idempotent across restarts.
+        from .const import DECODED_FINGERPRINT_FORMAT
+        from .ir_command import ProntoCommand
+        from .protocol_decode import try_decode
+
+        decoded_backfilled = 0
+        for device in self._devices.values():
+            for sig in device.signals:
+                if sig.decoded_fingerprint:
+                    continue
+                raw = sig.raw_timings
+                if not raw and sig.code:
+                    try:
+                        raw = ProntoCommand(sig.code).get_raw_timings()
+                    except (ValueError, IndexError):
+                        raw = None
+                decoded = try_decode(raw)
+                if decoded is None:
+                    continue
+                protocol, address, command = decoded
+                sig.decoded_protocol = protocol
+                sig.decoded_address = address
+                sig.decoded_command = command
+                sig.decoded_fingerprint = DECODED_FINGERPRINT_FORMAT.format(
+                    protocol=protocol, address=address, command=command
+                )
+                decoded_backfilled += 1
+        if decoded_backfilled:
+            self._dirty = True
+            _LOGGER.info(
+                "Backfilled decoded protocol identity on %d catalog signal(s)",
+                decoded_backfilled,
+            )
+
         # Duplicate-signal cleanup (v0.3.2, composite key as of v0.3.4).
         # The Clipper's manual paste path historically had no guard, so a
         # remote could hold two truly identical signals (the same Pronto

@@ -41,6 +41,36 @@ def _device_with_command():
 class TestDiagnostics:
 
     @pytest.mark.asyncio
+    async def test_includes_library_version_and_decoded_counts(self):
+        """Addition A: diagnostics report the library version and a count of
+        commands carrying a decoded protocol identity, by protocol."""
+        hass = MagicMock()
+        entry = MagicMock()
+        entry.entry_id = "test-entry"
+        entry.options = {}
+        entry.data = {}
+        dev = IRDevice(
+            id="d1",
+            name="TV",
+            device_type=DeviceType.MEDIA_PLAYER,
+            commands=[
+                IRCommand(id="c1", name="Power", decoded_protocol="NEC"),
+                IRCommand(id="c2", name="Mute", decoded_protocol="NEC"),
+                IRCommand(id="c3", name="Vol", decoded_protocol=None),
+            ],
+        )
+        manager = MagicMock()
+        manager.get_all_devices.return_value = [dev]
+        hass.data = {DOMAIN: {entry.entry_id: {
+            "device_manager": manager,
+            "orchestrator": MagicMock(is_capturing=False),
+        }}}
+        result = await async_get_config_entry_diagnostics(hass, entry)
+        assert isinstance(result["infrared_protocols_version"], str)
+        assert result["decoded_commands"]["total"] == 2
+        assert result["decoded_commands"]["by_protocol"] == {"NEC": 2}
+
+    @pytest.mark.asyncio
     async def test_returns_entry_info(self):
         hass = MagicMock()
         entry = MagicMock()

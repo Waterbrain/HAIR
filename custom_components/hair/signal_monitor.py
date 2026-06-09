@@ -311,8 +311,16 @@ class SignalMonitor:
                 sig_fp, parsed.protocol, parsed.code, dev_fp
             )
 
-        # Step 3: Check known commands.
-        if self._matches_known_command(parsed):
+        # Step 3: Check known commands. The matcher returns the matched
+        # (device_id, command_id), but in v0.4.0 we use it only to drop a
+        # re-press of an already-assigned command from the live feed
+        # (today's behavior, now correct across native-path jitter and the
+        # byte-hash tiebreaker). Surfacing the matched identity in the
+        # Sniffer is the v0.4.1 assigned-state work.
+        if (
+            self._matches_known_command(sig_fp, byte_hash, decoded_fingerprint)
+            is not None
+        ):
             return
 
         # Step 4: Check dismiss list.
@@ -437,15 +445,31 @@ class SignalMonitor:
     # Known-command check
     # -----------------------------------------------------------------
 
-    def _matches_known_command(self, parsed: Any) -> bool:
-        """Return True if the parsed signal matches any existing HAIR command."""
-        if not parsed.protocol or not parsed.code:
-            return False
-        for device in self._hair_store.get_all_devices():
-            for cmd in device.commands:
-                if cmd.protocol == parsed.protocol and cmd.code == parsed.code:
-                    return True
-        return False
+    def _matches_known_command(
+        self,
+        signal_fingerprint: str,
+        byte_hash: str | None,
+        decoded_fingerprint: str | None,
+    ) -> tuple[str, str] | None:
+        """Return the ``(device_id, command_id)`` this signal is assigned to.
+
+        Delegates to the store's tiered reverse index: decoded protocol
+        identity first, then ``(S/L fingerprint, byte_hash)``, then the
+        S/L fingerprint alone. Returns ``None`` when the signal is not an
+        already-assigned command.
+
+        Replaces the old exact ``protocol`` + ``code`` string compare,
+        which missed two real cases: native-path captures re-encode Pronto
+        from jittered timings so the code string rarely matched, and the
+        v0.3.4 byte-hash tiebreaker stores distinct codes that the string
+        compare could not tell apart (B5, 2026-06-09 third-party review).
+        The identity is returned (not a bare bool) so the v0.4.1
+        assigned-state work can label the row; in v0.4.0 it is used only
+        to suppress the re-press from the live feed.
+        """
+        return self._hair_store.match_command(
+            decoded_fingerprint, signal_fingerprint, byte_hash
+        )
 
     # -----------------------------------------------------------------
     # Rate limiting

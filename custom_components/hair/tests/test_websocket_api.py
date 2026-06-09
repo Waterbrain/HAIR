@@ -44,6 +44,7 @@ from custom_components.hair.websocket_api import (
     ws_reorder_unknown_signals,
     ws_save_captured_command,
     ws_send_command,
+    ws_set_command_tx_force_raw,
     ws_set_signal_alias,
     ws_start_capture,
     ws_test_signal,
@@ -464,6 +465,54 @@ async def test_delete_command_not_found(fake_hass):
         fake_hass,
         conn,
         {"id": 7, "type": "hair/command/delete", "device_id": "d1", "command_id": "bad"},
+    )
+    conn.send_error.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# ws_set_command_tx_force_raw
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_set_tx_force_raw_success(fake_hass):
+    manager = MagicMock()
+    manager.async_set_command_tx_force_raw = AsyncMock(return_value=True)
+    _wire_hass(fake_hass, manager=manager)
+
+    conn = _make_connection()
+    await ws_set_command_tx_force_raw(
+        fake_hass,
+        conn,
+        {
+            "id": 9,
+            "type": "hair/command/set-tx-force-raw",
+            "device_id": "d1",
+            "command_id": "c1",
+            "tx_force_raw": True,
+        },
+    )
+    manager.async_set_command_tx_force_raw.assert_awaited_once_with("d1", "c1", True)
+    conn.send_result.assert_called_once_with(9, {"tx_force_raw": True})
+
+
+@pytest.mark.asyncio
+async def test_set_tx_force_raw_not_found(fake_hass):
+    manager = MagicMock()
+    manager.async_set_command_tx_force_raw = AsyncMock(return_value=False)
+    _wire_hass(fake_hass, manager=manager)
+
+    conn = _make_connection()
+    await ws_set_command_tx_force_raw(
+        fake_hass,
+        conn,
+        {
+            "id": 9,
+            "type": "hair/command/set-tx-force-raw",
+            "device_id": "d1",
+            "command_id": "bad",
+            "tx_force_raw": False,
+        },
     )
     conn.send_error.assert_called_once()
 

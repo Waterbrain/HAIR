@@ -66,6 +66,9 @@ def _make_hair_store():
     hair_store.get_all_devices = MagicMock(return_value=[])
     hair_store.get_device = MagicMock(return_value=None)
     hair_store.async_save = AsyncMock()
+    # Default: no signal matches an assigned command. Tests that exercise
+    # the known-command skip set this to return a (device_id, command_id).
+    hair_store.match_command = MagicMock(return_value=None)
     return hair_store
 
 
@@ -330,33 +333,27 @@ class TestKnownCommandCheck:
 
     @pytest.mark.asyncio
     async def test_skips_known_command(self):
+        """When the store matches the signal to an assigned command, the
+        re-press is dropped from the live feed. The matcher delegates to
+        ``HAIRStore.match_command`` (whose tiered logic is covered in
+        test_storage); here we verify the monitor consults it and skips."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         hair_store = _make_hair_store()
-
-        # Set up a known device with a matching command.
-        known_device = IRDevice(
-            name="TV",
-            commands=[IRCommand(name="power", protocol="NEC", code="0x1234")],
-        )
-        hair_store.get_all_devices.return_value = [known_device]
+        hair_store.match_command.return_value = ("dev-1", "cmd-1")
 
         monitor = SignalMonitor(hass, store, hair_store)
         await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
 
         assert store.device_count == 0
+        hair_store.match_command.assert_called()
 
     @pytest.mark.asyncio
     async def test_does_not_skip_unknown_command(self):
         hass = _make_hass()
         store = _make_signal_store(hass)
         hair_store = _make_hair_store()
-
-        known_device = IRDevice(
-            name="TV",
-            commands=[IRCommand(name="power", protocol="NEC", code="0x5678")],
-        )
-        hair_store.get_all_devices.return_value = [known_device]
+        # Default match_command returns None -> not a known command.
 
         monitor = SignalMonitor(hass, store, hair_store)
         await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
