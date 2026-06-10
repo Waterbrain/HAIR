@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Sniffer empty state now tells "no IR receiver is set up" apart from "no signals yet", so a missing receiver does not look like an idle one.
 - The Assign and Trigger dialogs show a signal's name when you have given it one, instead of the raw diamond pattern.
 - Diagnostics now report the installed infrared library version and a count of decoded commands by protocol.
+- The Clipper now has a persistent "Delete remote" button on every remote, so a remote can be removed in one step instead of deleting each signal first. The confirmation names the remote and how many signals it holds.
 
 ### Fixed
 
