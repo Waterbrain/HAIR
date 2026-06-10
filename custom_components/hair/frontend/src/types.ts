@@ -60,6 +60,25 @@ export interface CommandTemplate {
     essential: boolean;
 }
 
+// Code database picker (Add Remote): the introspected brand -> codebook ->
+// function tree from the installed infrared-protocols codebooks.
+export interface CodeFunction {
+    id: string;
+    name: string;
+}
+
+export interface CodeCodebook {
+    id: string;
+    label: string;
+    functions: CodeFunction[];
+}
+
+export interface CodeBrand {
+    brand: string;
+    label: string;
+    codebooks: CodeCodebook[];
+}
+
 export interface EntityConfig {
     platform: string;
     command_mapping: Record<string, string>;

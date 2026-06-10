@@ -12,6 +12,7 @@ import type {
     CaptureEvent,
     CaptureProviderInfo,
     CaptureStartResponse,
+    CodeBrand,
     CommandTemplate,
     DeleteSignalResult,
     DeviceSummary,
@@ -191,6 +192,24 @@ export class HairApi {
         return this.hass.connection.sendMessagePromise<{ has_receivers: boolean }>({
             type: "hair/sniffer/status",
         });
+    }
+
+    getCodeBrands(): Promise<CodeBrand[]> {
+        return this.hass.connection.sendMessagePromise<CodeBrand[]>({
+            type: "hair/codes/brands",
+        });
+    }
+
+    importCodeRemote(
+        codebookId: string,
+        name?: string,
+    ): Promise<{ device: UnknownDevice; imported: number; skipped: number }> {
+        const msg: Record<string, unknown> = {
+            type: "hair/codes/import-remote",
+            codebook_id: codebookId,
+        };
+        if (name) msg.name = name;
+        return this.hass.connection.sendMessagePromise(msg);
     }
 
     /**
