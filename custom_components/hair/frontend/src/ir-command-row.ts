@@ -4,7 +4,7 @@
  * - Unlearned templates show a single Learn button.
  */
 import { LitElement, html, css } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property } from "./decorators.js";
 import type { IRCommand } from "./types.js";
 
 @customElement("ir-command-row")

@@ -1,7 +1,7 @@
 """Tests for HAIR diagnostics."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,6 +16,16 @@ from custom_components.hair.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 from custom_components.hair.models import EntityConfig, IRCommand, IRDevice
+
+
+def _diag_hass():
+    """MagicMock hass whose async_add_executor_job runs the job inline,
+    matching real HA behavior so offloaded diagnostics work in unit tests."""
+    hass = MagicMock()
+    hass.async_add_executor_job = AsyncMock(
+        side_effect=lambda func, *args: func(*args)
+    )
+    return hass
 
 
 def _device_with_command():
@@ -44,7 +54,7 @@ class TestDiagnostics:
     async def test_includes_library_version_and_decoded_counts(self):
         """Addition A: diagnostics report the library version and a count of
         commands carrying a decoded protocol identity, by protocol."""
-        hass = MagicMock()
+        hass = _diag_hass()
         entry = MagicMock()
         entry.entry_id = "test-entry"
         entry.options = {}
@@ -72,7 +82,7 @@ class TestDiagnostics:
 
     @pytest.mark.asyncio
     async def test_returns_entry_info(self):
-        hass = MagicMock()
+        hass = _diag_hass()
         entry = MagicMock()
         entry.entry_id = "test-entry"
         entry.options = {}
@@ -97,7 +107,7 @@ class TestDiagnostics:
     @pytest.mark.asyncio
     async def test_devices_serialized_and_redacted(self):
         """Verify devices are serialized and passed through async_redact_data."""
-        hass = MagicMock()
+        hass = _diag_hass()
         entry = MagicMock()
         entry.entry_id = "test-entry"
         entry.options = {}
@@ -140,7 +150,7 @@ class TestDiagnostics:
 
     @pytest.mark.asyncio
     async def test_handles_unconfigured_gracefully(self):
-        hass = MagicMock()
+        hass = _diag_hass()
         entry = MagicMock()
         entry.entry_id = "missing-entry"
         entry.options = {}

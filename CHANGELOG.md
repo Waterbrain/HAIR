@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Pick a known device when creating a remote. The Create Remote dialog on the Clipper tab gains a Type dropdown: leave it on Empty for the usual blank remote you fill by pasting, or pick a manufacturer and model to materialize a remote pre-filled with one signal per button, each named for its function. The list is whatever device codes your installed Home Assistant infrared library carries (TVs from LG, Samsung, Vizio and Sharp, Sony PlayStation, a few audio and lighting devices). It is a shortcut for the supported devices, not a universal lookup -- anything not listed is still a paste-Pronto away.
+- Pick a known device when creating a remote. The Create Remote dialog on the Clipper tab gains a Type dropdown: leave it on Blank remote for the usual remote you fill by pasting, or choose a manufacturer and model under "From code library" to materialize a remote pre-filled with one signal per button, each named for its function. The list is whatever device codes your installed Home Assistant infrared library carries (TVs from LG, Samsung, Vizio and Sharp, Sony PlayStation, a few audio and lighting devices). It is a shortcut for the supported devices, not a universal lookup -- anything not listed is still a paste-Pronto away.
 - Protocol-decoded matching for NEC-family remotes. When HAIR can read a captured signal as NEC, it records the decoded identity alongside the raw timings. Pressing an already-assigned button is now recognized reliably even when the receiver path jitters the timings, so it no longer leaks back into the Sniffer as an unknown signal.
 - Encode-from-decoded transmit. For commands HAIR decoded as NEC, Test and automations send clean, library-encoded timings instead of replaying the captured ones. A per-command toggle (AUTO / RAW) on the device detail lets you fall back to the captured timings for the rare device that wants them.
 
@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Replaying a captured NEC signal failed against some destinations that expect clean timings (for example a NAD C320BEE bridged setup), because the captured Pronto carried receiver-side timing distortion. Transmitting the re-encoded canonical timings fixes it. Reported by @frafall (GH #14).
+- The code-library picker and diagnostics no longer do file-system work on the event loop. Building the manufacturer list and reading the installed library version now run in a worker thread, clearing the blocking-call warnings Home Assistant logged when opening the Create Remote dialog or downloading diagnostics.
+- Panel components now register defensively, so a re-evaluated frontend bundle no longer throws a "name has already been used" error in the browser console. The panel rendered correctly either way, but the stray exception is gone.
 
 ### Removed
 

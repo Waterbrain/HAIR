@@ -779,7 +779,10 @@ async def ws_codes_get_brands(
     missing or exposes no codebooks."""
     from .code_library import get_tree
 
-    connection.send_result(msg["id"], get_tree())
+    # get_tree walks the codebook package on disk and imports modules, so it
+    # is offloaded to the executor rather than run on the event loop.
+    tree = await hass.async_add_executor_job(get_tree)
+    connection.send_result(msg["id"], tree)
 
 
 @websocket_api.require_admin
@@ -804,7 +807,11 @@ async def ws_codes_import_remote(
         return
     from .code_library import codebook_label, materialize_codebook
 
-    entries = materialize_codebook(msg["codebook_id"], msg.get("function_ids"))
+    # materialize_codebook imports library modules from disk; keep it off the
+    # event loop.
+    entries = await hass.async_add_executor_job(
+        materialize_codebook, msg["codebook_id"], msg.get("function_ids")
+    )
     if not entries:
         connection.send_error(
             msg["id"], "no_codes", "No usable codes for that selection"

@@ -6,10 +6,11 @@
  * lets the user pick a known manufacturer + model from the installed
  * infrared-protocols codebooks; choosing one materializes a remote
  * pre-filled with one signal per function. No "database" framing -- just
- * Empty plus the manufacturers the installed library happens to carry.
+ * a blank remote plus the manufacturers the installed library happens to
+ * carry, grouped under "From code library".
  */
 import { LitElement, html, css } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property, state } from "./decorators.js";
 import type { HairApi } from "./api.js";
 import type { CodeBrand, UnknownDevice } from "./types.js";
 
@@ -35,8 +36,8 @@ export class IrCreateRemoteDialog extends LitElement {
         try {
             this._brands = await this.api.getCodeBrands();
         } catch {
-            // Library unavailable or no codebooks -> only the Empty option
-            // is offered, which is the existing blank-remote behavior.
+            // Library unavailable or no codebooks -> only the blank-remote
+            // option is offered, which is the existing behavior.
             this._brands = [];
         }
     }
@@ -163,12 +164,14 @@ export class IrCreateRemoteDialog extends LitElement {
                                   .value=${this._selectedBrand}
                                   @change=${this._onBrandChange}
                               >
-                                  <option value="">Empty</option>
-                                  ${this._brands.map(
-                                      (b) => html`<option value=${b.brand}>
-                                          ${b.label}
-                                      </option>`,
-                                  )}
+                                  <option value="">Blank remote</option>
+                                  <optgroup label="From code library">
+                                      ${this._brands.map(
+                                          (b) => html`<option value=${b.brand}>
+                                              ${b.label}
+                                          </option>`,
+                                      )}
+                                  </optgroup>
                               </select>
                           </div>
 

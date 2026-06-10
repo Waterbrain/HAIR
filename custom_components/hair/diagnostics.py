@@ -41,6 +41,10 @@ async def async_get_config_entry_diagnostics(
                     decoded_total += 1
                     decoded_by_protocol[cmd.decoded_protocol] += 1
 
+    # importlib.metadata.version reads the package dist-info from disk, so it
+    # is offloaded to the executor rather than run on the event loop.
+    version = await hass.async_add_executor_job(_infrared_protocols_version)
+
     return {
         "entry": {
             "options": dict(entry.options),
@@ -48,7 +52,7 @@ async def async_get_config_entry_diagnostics(
         },
         "devices": devices,
         "is_capturing": getattr(orchestrator, "is_capturing", False),
-        "infrared_protocols_version": _infrared_protocols_version(),
+        "infrared_protocols_version": version,
         "decoded_commands": {
             "total": decoded_total,
             "by_protocol": dict(decoded_by_protocol),
