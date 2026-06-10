@@ -63,6 +63,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_get_command_templates)
     websocket_api.async_register_command(hass, ws_get_capture_providers)
     websocket_api.async_register_command(hass, ws_get_receivers)
+    websocket_api.async_register_command(hass, ws_get_sniffer_status)
 
     # Signal Monitor (unknown devices)
     websocket_api.async_register_command(hass, ws_get_unknown_devices)
@@ -730,6 +731,30 @@ async def ws_get_receivers(
         pass  # Pre-2026.6: no native receiver API.
 
     connection.send_result(msg["id"], receivers)
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/sniffer/status",
+})
+@websocket_api.async_response
+async def ws_get_sniffer_status(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return Sniffer status so the empty state can explain itself.
+
+    ``has_receivers`` is False when no native receiver is subscribed and
+    no ESPHome bridge has fired this session, which means "no receiver is
+    set up" rather than "no signals seen yet".
+    """
+    data = _get_first_entry_data(hass)
+    has_receivers = False
+    if data is not None:
+        monitor: SignalMonitor = data["signal_monitor"]
+        has_receivers = monitor.has_receivers
+    connection.send_result(msg["id"], {"has_receivers": has_receivers})
 
 
 # --- Signal Monitor (Unknown Devices) ---

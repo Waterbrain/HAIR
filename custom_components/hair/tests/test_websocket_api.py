@@ -36,6 +36,7 @@ from custom_components.hair.websocket_api import (
     ws_get_command_templates,
     ws_get_device,
     ws_get_devices,
+    ws_get_sniffer_status,
     ws_get_unknown_device,
     ws_get_unknown_devices,
     ws_reorder_commands,
@@ -515,6 +516,19 @@ async def test_set_tx_force_raw_not_found(fake_hass):
         },
     )
     conn.send_error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_get_sniffer_status_reports_has_receivers(fake_hass):
+    monitor = MagicMock()
+    monitor.has_receivers = True
+    _wire_hass(fake_hass, signal_monitor=monitor)
+
+    conn = _make_connection()
+    await ws_get_sniffer_status(
+        fake_hass, conn, {"id": 11, "type": "hair/sniffer/status"}
+    )
+    conn.send_result.assert_called_once_with(11, {"has_receivers": True})
 
 
 # ---------------------------------------------------------------------------

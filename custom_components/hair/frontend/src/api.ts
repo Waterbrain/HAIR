@@ -119,6 +119,19 @@ export class HairApi {
         });
     }
 
+    setCommandTxForceRaw(
+        deviceId: string,
+        commandId: string,
+        txForceRaw: boolean,
+    ): Promise<{ tx_force_raw: boolean }> {
+        return this.hass.connection.sendMessagePromise<{ tx_force_raw: boolean }>({
+            type: "hair/command/set-tx-force-raw",
+            device_id: deviceId,
+            command_id: commandId,
+            tx_force_raw: txForceRaw,
+        });
+    }
+
     /**
      * Persist a new command order for a device.
      *
@@ -171,6 +184,12 @@ export class HairApi {
     listReceivers(): Promise<ReceiverInfo[]> {
         return this.hass.connection.sendMessagePromise<ReceiverInfo[]>({
             type: "hair/receivers",
+        });
+    }
+
+    getSnifferStatus(): Promise<{ has_receivers: boolean }> {
+        return this.hass.connection.sendMessagePromise<{ has_receivers: boolean }>({
+            type: "hair/sniffer/status",
         });
     }
 

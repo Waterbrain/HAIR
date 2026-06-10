@@ -201,6 +201,18 @@ class SignalMonitor:
         """Return True if using native receiver API."""
         return self._native_mode
 
+    @property
+    def has_receivers(self) -> bool:
+        """Whether HAIR currently has any working receive path.
+
+        True when native receivers are subscribed (native mode), or at
+        least one ESPHome bridge has fired an event this session. False
+        means the Sniffer's empty state should explain that no receiver is
+        configured, rather than implying the user simply has not pressed a
+        button yet.
+        """
+        return self._native_mode or bool(self._bridge_active_device_ids)
+
     async def async_stop(self) -> None:
         """Stop listening, flush pending writes."""
         if self._unsub is not None:

@@ -47,6 +47,10 @@ export interface IRCommand {
     raw_timings?: number[] | null;
     frequency: number;
     repeat_count: number;
+    // Decoded protocol identity (v0.4.0). Present when the command was
+    // decoded as a known protocol; gates the canonical-TX toggle.
+    decoded_fingerprint?: string | null;
+    tx_force_raw?: boolean;
     created_at: string;
 }
 

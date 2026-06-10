@@ -920,6 +920,7 @@ export class IrClips extends LitElement {
                       .protocol=${this._triggerDialog.signal.protocol}
                       .code=${this._triggerDialog.signal.code}
                       .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}
+                      .alias=${this._triggerDialog.signal.alias || null}
                       @trigger-saved=${this._onTriggerSaved}
                       @closed=${this._closeTriggerDialog}
                   ></ir-trigger-dialog>`

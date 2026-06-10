@@ -169,6 +169,27 @@ class TestDecodeAtCaptureAndForgeGuard:
         assert store.get_all_devices()
 
 
+class TestHasReceivers:
+    """has_receivers drives the Sniffer no-receiver empty state (Addition C)."""
+
+    def test_false_when_no_native_and_no_bridge(self):
+        hass = _make_hass()
+        monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
+        assert monitor.has_receivers is False
+
+    def test_true_in_native_mode(self):
+        hass = _make_hass()
+        monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
+        monitor._native_mode = True
+        assert monitor.has_receivers is True
+
+    def test_true_when_a_bridge_has_fired(self):
+        hass = _make_hass()
+        monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
+        monitor._bridge_active_device_ids.add("dev-1")
+        assert monitor.has_receivers is True
+
+
 # ---------------------------------------------------------------------------
 # Lifecycle tests
 # ---------------------------------------------------------------------------

@@ -590,6 +590,27 @@ export class IrDeviceDetail extends LitElement {
         }
     }
 
+    private async _onToggleTxRaw(e: CustomEvent) {
+        const { command } = e.detail as { command: IRCommand };
+        if (!command) return;
+        const next = !command.tx_force_raw;
+        this._busy = true;
+        try {
+            await this.api.setCommandTxForceRaw(this.device.id, command.id, next);
+            command.tx_force_raw = next;
+            this.requestUpdate();
+            this._flash(
+                next
+                    ? `"${command.name}" will transmit the captured timings`
+                    : `"${command.name}" will transmit clean decoded timings`,
+            );
+        } catch (err) {
+            this._flash(`Update failed: ${(err as Error).message}`);
+        } finally {
+            this._busy = false;
+        }
+    }
+
     private _onDelete(e: CustomEvent) {
         const { command } = e.detail as { command: IRCommand };
         if (!command) return;
@@ -775,6 +796,7 @@ export class IrDeviceDetail extends LitElement {
                                           @map-action=${this._onMapAction}
                                           @test=${this._onTest}
                                           @toggle-trigger=${this._onToggleTrigger}
+                                          @toggle-tx-raw=${this._onToggleTxRaw}
                                           @delete=${this._onDelete}
                                       >
                                           <ha-svg-icon
