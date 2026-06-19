@@ -54,6 +54,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_device)
     websocket_api.async_register_command(hass, ws_duplicate_device)
     websocket_api.async_register_command(hass, ws_delete_command)
+    websocket_api.async_register_command(hass, ws_command_update)
     websocket_api.async_register_command(hass, ws_set_command_tx_force_raw)
     websocket_api.async_register_command(hass, ws_reorder_commands)
     websocket_api.async_register_command(hass, ws_reorder_devices)
@@ -1391,6 +1392,53 @@ async def ws_clip_validate_pronto(
         "burst_pair_count": result.burst_pair_count,
         "normalized": result.normalized,
         "recognized_protocol": recognized,
+    })
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/command/update",
+    vol.Required("device_id"): str,
+    vol.Required("command_id"): str,
+    vol.Optional("name"): str,
+    vol.Optional("pronto"): str,
+})
+@websocket_api.async_response
+async def ws_command_update(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Edit a device command's name and/or Pronto in place.
+
+    Persists through ``async_update_device`` so the known-command index
+    rebuilds and entity hooks fire; rewires a bound trigger on an S/L
+    fingerprint change and cascades action mappings on a rename.
+    """
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    device_manager: DeviceManager = data["device_manager"]
+    trigger_manager: TriggerManager = data["trigger_manager"]
+    result = await device_manager.async_update_command(
+        msg["device_id"],
+        msg["command_id"],
+        name=msg.get("name"),
+        pronto=msg.get("pronto"),
+        trigger_manager=trigger_manager,
+    )
+    if not result["success"]:
+        connection.send_error(
+            msg["id"],
+            result.get("code", "update_failed"),
+            result.get("error", "Failed to update command"),
+        )
+        return
+    connection.send_result(msg["id"], {
+        "command": result["command"],
+        "triggers": result["triggers"],
+        "mappings_updated": result["mappings_updated"],
     })
 
 
