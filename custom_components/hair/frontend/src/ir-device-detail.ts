@@ -11,6 +11,7 @@ import "./ir-command-row.js";
 import "./ir-capture-dialog.js";
 import "./ir-confirm-dialog.js";
 import "./ir-emitter-picker.js";
+import "./ir-signal-editor.js";
 import "./ir-trigger-dialog.js";
 import type { HairApi } from "./api.js";
 import type { ActionOption, IRCommand, IRDevice, IRTrigger, DeviceTypeId } from "./types.js";
@@ -43,6 +44,7 @@ export class IrDeviceDetail extends LitElement {
     @state() private _toast: string | null = null;
     @state() private _confirmDelete = false;
     @state() private _commandToDelete: IRCommand | null = null;
+    @state() private _editCommand: IRCommand | null = null;
 
     // Action mapping
     @state() private _actionOptions: ActionOption[] = [];
@@ -617,6 +619,58 @@ export class IrDeviceDetail extends LitElement {
         this._commandToDelete = command;
     }
 
+    private _onEditCommand(e: CustomEvent) {
+        const { command } = e.detail as { command: IRCommand };
+        if (!command) return;
+        this._editCommand = command;
+    }
+
+    private async _onCommandEdited(e: CustomEvent): Promise<void> {
+        const detail = e.detail as {
+            triggers?: { rewired: string[]; skipped: string[] };
+        };
+        this._editCommand = null;
+        await this._refresh();
+        const rewired = detail.triggers?.rewired ?? [];
+        if (rewired.length) {
+            const names = rewired.map((n) => `"${n}"`).join(", ");
+            this._flash(`Command updated. Re-pointed trigger ${names}.`);
+        } else {
+            this._flash("Command updated");
+        }
+        // A code edit can change the trigger's identity; refresh the panel's
+        // trigger list too.
+        this.dispatchEvent(
+            new CustomEvent("trigger-changed", { bubbles: true, composed: true }),
+        );
+    }
+
+    private async _onRenameCommand(e: CustomEvent): Promise<void> {
+        const { command, name } = e.detail as { command: IRCommand; name: string };
+        this._busy = true;
+        try {
+            const result = await this.api.updateCommand({
+                device_id: this.device.id,
+                command_id: command.id,
+                name,
+            });
+            await this._refresh();
+            const n = result.mappings_updated;
+            this._flash(
+                n > 0
+                    ? `Renamed (updated ${n} action mapping${n === 1 ? "" : "s"})`
+                    : "Renamed",
+            );
+            this.dispatchEvent(
+                new CustomEvent("device-changed", { bubbles: true, composed: true }),
+            );
+        } catch (err) {
+            this._flash(`Rename failed: ${(err as Error).message}`);
+        } finally {
+            this._busy = false;
+        }
+    }
+
     private async _confirmCommandDelete(): Promise<void> {
         const command = this._commandToDelete;
         if (!command) return;
@@ -797,6 +851,8 @@ export class IrDeviceDetail extends LitElement {
                                           @test=${this._onTest}
                                           @toggle-trigger=${this._onToggleTrigger}
                                           @toggle-tx-raw=${this._onToggleTxRaw}
+                                          @edit-command=${this._onEditCommand}
+                                          @rename-command=${this._onRenameCommand}
                                           @delete=${this._onDelete}
                                       >
                                           <ha-svg-icon
@@ -910,6 +966,21 @@ export class IrDeviceDetail extends LitElement {
                           @confirmed=${this._confirmCommandDelete}
                           @closed=${() => (this._commandToDelete = null)}
                       ></ir-confirm-dialog>
+                  `
+                : ""}
+            ${this._editCommand
+                ? html`
+                      <ir-signal-editor
+                          .api=${this.api}
+                          .deviceId=${this.device.id}
+                          .commandId=${this._editCommand.id}
+                          .initialPronto=${this._editCommand.code ?? ""}
+                          .initialAlias=${this._editCommand.name}
+                          .initialSendCount=${this._editCommand.send_count ?? 1}
+                          .hasTrigger=${this._commandHasTrigger(this._editCommand)}
+                          @command-edited=${this._onCommandEdited}
+                          @closed=${() => (this._editCommand = null)}
+                      ></ir-signal-editor>
                   `
                 : ""}
             ${this._triggerCommand

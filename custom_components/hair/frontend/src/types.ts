@@ -47,8 +47,13 @@ export interface IRCommand {
     raw_timings?: number[] | null;
     frequency: number;
     repeat_count: number;
+    // Whole-frame send count (v0.4.x): transmit the built signal this many
+    // times (1 = once). Drives the orange row indicator and the editor field.
+    send_count: number;
     // Decoded protocol identity (v0.4.0). Present when the command was
-    // decoded as a known protocol; gates the canonical-TX toggle.
+    // decoded as a known protocol; gates the canonical-TX toggle and labels
+    // its button (e.g. NEC).
+    decoded_protocol?: string | null;
     decoded_fingerprint?: string | null;
     tx_force_raw?: boolean;
     created_at: string;
@@ -221,6 +226,7 @@ export interface ProntoValidation {
     frequency_khz: number | null;
     burst_pair_count: number | null;
     normalized: string;
+    recognized_protocol?: string | null;
 }
 
 export interface UnknownSignalEvent {

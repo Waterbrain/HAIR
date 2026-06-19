@@ -104,7 +104,7 @@ class TestDecodeAtCaptureAndForgeGuard:
     async def test_decoded_fields_stored_on_capture(self):
         """A decode result is wired onto the stored signal.
 
-        Patches ``try_decode`` so the wiring is verified without the
+        Patches ``decode_to_fields`` so the wiring is verified without the
         library; real decode correctness lives in test_protocol_decode.
         """
         hass = _make_hass()
@@ -112,8 +112,8 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.try_decode",
-            return_value=("NEC", 0xFB04, 0x08),
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         devices = store.get_all_devices()
@@ -131,8 +131,8 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.try_decode",
-            return_value=None,
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=(None, None, None, None),
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         sig = store.get_all_devices()[0].signals[0]
@@ -747,6 +747,47 @@ class TestPublicAPI:
         assert device.signals[1].fingerprint == first["signal"]["fingerprint"]
 
     @pytest.mark.asyncio
+    async def test_decode_on_paste_populates_decoded_fields(self):
+        """A pasted code is decoded on save (wiring; real decode lives in
+        test_protocol_decode). Mirrors the Sniffer capture path."""
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()), patch(
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
+        ):
+            device = await monitor.create_manual_remote("R")
+            res = await monitor.create_manual_signal(
+                device.id, "0000 006D 0002 0000 0010 0010 0010 0010"
+            )
+        assert res["success"]
+        sig = device.signals[0]
+        assert sig.decoded_protocol == "NEC"
+        assert sig.decoded_address == 0xFB04
+        assert sig.decoded_command == 0x08
+        assert sig.decoded_fingerprint == "NEC:0xfb04:0x08"
+
+    @pytest.mark.asyncio
+    async def test_paste_non_nec_leaves_decoded_none(self):
+        """An undecodable paste keeps the decoded fields None."""
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()), patch(
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=(None, None, None, None),
+        ):
+            device = await monitor.create_manual_remote("R")
+            res = await monitor.create_manual_signal(
+                device.id, "0000 006D 0002 0000 0010 0010 0010 0010"
+            )
+        assert res["success"]
+        sig = device.signals[0]
+        assert sig.decoded_protocol is None
+        assert sig.decoded_fingerprint is None
+
+    @pytest.mark.asyncio
     async def test_duplicate_manual_signal_rejected(self):
         """Pasting a Pronto already on the remote is refused, not twinned."""
         hass = _make_hass()
@@ -925,6 +966,29 @@ class TestAssignSignal:
         remaining = store.get_device("ud1")
         assert remaining is not None
         assert remaining.get_signal("sig_fp") is not None
+
+    @pytest.mark.asyncio
+    async def test_assign_sets_send_count(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        hair_store = _make_hair_store()
+        monitor = SignalMonitor(hass, store, hair_store)
+
+        sig = UnknownSignal(
+            id="sig_fp", fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            frequency=38000, hit_count=1,
+        )
+        store.add_device(
+            UnknownDevice(id="ud1", fingerprint="dev_fp", signals=[sig])
+        )
+        hair_device = IRDevice(id="hd1", name="TV")
+        hair_store.get_device.return_value = hair_device
+
+        result = await monitor.assign_signal(
+            "ud1", "sig_fp", "hd1", "Power", "custom", send_count=3,
+        )
+        assert result["success"] is True
+        assert hair_device.commands[0].send_count == 3
 
     @pytest.mark.asyncio
     async def test_assign_from_dismissed_device_keeps_device(self):
@@ -1740,3 +1804,105 @@ class TestNativeSignalProcessing:
         await _run_native_signal(monitor, hass, signal)
         assert len(received) == 1
         assert "signal_fingerprint" in received[0]
+
+
+class TestEditSignalPronto:
+    """edit_signal_pronto: re-evaluate a stored signal's code as a capture."""
+
+    _A = "0000 006D 0002 0000 0010 0010 0010 0010"
+    _B = "0000 006D 0002 0000 0010 0040 0010 0010"
+
+    @pytest.mark.asyncio
+    async def test_recomputes_identity_and_reevaluates_timings(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            sid = created["signal"]["id"]
+            old_fp = device.signals[0].fingerprint
+            res = await monitor.edit_signal_pronto(device.id, sid, self._B)
+        assert res["success"] is True
+        sig = device.get_signal_by_id(sid)
+        assert sig.code == self._B
+        assert sig.fingerprint != old_fp
+        # Re-evaluated as a capture: raw timings now derive from the new code.
+        assert sig.raw_timings
+
+    @pytest.mark.asyncio
+    async def test_edit_to_same_code_allowed_no_rewire(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        tm = MagicMock()
+        tm.rewire = AsyncMock(return_value={"rewired": [], "skipped": []})
+        monitor = SignalMonitor(hass, store, _make_hair_store(), tm)
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            res = await monitor.edit_signal_pronto(
+                device.id, created["signal"]["id"], self._A
+            )
+        assert res["success"] is True  # self is excluded from the collision guard
+        tm.rewire.assert_not_awaited()  # fingerprint unchanged
+
+    @pytest.mark.asyncio
+    async def test_collision_with_other_signal_rejected(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            a = await monitor.create_manual_signal(device.id, self._A)
+            await monitor.create_manual_signal(device.id, self._B)
+            res = await monitor.edit_signal_pronto(
+                device.id, a["signal"]["id"], self._B
+            )
+        assert res["success"] is False
+        assert res["code"] == "duplicate_signal"
+
+    @pytest.mark.asyncio
+    async def test_rewires_triggers_on_fingerprint_change(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        tm = MagicMock()
+        tm.rewire = AsyncMock(return_value={"rewired": ["TV"], "skipped": []})
+        monitor = SignalMonitor(hass, store, _make_hair_store(), tm)
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            sid = created["signal"]["id"]
+            old_fp = device.signals[0].fingerprint
+            res = await monitor.edit_signal_pronto(device.id, sid, self._B)
+        assert res["success"] is True
+        tm.rewire.assert_awaited_once()
+        call_args = tm.rewire.await_args[0]
+        assert call_args[0] == old_fp
+        assert call_args[2] == "PRONTO"
+        assert call_args[3] == self._B
+        assert res["triggers"] == {"rewired": ["TV"], "skipped": []}
+
+    @pytest.mark.asyncio
+    async def test_missing_signal_errors(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            res = await monitor.edit_signal_pronto(device.id, "nope", self._A)
+        assert res["success"] is False
+        assert res["code"] == "signal_not_found"
+
+    @pytest.mark.asyncio
+    async def test_invalid_pronto_rejected(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            res = await monitor.edit_signal_pronto(
+                device.id, created["signal"]["id"], "garbage zz"
+            )
+        assert res["success"] is False
+        assert res["code"] == "invalid_pronto"

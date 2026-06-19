@@ -332,6 +332,7 @@ export class HairApi {
         hair_device_id: string;
         command_name: string;
         command_category?: string;
+        send_count?: number;
     }): Promise<AssignResult> {
         return this.hass.connection.sendMessagePromise<AssignResult>({
             type: "hair/unknown/assign",
@@ -347,6 +348,7 @@ export class HairApi {
         emitter_entity_ids: string[];
         command_name: string;
         command_category?: string;
+        send_count?: number;
     }): Promise<AssignResult> {
         return this.hass.connection.sendMessagePromise<AssignResult>({
             type: "hair/unknown/assign-new-device",
@@ -462,10 +464,52 @@ export class HairApi {
         });
     }
 
+    editSignalPronto(payload: {
+        device_id: string;
+        signal_id: string;
+        pronto: string;
+        alias?: string | null;
+    }): Promise<{
+        signal: UnknownSignal;
+        triggers: { rewired: string[]; skipped: string[] };
+    }> {
+        return this.hass.connection.sendMessagePromise({
+            type: "hair/unknown/signal/edit-pronto",
+            ...payload,
+        });
+    }
+
     validatePronto(pronto: string): Promise<ProntoValidation> {
         return this.hass.connection.sendMessagePromise<ProntoValidation>({
             type: "hair/clip/validate-pronto",
             pronto,
+        });
+    }
+
+    snapPreview(payload: {
+        pronto: string;
+        target_frequency: number;
+    }): Promise<{ pronto: string; frequency_khz: number }> {
+        return this.hass.connection.sendMessagePromise({
+            type: "hair/unknown/signal/snap-preview",
+            ...payload,
+        });
+    }
+
+    updateCommand(payload: {
+        device_id: string;
+        command_id: string;
+        name?: string;
+        pronto?: string;
+        send_count?: number;
+    }): Promise<{
+        command: IRCommand;
+        triggers: { rewired: string[]; skipped: string[] };
+        mappings_updated: number;
+    }> {
+        return this.hass.connection.sendMessagePromise({
+            type: "hair/command/update",
+            ...payload,
         });
     }
 

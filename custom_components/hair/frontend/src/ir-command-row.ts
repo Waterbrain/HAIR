@@ -4,8 +4,15 @@
  * - Unlearned templates show a single Learn button.
  */
 import { LitElement, html, css } from "lit";
-import { customElement, property } from "./decorators.js";
+import { customElement, property, state } from "./decorators.js";
 import type { IRCommand } from "./types.js";
+
+// mdi:content-copy -- shared view/edit glyph (matches the signal rows).
+const ICON_COPY =
+    "M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z";
+// mdi:repeat -- stubbed per-command repeat indicator (Feature 7, deferred).
+const ICON_REPEAT =
+    "M17,17H7V14L3,18L7,22V19H19V13H17M7,7H17V10L21,6L17,2V5H5V11H7V7Z";
 
 @customElement("ir-command-row")
 export class IrCommandRow extends LitElement {
@@ -23,6 +30,9 @@ export class IrCommandRow extends LitElement {
      *  device types whose platform exposes no mappable feature actions
      *  (e.g. Other / the remote platform), where the popover would be empty. */
     @property({ type: Boolean }) public showActionMapping = true;
+
+    @state() private _editingName = false;
+    @state() private _draftName = "";
 
     /** Human-friendly label for a captured command (plain text fallback). */
     private _commandLabel(): string {
@@ -77,6 +87,42 @@ export class IrCommandRow extends LitElement {
         );
     }
 
+    private _startRename(e: Event): void {
+        if (!this.command || this.busy) return;
+        e.stopPropagation();
+        this._draftName = this.command.name;
+        this._editingName = true;
+        void this.updateComplete.then(() => {
+            const input =
+                this.shadowRoot?.querySelector<HTMLInputElement>(".name-input");
+            input?.focus();
+            input?.select();
+        });
+    }
+
+    private _commitRename(): void {
+        if (!this._editingName) return;
+        const name = this._draftName.trim();
+        this._editingName = false;
+        if (!this.command || !name || name === this.command.name) return;
+        this.dispatchEvent(
+            new CustomEvent("rename-command", {
+                detail: { command: this.command, name },
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
+    private _onRenameKeydown(e: KeyboardEvent): void {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            this._commitRename();
+        } else if (e.key === "Escape") {
+            this._editingName = false;
+        }
+    }
+
     render() {
         const learned = this.command !== null;
         const diamonds = learned ? this._renderDiamonds() : null;
@@ -86,18 +132,75 @@ export class IrCommandRow extends LitElement {
                     <slot name="status"></slot>
                 </div>
                 <div class="info">
-                    <div class="name">${this.templateName}</div>
+                    <div class="name">
+                        ${learned
+                            ? this._editingName
+                                ? html`<input
+                                      class="name-input"
+                                      type="text"
+                                      .value=${this._draftName}
+                                      @input=${(e: Event) =>
+                                          (this._draftName = (
+                                              e.target as HTMLInputElement
+                                          ).value)}
+                                      @keydown=${this._onRenameKeydown}
+                                      @blur=${this._commitRename}
+                                  />`
+                                : html`<span
+                                      class="editable-name"
+                                      title="Click to rename"
+                                      @click=${this._startRename}
+                                      >${this.templateName}<span class="rename-pencil"
+                                          >&#9998;</span
+                                      ></span
+                                  >`
+                            : html`${this.templateName}`}
+                    </div>
                     <div class="meta">
                         ${diamonds
                             ? diamonds
                             : learned
                               ? html`${this._commandLabel()}`
                               : html`<span class="muted">Not yet learned</span>`}
+                        ${learned &&
+                        this.command &&
+                        this.command.send_count > 1
+                            ? html`<span
+                                  class="repeat-indicator"
+                                  title="Sends this command ${this.command
+                                      .send_count} times"
+                                  ><ha-svg-icon
+                                      .path=${ICON_REPEAT}
+                                  ></ha-svg-icon
+                                  >${this.command.send_count}</span
+                              >`
+                            : ""}
                     </div>
                 </div>
                 <div class="actions">
                     ${learned
                         ? html`
+                              ${this.command?.decoded_fingerprint
+                                  ? html`<button
+                                  class="action-btn tx-btn ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
+                                  ?disabled=${this.busy}
+                                  @click=${() => this._emit("toggle-tx-raw")}
+                                  title=${this.command.tx_force_raw
+                                      ? "Replaying the captured Pronto. Click to transmit clean decoded packet timings instead."
+                                      : "Transmitting clean decoded packet timings. Click to replay the captured Pronto instead."}
+                              >${this.command.tx_force_raw
+                                      ? "PRONTO"
+                                      : this.command.decoded_protocol ?? "AUTO"}</button>`
+                                  : ""}
+                              <button
+                                  class="icon-btn edit-btn"
+                                  ?disabled=${this.busy}
+                                  @click=${() => this._emit("edit-command")}
+                                  title="View or edit code"
+                              ><ha-svg-icon
+                                      class="edit-glyph"
+                                      .path=${ICON_COPY}
+                                  ></ha-svg-icon></button>
                               ${this.showActionMapping
                                   ? html`<button
                                   class="action-btn badge-btn"
@@ -118,16 +221,6 @@ export class IrCommandRow extends LitElement {
                                   @click=${() => this._emit("toggle-trigger")}
                                   title=${this.hasTrigger ? "Edit trigger" : "Create trigger"}
                               >Trigger</button>
-                              ${this.command?.decoded_fingerprint
-                                  ? html`<button
-                                  class="action-btn tx-btn ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
-                                  ?disabled=${this.busy}
-                                  @click=${() => this._emit("toggle-tx-raw")}
-                                  title=${this.command.tx_force_raw
-                                      ? "Transmitting the captured timings. Click to send clean decoded timings."
-                                      : "Transmitting clean decoded timings. Click to replay the captured timings instead."}
-                              >${this.command.tx_force_raw ? "RAW" : "AUTO"}</button>`
-                                  : ""}
                               <button
                                   class="action-btn delete-btn"
                                   ?disabled=${this.busy}
@@ -178,6 +271,72 @@ export class IrCommandRow extends LitElement {
         }
         .name {
             font-weight: 500;
+        }
+        .editable-name {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border-bottom: 1px dashed transparent;
+            transition: border-color 150ms ease;
+        }
+        .editable-name:hover {
+            border-bottom-color: var(--primary-color);
+        }
+        .rename-pencil {
+            font-size: 0.7rem;
+            color: var(--secondary-text-color);
+            opacity: 0;
+            transition: opacity 150ms ease;
+        }
+        .editable-name:hover .rename-pencil {
+            opacity: 1;
+        }
+        .name-input {
+            font-size: inherit;
+            font-weight: 500;
+            font-family: inherit;
+            border: none;
+            border-bottom: 2px solid var(--primary-color);
+            background: transparent;
+            color: var(--primary-text-color);
+            outline: none;
+            padding: 0 0 1px;
+            min-width: 120px;
+        }
+        .repeat-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 1px;
+            /* Sit one clear space past the end of the diamonds. */
+            margin-left: 12px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            /* Match the short-diamond orange. */
+            color: var(--warning-color, #ff9800);
+            vertical-align: middle;
+        }
+        .repeat-indicator ha-svg-icon {
+            --mdc-icon-size: 12px;
+        }
+        .icon-btn {
+            background: none;
+            border: none;
+            padding: 2px;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+            color: var(--secondary-text-color);
+        }
+        .icon-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+        .icon-btn:hover:not(:disabled) {
+            color: var(--primary-text-color);
+        }
+        .edit-glyph {
+            --mdc-icon-size: 10px;
         }
         .meta {
             font-size: 0.8rem;
@@ -246,7 +405,6 @@ export class IrCommandRow extends LitElement {
         .action-btn.badge-btn {
             color: var(--secondary-text-color, #999);
             border-color: var(--divider-color);
-            font-size: 0.65rem;
             min-width: 50px;
             text-align: center;
         }
@@ -283,17 +441,26 @@ export class IrCommandRow extends LitElement {
         /* TX-mode toggle: AUTO (canonical decoded timings) is the neutral
            default; RAW (replay captured timings) reads as the active,
            deliberately-chosen override. */
+        /* Signal-related toggle: colored to match the S/L diamonds. The
+           protocol (decoded) state reads in the long-diamond blue; the
+           captured-replay (PRONTO) override fills with the short-diamond
+           orange so it stands out as the deliberate non-default choice. */
         .action-btn.tx-btn {
             min-width: 46px;
             text-align: center;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .action-btn.tx-btn:hover:not(:disabled) {
+            background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
         }
         .action-btn.tx-btn.tx-raw-on {
-            color: #fff;
-            background: #6a5acd;
-            border-color: #6a5acd;
+            color: var(--warning-color, #ff9800);
+            border-color: var(--warning-color, #ff9800);
+            background: none;
         }
-        .action-btn.tx-btn.tx-raw-on:hover {
-            background: #5847b8;
+        .action-btn.tx-btn.tx-raw-on:hover:not(:disabled) {
+            background: rgba(255, 152, 0, 0.08);
         }
     `;
 }

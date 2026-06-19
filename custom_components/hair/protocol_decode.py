@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from .const import DECODED_PROTOCOL_NEC
+from .const import DECODED_FINGERPRINT_FORMAT, DECODED_PROTOCOL_NEC
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,3 +64,24 @@ def try_decode(raw_timings: list[int] | None) -> tuple[str, int, int] | None:
         return (DECODED_PROTOCOL_NEC, int(nec.address), int(nec.command))
     except (AttributeError, TypeError, ValueError):
         return None
+
+
+def decode_to_fields(
+    raw_timings: list[int] | None,
+) -> tuple[str | None, int | None, int | None, str | None]:
+    """Decode raw timings into the four ``decoded_*`` fields, or all-None.
+
+    Wraps ``try_decode`` and formats the decoded fingerprint, so capture,
+    paste, edit, and backfill all derive the decoded identity through one
+    path and cannot drift. Returns ``(protocol, address, command,
+    fingerprint)``; all ``None`` when the timings are absent, the library is
+    unavailable, or nothing decodes. Never raises.
+    """
+    decoded = try_decode(raw_timings)
+    if decoded is None:
+        return (None, None, None, None)
+    protocol, address, command = decoded
+    fingerprint = DECODED_FINGERPRINT_FORMAT.format(
+        protocol=protocol, address=address, command=command
+    )
+    return (protocol, address, command, fingerprint)

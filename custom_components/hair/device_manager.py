@@ -1,15 +1,27 @@
 """Device CRUD and entity lifecycle management."""
 from __future__ import annotations
 
+import asyncio
 import logging
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN, CommandCategory, DeviceType
+from .const import (
+    DEFAULT_CARRIER_FREQUENCY,
+    DOMAIN,
+    MAX_SEND_COUNT,
+    SEND_REPEAT_GAP,
+    CommandCategory,
+    DeviceType,
+)
 from .entity_factory import EntityFactory
 from .models import IRCommand, IRDevice
 from .storage import HAIRStore
+
+if TYPE_CHECKING:
+    from .trigger_manager import TriggerManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,6 +108,124 @@ class DeviceManager:
         await self._entity_factory.async_update_entities(device)
         return device
 
+    async def async_update_command(
+        self,
+        device_id: str,
+        command_id: str,
+        *,
+        name: str | None = None,
+        pronto: str | None = None,
+        send_count: int | None = None,
+        trigger_manager: TriggerManager | None = None,
+    ) -> dict[str, Any]:
+        """Edit a device command's name and/or Pronto in place.
+
+        On a name change: guard against a duplicate name on the device,
+        then cascade the action mappings (every ``command_mapping`` value
+        equal to the old name moves to the new name) and report the count.
+        On a Pronto change: re-evaluate the new code as a fresh capture
+        (``code`` / ``raw_timings`` / ``byte_hash`` / ``decoded_*`` /
+        ``frequency``) and rewire any bound trigger when the S/L
+        fingerprint changes. Persists through :meth:`async_update_device`
+        so the known-command reverse index rebuilds (a code edit changes
+        its keys) and the entity ``update_device`` hooks fire.
+
+        Returns ``{success, command, triggers, mappings_updated}`` on
+        success, or ``{success: False, code, error}``.
+        """
+        from .event_parser import EventParser
+        from .ir_command import ProntoCommand
+        from .pronto_validator import validate_pronto
+        from .protocol_decode import decode_to_fields
+
+        device = self._store.get_device(device_id)
+        if device is None:
+            return {"success": False, "code": "device_not_found",
+                    "error": "Device not found"}
+        command = device.get_command(command_id)
+        if command is None:
+            return {"success": False, "code": "command_not_found",
+                    "error": "Command not found"}
+
+        rewire: dict[str, list[str]] = {"rewired": [], "skipped": []}
+        mappings_updated = 0
+
+        # --- name change: collision guard + mapping cascade ---
+        if name is not None:
+            new_name = name.strip()
+            if not new_name:
+                return {"success": False, "code": "invalid_name",
+                        "error": "Command name cannot be empty"}
+            if new_name.casefold() != command.name.casefold():
+                clash = device.get_command_by_name(new_name)
+                if clash is not None and clash.id != command.id:
+                    return {
+                        "success": False, "code": "duplicate_name",
+                        "error": "Another command on this device has that name",
+                    }
+                old_name = command.name
+                command.name = new_name
+                # Cascade every mapping whose value is the old command name.
+                mapping = device.entity_config.command_mapping
+                for key, val in mapping.items():
+                    if val.casefold() == old_name.casefold():
+                        mapping[key] = new_name
+                        mappings_updated += 1
+
+        # --- pronto change: recompute identity + rewire triggers ---
+        if pronto is not None:
+            result = validate_pronto(pronto)
+            if not result.valid:
+                return {
+                    "success": False, "code": "invalid_pronto",
+                    "error": (result.errors[0] if result.errors
+                              else "Invalid Pronto code"),
+                }
+            new_code = result.normalized
+            old_fp = EventParser.signal_fingerprint(
+                command.protocol, command.code, command.raw_timings
+            )
+            new_fp = EventParser.signal_fingerprint("PRONTO", new_code, [])
+            try:
+                raw = ProntoCommand(new_code).get_raw_timings()
+            except Exception:  # bad code falls back to no decoded timings
+                raw = None
+            (
+                decoded_protocol,
+                decoded_address,
+                decoded_command,
+                decoded_fingerprint,
+            ) = decode_to_fields(raw)
+            command.protocol = "PRONTO"
+            command.code = new_code
+            command.raw_timings = list(raw) if raw else None
+            command.byte_hash = EventParser.pronto_byte_hash(new_code)
+            command.frequency = (
+                round(result.frequency_khz * 1000)
+                if result.frequency_khz
+                else DEFAULT_CARRIER_FREQUENCY
+            )
+            command.decoded_protocol = decoded_protocol
+            command.decoded_address = decoded_address
+            command.decoded_command = decoded_command
+            command.decoded_fingerprint = decoded_fingerprint
+            if trigger_manager is not None and new_fp and new_fp != old_fp:
+                rewire = await trigger_manager.rewire(
+                    old_fp, new_fp, "PRONTO", new_code
+                )
+
+        # --- whole-frame send count ---
+        if send_count is not None:
+            command.send_count = max(1, min(int(send_count), MAX_SEND_COUNT))
+
+        await self.async_update_device(device)
+        return {
+            "success": True,
+            "command": command.to_dict(),
+            "triggers": rewire,
+            "mappings_updated": mappings_updated,
+        }
+
     async def async_reorder_devices(self, ordered_ids: list[str]) -> None:
         """Reorder the device list and persist. Raises ValueError on a
         stale/mismatched id list (see ``HAIRStore.reorder_devices``)."""
@@ -131,6 +261,28 @@ class DeviceManager:
         await self._store.async_save()
         await self._entity_factory.async_update_entities(device)
         return command
+
+    async def async_apply_auto_map(
+        self, device_id: str, command_id: str
+    ) -> IRDevice | None:
+        """Apply the action auto-map to an already-stored command and refresh.
+
+        The assign path (``signal_monitor.assign_*``) creates the command via
+        the model's ``add_command``, which -- unlike the learn path's
+        ``async_add_command`` -- does not run ``_auto_map_command``. Call this
+        after an assign so a command whose name matches a standard action
+        (Power, Fan: Auto, Mode: Cool, ...) gets mapped, the AC fan/hvac modes
+        get registered, and the entities refresh to expose them. A no-op for a
+        custom name with no standard action. Returns the updated device.
+        """
+        device = self._store.get_device(device_id)
+        if device is None:
+            return None
+        command = device.get_command(command_id)
+        if command is None:
+            return device
+        self._auto_map_command(device, command)
+        return await self.async_update_device(device)
 
     async def async_remove_command(
         self, device_id: str, command_id: str
@@ -222,8 +374,15 @@ class DeviceManager:
                 repeat_count=command.repeat_count or 0,
             )
 
-        for emitter_id in device.emitter_entity_ids:
-            await ir_send(self._hass, emitter_id, ir_cmd)
+        # Whole-frame repetition: transmit the built Command send_count times
+        # to every emitter, with a short pause between frames so the receiver
+        # registers them as distinct presses. send_count defaults to 1.
+        send_count = max(1, command.send_count or 1)
+        for i in range(send_count):
+            if i:
+                await asyncio.sleep(SEND_REPEAT_GAP)
+            for emitter_id in device.emitter_entity_ids:
+                await ir_send(self._hass, emitter_id, ir_cmd)
 
     async def async_set_command_tx_force_raw(
         self, device_id: str, command_id: str, tx_force_raw: bool

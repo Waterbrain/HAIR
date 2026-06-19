@@ -65,6 +65,9 @@ export class IrAssignSignalDialog extends LitElement {
     @state() private _templates: CommandTemplate[] = [];
     @state() private _customCommand = false;
 
+    // Whole-frame send count for the new command (1 = send once).
+    @state() private _sendCount = 1;
+
     @state() private _busy = false;
     @state() private _error: string | null = null;
 
@@ -162,6 +165,13 @@ export class IrAssignSignalDialog extends LitElement {
         );
     }
 
+    private _onSendCountInput(e: Event): void {
+        const raw = parseInt((e.target as HTMLInputElement).value, 10);
+        this._sendCount = Number.isNaN(raw)
+            ? 1
+            : Math.max(1, Math.min(raw, 10));
+    }
+
     private async _assign(): Promise<void> {
         const name = this._commandName.trim();
         if (!name) {
@@ -186,6 +196,7 @@ export class IrAssignSignalDialog extends LitElement {
                     signal_id: this.signal.id,
                     hair_device_id: this._selectedDeviceId,
                     command_name: name,
+                    send_count: this._sendCount,
                 });
             } else {
                 if (!this._newName.trim()) {
@@ -205,6 +216,7 @@ export class IrAssignSignalDialog extends LitElement {
                     device_type: this._newType,
                     emitter_entity_ids: this._newEmitterIds,
                     command_name: name,
+                    send_count: this._sendCount,
                 });
             }
 
@@ -297,6 +309,23 @@ export class IrAssignSignalDialog extends LitElement {
 
                 <!-- Command name (shared by both modes) -->
                 ${this._renderCommandPicker()}
+
+                <!-- Whole-frame send count (shared by both modes) -->
+                <div class="field">
+                    <label>Send times</label>
+                    <input
+                        class="send-count"
+                        type="number"
+                        min="1"
+                        max="10"
+                        .value=${String(this._sendCount)}
+                        @input=${this._onSendCountInput}
+                    />
+                    <div class="hint">
+                        Transmit this command this many times per press, for
+                        devices that need a repeat. Default 1.
+                    </div>
+                </div>
 
                 <div class="dialog-actions">
                     <button
@@ -484,6 +513,26 @@ export class IrAssignSignalDialog extends LitElement {
         select:focus {
             outline: none;
             border-color: var(--primary-color);
+        }
+        input.send-count {
+            width: 80px;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
+            font-size: 0.95rem;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        input.send-count:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        .hint {
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: var(--secondary-text-color);
         }
         ha-alert {
             display: block;

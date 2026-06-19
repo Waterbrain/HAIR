@@ -20,7 +20,10 @@ import pytest
 pytest.importorskip("infrared_protocols")
 
 from custom_components.hair import protocol_decode
-from custom_components.hair.const import DECODED_PROTOCOL_NEC
+from custom_components.hair.const import (
+    DECODED_FINGERPRINT_FORMAT,
+    DECODED_PROTOCOL_NEC,
+)
 
 _FIXTURES = json.loads(
     (Path(__file__).parent / "fixtures" / "nec_test_fixtures.json").read_text()
@@ -88,3 +91,25 @@ def test_truncated_nec_returns_none():
     """A too-short NEC buffer short-circuits to None without raising."""
     full = _REAL_CAPTURES[0]["raw_timings_captured"]
     assert protocol_decode.try_decode(full[:20]) is None
+
+
+def test_decode_to_fields_populated():
+    """decode_to_fields returns the four fields with a formatted fingerprint."""
+    capture = _REAL_CAPTURES[0]
+    protocol, address, command, fingerprint = protocol_decode.decode_to_fields(
+        capture["raw_timings_captured"]
+    )
+    assert protocol == DECODED_PROTOCOL_NEC
+    assert address == capture["decoded_address"]
+    assert command == capture["decoded_command"]
+    assert fingerprint == DECODED_FINGERPRINT_FORMAT.format(
+        protocol=protocol, address=address, command=command
+    )
+
+
+def test_decode_to_fields_none_for_undecodable():
+    """Non-NEC / empty / None input yields all-None, never raises."""
+    assert protocol_decode.decode_to_fields(None) == (None, None, None, None)
+    assert protocol_decode.decode_to_fields([]) == (None, None, None, None)
+    sony_like = [2400, -600, 1200, -600, 600, -600, 1200, -600]
+    assert protocol_decode.decode_to_fields(sony_like) == (None, None, None, None)

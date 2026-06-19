@@ -21,12 +21,14 @@ from .command_templates import get_action_options, get_templates_for_device_type
 from .const import (
     DEFAULT_CAPTURE_TIMEOUT,
     DOMAIN,
+    MAX_SEND_COUNT,
     WS_PREFIX,
     CaptureState,
     CommandCategory,
     DeviceType,
 )
 from .device_manager import DeviceManager, category_for_command_name
+from .frequency_standards import IR_CARRIER_STANDARDS_HZ
 from .models import IRDevice, IRTrigger
 from .pronto_validator import validate_pronto
 from .signal_monitor import SignalMonitor
@@ -53,6 +55,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_delete_device)
     websocket_api.async_register_command(hass, ws_duplicate_device)
     websocket_api.async_register_command(hass, ws_delete_command)
+    websocket_api.async_register_command(hass, ws_command_update)
     websocket_api.async_register_command(hass, ws_set_command_tx_force_raw)
     websocket_api.async_register_command(hass, ws_reorder_commands)
     websocket_api.async_register_command(hass, ws_reorder_devices)
@@ -83,6 +86,8 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     # Clips (manual remotes / signals)
     websocket_api.async_register_command(hass, ws_clip_create_remote)
     websocket_api.async_register_command(hass, ws_clip_create_signal)
+    websocket_api.async_register_command(hass, ws_unknown_signal_edit_pronto)
+    websocket_api.async_register_command(hass, ws_unknown_signal_snap_preview)
     websocket_api.async_register_command(hass, ws_clip_validate_pronto)
     websocket_api.async_register_command(hass, ws_clip_delete_remote)
 
@@ -954,6 +959,9 @@ async def ws_undismiss_unknown(
     vol.Required("hair_device_id"): str,
     vol.Required("command_name"): str,
     vol.Optional("command_category", default="custom"): str,
+    vol.Optional("send_count", default=1): vol.All(
+        int, vol.Range(min=1, max=MAX_SEND_COUNT)
+    ),
 })
 @websocket_api.async_response
 async def ws_assign_signal(
@@ -973,6 +981,7 @@ async def ws_assign_signal(
         msg["hair_device_id"],
         msg["command_name"],
         msg.get("command_category", "custom"),
+        send_count=msg.get("send_count", 1),
     )
     if not result["success"]:
         connection.send_error(
@@ -981,6 +990,13 @@ async def ws_assign_signal(
             result.get("error", "Assign failed"),
         )
         return
+    # The assign path does not run the action auto-map the learn path does;
+    # apply it now so a standard-action command (Fan: Auto, etc.) maps and
+    # the device's entities refresh.
+    device_manager: DeviceManager = data["device_manager"]
+    await device_manager.async_apply_auto_map(
+        msg["hair_device_id"], result["command_id"]
+    )
     connection.send_result(msg["id"], {
         "assigned": True,
         "command_id": result["command_id"],
@@ -1069,6 +1085,9 @@ async def ws_rename_unknown(
     vol.Required("emitter_entity_ids"): [str],
     vol.Required("command_name"): str,
     vol.Optional("command_category", default="custom"): str,
+    vol.Optional("send_count", default=1): vol.All(
+        int, vol.Range(min=1, max=MAX_SEND_COUNT)
+    ),
 })
 @websocket_api.async_response
 async def ws_assign_new_device(
@@ -1090,6 +1109,7 @@ async def ws_assign_new_device(
         list(msg["emitter_entity_ids"]),
         msg["command_name"],
         msg.get("command_category", "custom"),
+        send_count=msg.get("send_count", 1),
     )
     if not result["success"]:
         connection.send_error(
@@ -1102,6 +1122,13 @@ async def ws_assign_new_device(
     # Register HA device + entities now that both stores are persisted.
     device_mgr = data["device_manager"]
     new_device = result["device"]
+    # Apply the action auto-map before creating entities, so the new device's
+    # feature entities (e.g. an AC's fan/hvac modes) come up already mapped.
+    command = new_device.get_command(result["command_id"])
+    if command is not None:
+        device_mgr._auto_map_command(new_device, command)
+        device_mgr._store.update_device(new_device)
+        await device_mgr._store.async_save()
     device_mgr._register_ha_device(new_device)
     await device_mgr._entity_factory.async_create_entities(new_device)
 
@@ -1319,6 +1346,42 @@ async def ws_clip_create_signal(
 
 @websocket_api.require_admin
 @websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/unknown/signal/edit-pronto",
+    vol.Required("device_id"): str,
+    vol.Required("signal_id"): str,
+    vol.Required("pronto"): str,
+    vol.Optional("alias"): vol.Any(str, None),
+})
+@websocket_api.async_response
+async def ws_unknown_signal_edit_pronto(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Edit a stored signal's Pronto in place, re-evaluated as a capture."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    monitor: SignalMonitor = data["signal_monitor"]
+    result = await monitor.edit_signal_pronto(
+        msg["device_id"], msg["signal_id"], msg["pronto"], msg.get("alias")
+    )
+    if not result["success"]:
+        connection.send_error(
+            msg["id"],
+            result.get("code", "edit_failed"),
+            result.get("error", "Failed to edit signal"),
+        )
+        return
+    connection.send_result(
+        msg["id"],
+        {"signal": result["signal"], "triggers": result["triggers"]},
+    )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
     vol.Required("type"): f"{WS_PREFIX}/clip/validate-pronto",
     vol.Required("pronto"): str,
 })
@@ -1330,6 +1393,20 @@ async def ws_clip_validate_pronto(
 ) -> None:
     """Validate a Pronto string and return live feedback (no save)."""
     result = validate_pronto(msg["pronto"])
+    # Surface the recognized protocol (NEC today) during the paste scan, so
+    # the dialog can show "Recognized as NEC". Decode lives here, not in the
+    # pure validator. infrared-protocols is imported once at setup, so this
+    # is CPU-only on an already-loaded module.
+    recognized: str | None = None
+    if result.valid:
+        from .ir_command import ProntoCommand
+        from .protocol_decode import decode_to_fields
+
+        try:
+            raw = ProntoCommand(result.normalized).get_raw_timings()
+        except Exception:
+            raw = None
+        recognized = decode_to_fields(raw)[0]
     connection.send_result(msg["id"], {
         "valid": result.valid,
         "errors": result.errors,
@@ -1337,6 +1414,104 @@ async def ws_clip_validate_pronto(
         "frequency_khz": result.frequency_khz,
         "burst_pair_count": result.burst_pair_count,
         "normalized": result.normalized,
+        "recognized_protocol": recognized,
+    })
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/command/update",
+    vol.Required("device_id"): str,
+    vol.Required("command_id"): str,
+    vol.Optional("name"): str,
+    vol.Optional("pronto"): str,
+    vol.Optional("send_count"): vol.All(
+        int, vol.Range(min=1, max=MAX_SEND_COUNT)
+    ),
+})
+@websocket_api.async_response
+async def ws_command_update(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Edit a device command's name and/or Pronto in place.
+
+    Persists through ``async_update_device`` so the known-command index
+    rebuilds and entity hooks fire; rewires a bound trigger on an S/L
+    fingerprint change and cascades action mappings on a rename.
+    """
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    device_manager: DeviceManager = data["device_manager"]
+    trigger_manager: TriggerManager = data["trigger_manager"]
+    result = await device_manager.async_update_command(
+        msg["device_id"],
+        msg["command_id"],
+        name=msg.get("name"),
+        pronto=msg.get("pronto"),
+        send_count=msg.get("send_count"),
+        trigger_manager=trigger_manager,
+    )
+    if not result["success"]:
+        connection.send_error(
+            msg["id"],
+            result.get("code", "update_failed"),
+            result.get("error", "Failed to update command"),
+        )
+        return
+    connection.send_result(msg["id"], {
+        "command": result["command"],
+        "triggers": result["triggers"],
+        "mappings_updated": result["mappings_updated"],
+    })
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/unknown/signal/snap-preview",
+    vol.Required("pronto"): str,
+    vol.Required("target_frequency"): int,
+})
+@websocket_api.async_response
+async def ws_unknown_signal_snap_preview(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Re-encode a Pronto at a standard carrier and return it (no save).
+
+    Pure transform behind the editor's snap-to-standard action: validate the
+    code, re-derive its timings, and re-encode at the requested standard. The
+    user commits the staged result through the normal edit-pronto path.
+    """
+    result = validate_pronto(msg["pronto"])
+    if not result.valid:
+        connection.send_error(
+            msg["id"],
+            "invalid_pronto",
+            result.errors[0] if result.errors else "Invalid Pronto code",
+        )
+        return
+    target = msg["target_frequency"]
+    if target not in IR_CARRIER_STANDARDS_HZ:
+        connection.send_error(
+            msg["id"], "invalid_target", "Target is not a standard carrier"
+        )
+        return
+
+    from .ir_command import snap_pronto
+
+    try:
+        snapped = snap_pronto(result.normalized, target)
+    except Exception as err:  # defensive: never leak a stack trace to the WS
+        connection.send_error(msg["id"], "snap_failed", str(err))
+        return
+    connection.send_result(msg["id"], {
+        "pronto": snapped,
+        "frequency_khz": round(target / 1000, 1),
     })
 
 

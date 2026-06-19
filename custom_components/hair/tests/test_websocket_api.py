@@ -52,6 +52,7 @@ from custom_components.hair.websocket_api import (
     ws_start_capture,
     ws_test_signal,
     ws_undismiss_unknown,
+    ws_unknown_signal_snap_preview,
     ws_update_device,
 )
 
@@ -71,8 +72,13 @@ def _make_connection():
 
 def _wire_hass(hass, manager=None, orchestrator=None, signal_monitor=None):
     """Set up hass.data[DOMAIN] with a fake entry data dict."""
+    if manager is None:
+        manager = MagicMock()
+        # The assign handlers await these post-assign (auto-map + persist).
+        manager.async_apply_auto_map = AsyncMock()
+        manager._store.async_save = AsyncMock()
     entry_data = {
-        "device_manager": manager or MagicMock(),
+        "device_manager": manager,
         "orchestrator": orchestrator or MagicMock(),
         "signal_monitor": signal_monitor or MagicMock(),
     }
@@ -1384,6 +1390,9 @@ async def test_assign_new_device_success(fake_hass):
     manager._register_ha_device = MagicMock()
     manager._entity_factory = MagicMock()
     manager._entity_factory.async_create_entities = AsyncMock()
+    # The handler now auto-maps the new command and persists before creating
+    # entities -- async_save is awaited.
+    manager._store.async_save = AsyncMock()
     _wire_hass(fake_hass, manager=manager, signal_monitor=monitor)
 
     sig = UnknownSignal(
@@ -1612,6 +1621,67 @@ async def test_clip_validate_pronto_invalid(fake_hass):
     payload = conn.send_result.call_args[0][1]
     assert payload["valid"] is False
     assert payload["errors"]
+    assert payload["recognized_protocol"] is None
+
+
+@pytest.mark.asyncio
+async def test_clip_validate_pronto_recognized(fake_hass):
+    """A valid Pronto that decodes surfaces its recognized protocol."""
+    conn = _make_connection()
+    with patch(
+        "custom_components.hair.protocol_decode.decode_to_fields",
+        return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
+    ):
+        await ws_clip_validate_pronto(
+            fake_hass, conn,
+            {"id": 207, "type": "hair/clip/validate-pronto", "pronto": _VALID_PRONTO},
+        )
+    payload = conn.send_result.call_args[0][1]
+    assert payload["recognized_protocol"] == "NEC"
+
+
+# An off-standard (~41.9 kHz) Pronto: carrier word 0063, two burst pairs.
+_OFF_STANDARD_PRONTO = "0000 0063 0002 0000 0010 0010 0010 0010"
+
+
+@pytest.mark.asyncio
+async def test_snap_preview_valid(fake_hass):
+    """Snap an off-standard code to a standard carrier (no save)."""
+    conn = _make_connection()
+    await ws_unknown_signal_snap_preview(
+        fake_hass, conn,
+        {"id": 210, "type": "hair/unknown/signal/snap-preview",
+         "pronto": _OFF_STANDARD_PRONTO, "target_frequency": 40000},
+    )
+    conn.send_result.assert_called_once()
+    payload = conn.send_result.call_args[0][1]
+    assert payload["frequency_khz"] == 40.0
+    # The carrier word should have moved off the off-standard source value.
+    assert payload["pronto"].split()[1] != _OFF_STANDARD_PRONTO.split()[1]
+
+
+@pytest.mark.asyncio
+async def test_snap_preview_invalid_pronto(fake_hass):
+    conn = _make_connection()
+    await ws_unknown_signal_snap_preview(
+        fake_hass, conn,
+        {"id": 211, "type": "hair/unknown/signal/snap-preview",
+         "pronto": "0100 zz", "target_frequency": 40000},
+    )
+    conn.send_error.assert_called_once()
+    assert conn.send_error.call_args[0][1] == "invalid_pronto"
+
+
+@pytest.mark.asyncio
+async def test_snap_preview_non_standard_target(fake_hass):
+    conn = _make_connection()
+    await ws_unknown_signal_snap_preview(
+        fake_hass, conn,
+        {"id": 212, "type": "hair/unknown/signal/snap-preview",
+         "pronto": _OFF_STANDARD_PRONTO, "target_frequency": 41000},
+    )
+    conn.send_error.assert_called_once()
+    assert conn.send_error.call_args[0][1] == "invalid_target"
 
 
 @pytest.mark.asyncio

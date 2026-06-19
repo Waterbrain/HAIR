@@ -12,7 +12,9 @@ from custom_components.hair.ir_command import (
     build_command,
     build_decoded_command,
     raw_to_pronto,
+    snap_pronto,
 )
+from custom_components.hair.pronto_validator import validate_pronto
 
 
 class TestBuildDecodedCommand:
@@ -297,3 +299,43 @@ class TestRawToPronto:
         """Unsigned (all positive) alternating timings should work."""
         pronto = raw_to_pronto([9000, 4500, 560, 560])
         assert pronto.startswith("0000")
+
+
+# ---------------------------------------------------------------------------
+# snap_pronto carrier re-encode
+# ---------------------------------------------------------------------------
+
+class TestSnapPronto:
+    """Tests for snap_pronto() re-encode at a standard carrier."""
+
+    def test_changes_carrier_to_target(self):
+        # Off-standard (~42 kHz) source, snap to 40 kHz.
+        src = raw_to_pronto(
+            [9000, -4500, 560, -560, 560, -1690], frequency=42000
+        )
+        snapped = snap_pronto(src, 40000)
+        assert snapped.split()[1] != src.split()[1]
+        result = validate_pronto(snapped)
+        assert result.valid
+        assert abs(result.frequency_khz - 40.0) < 0.5
+
+    def test_noop_carrier_word_when_already_target(self):
+        src = raw_to_pronto([9000, -4500, 560, -560], frequency=38000)
+        snapped = snap_pronto(src, 38000)
+        assert snapped.split()[1] == src.split()[1]
+
+    def test_preserves_burst_pair_count(self):
+        src = raw_to_pronto(
+            [9000, -4500, 560, -560, 560, -1690], frequency=42000
+        )
+        snapped = snap_pronto(src, 40000)
+        assert snapped.split()[2] == src.split()[2]
+
+    def test_snaps_to_each_standard(self):
+        src = raw_to_pronto([9000, -4500, 560, -560], frequency=41000)
+        for std in (30000, 33000, 36000, 38000, 40000, 56000):
+            snapped = snap_pronto(src, std)
+            result = validate_pronto(snapped)
+            assert result.valid
+            # Carrier word is rounded, so allow sub-kHz quantization error.
+            assert abs(result.frequency_khz - std / 1000) < 0.6
