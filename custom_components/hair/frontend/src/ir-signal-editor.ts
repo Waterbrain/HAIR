@@ -38,8 +38,10 @@ const isOnStandard = (hz: number): boolean =>
 export class IrSignalEditor extends LitElement {
     @property({ attribute: false }) public api!: HairApi;
     @property({ attribute: false }) public deviceId!: string;
-    /** Present => edit mode; absent => create mode. */
+    /** Present => edit a stored signal; absent => create (or command mode). */
     @property({ attribute: false }) public signalId: string | null = null;
+    /** Present => edit a device command instead of a catalog signal. */
+    @property({ attribute: false }) public commandId: string | null = null;
     @property({ attribute: false }) public initialPronto = "";
     @property({ attribute: false }) public initialAlias = "";
     @property({ type: Boolean }) public hasTrigger = false;
@@ -57,8 +59,12 @@ export class IrSignalEditor extends LitElement {
 
     private _debounce: ReturnType<typeof setTimeout> | null = null;
 
+    private get _isCommand(): boolean {
+        return this.commandId !== null;
+    }
+
     private get _isEdit(): boolean {
-        return this.signalId !== null;
+        return this.signalId !== null || this.commandId !== null;
     }
 
     private get _dirty(): boolean {
@@ -143,7 +149,21 @@ export class IrSignalEditor extends LitElement {
         this._busy = true;
         this._error = null;
         try {
-            if (this._isEdit) {
+            if (this._isCommand) {
+                const result = await this.api.updateCommand({
+                    device_id: this.deviceId,
+                    command_id: this.commandId as string,
+                    name: this._alias.trim(),
+                    pronto: this._pronto,
+                });
+                this.dispatchEvent(
+                    new CustomEvent("command-edited", {
+                        detail: result,
+                        bubbles: true,
+                        composed: true,
+                    }),
+                );
+            } else if (this.signalId !== null) {
                 const result = await this.api.editSignalPronto({
                     device_id: this.deviceId,
                     signal_id: this.signalId as string,
@@ -322,7 +342,11 @@ export class IrSignalEditor extends LitElement {
     }
 
     render() {
-        const heading = this._isEdit ? "Edit signal" : "Create signal";
+        const heading = this._isCommand
+            ? "Edit command"
+            : this._isEdit
+              ? "Edit signal"
+              : "Create signal";
         const primaryLabel = this._isEdit
             ? this._busy
                 ? "Saving..."
@@ -332,6 +356,12 @@ export class IrSignalEditor extends LitElement {
               : "Create";
         const showTriggerNote =
             this._isEdit && this.hasTrigger && this._dirty;
+        const triggerNoteText = this._isCommand
+            ? "This command has a trigger that will automatically re-point."
+            : "This signal has a trigger that will automatically re-point.";
+        const nameLabel = this._isCommand
+            ? "Command name"
+            : `Alias${this._isEdit ? "" : " (optional)"}`;
         return html`
             <ha-dialog
                 open
@@ -360,7 +390,7 @@ export class IrSignalEditor extends LitElement {
                 ${this._renderFeedback()} ${this._renderSnap()}
 
                 <div class="field">
-                    <label>Alias${this._isEdit ? "" : " (optional)"}</label>
+                    <label>${nameLabel}</label>
                     <input
                         type="text"
                         .value=${this._alias}
@@ -372,10 +402,7 @@ export class IrSignalEditor extends LitElement {
                 </div>
 
                 ${showTriggerNote
-                    ? html`<div class="note">
-                          This signal has a trigger that will automatically
-                          re-point.
-                      </div>`
+                    ? html`<div class="note">${triggerNoteText}</div>`
                     : ""}
 
                 <div class="dialog-actions">

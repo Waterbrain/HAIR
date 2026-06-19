@@ -494,6 +494,22 @@ export class HairApi {
         });
     }
 
+    updateCommand(payload: {
+        device_id: string;
+        command_id: string;
+        name?: string;
+        pronto?: string;
+    }): Promise<{
+        command: IRCommand;
+        triggers: { rewired: string[]; skipped: string[] };
+        mappings_updated: number;
+    }> {
+        return this.hass.connection.sendMessagePromise({
+            type: "hair/command/update",
+            ...payload,
+        });
+    }
+
     deleteRemote(deviceId: string): Promise<{ deleted: boolean }> {
         return this.hass.connection.sendMessagePromise<{ deleted: boolean }>({
             type: "hair/clip/delete-remote",
