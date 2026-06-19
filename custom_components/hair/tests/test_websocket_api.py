@@ -72,8 +72,13 @@ def _make_connection():
 
 def _wire_hass(hass, manager=None, orchestrator=None, signal_monitor=None):
     """Set up hass.data[DOMAIN] with a fake entry data dict."""
+    if manager is None:
+        manager = MagicMock()
+        # The assign handlers await these post-assign (auto-map + persist).
+        manager.async_apply_auto_map = AsyncMock()
+        manager._store.async_save = AsyncMock()
     entry_data = {
-        "device_manager": manager or MagicMock(),
+        "device_manager": manager,
         "orchestrator": orchestrator or MagicMock(),
         "signal_monitor": signal_monitor or MagicMock(),
     }
@@ -1385,6 +1390,9 @@ async def test_assign_new_device_success(fake_hass):
     manager._register_ha_device = MagicMock()
     manager._entity_factory = MagicMock()
     manager._entity_factory.async_create_entities = AsyncMock()
+    # The handler now auto-maps the new command and persists before creating
+    # entities -- async_save is awaited.
+    manager._store.async_save = AsyncMock()
     _wire_hass(fake_hass, manager=manager, signal_monitor=monitor)
 
     sig = UnknownSignal(

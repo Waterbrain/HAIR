@@ -262,6 +262,28 @@ class DeviceManager:
         await self._entity_factory.async_update_entities(device)
         return command
 
+    async def async_apply_auto_map(
+        self, device_id: str, command_id: str
+    ) -> IRDevice | None:
+        """Apply the action auto-map to an already-stored command and refresh.
+
+        The assign path (``signal_monitor.assign_*``) creates the command via
+        the model's ``add_command``, which -- unlike the learn path's
+        ``async_add_command`` -- does not run ``_auto_map_command``. Call this
+        after an assign so a command whose name matches a standard action
+        (Power, Fan: Auto, Mode: Cool, ...) gets mapped, the AC fan/hvac modes
+        get registered, and the entities refresh to expose them. A no-op for a
+        custom name with no standard action. Returns the updated device.
+        """
+        device = self._store.get_device(device_id)
+        if device is None:
+            return None
+        command = device.get_command(command_id)
+        if command is None:
+            return device
+        self._auto_map_command(device, command)
+        return await self.async_update_device(device)
+
     async def async_remove_command(
         self, device_id: str, command_id: str
     ) -> bool:

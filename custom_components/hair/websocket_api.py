@@ -990,6 +990,13 @@ async def ws_assign_signal(
             result.get("error", "Assign failed"),
         )
         return
+    # The assign path does not run the action auto-map the learn path does;
+    # apply it now so a standard-action command (Fan: Auto, etc.) maps and
+    # the device's entities refresh.
+    device_manager: DeviceManager = data["device_manager"]
+    await device_manager.async_apply_auto_map(
+        msg["hair_device_id"], result["command_id"]
+    )
     connection.send_result(msg["id"], {
         "assigned": True,
         "command_id": result["command_id"],
@@ -1115,6 +1122,13 @@ async def ws_assign_new_device(
     # Register HA device + entities now that both stores are persisted.
     device_mgr = data["device_manager"]
     new_device = result["device"]
+    # Apply the action auto-map before creating entities, so the new device's
+    # feature entities (e.g. an AC's fan/hvac modes) come up already mapped.
+    command = new_device.get_command(result["command_id"])
+    if command is not None:
+        device_mgr._auto_map_command(new_device, command)
+        device_mgr._store.update_device(new_device)
+        await device_mgr._store.async_save()
     device_mgr._register_ha_device(new_device)
     await device_mgr._entity_factory.async_create_entities(new_device)
 

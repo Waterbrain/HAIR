@@ -475,3 +475,44 @@ class TestUpdateCommand:
         assert manager._store.get_device(dev.id).get_command("c1").send_count == 10
         await manager.async_update_command(dev.id, "c1", send_count=0)
         assert manager._store.get_device(dev.id).get_command("c1").send_count == 1
+
+
+class TestApplyAutoMap:
+    """async_apply_auto_map: the action mapping the assign path skips."""
+
+    @pytest.mark.asyncio
+    async def test_maps_standard_command(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        # Mimic an assign: model add_command, with no auto-map applied.
+        dev = IRDevice(name="TV", device_type=DeviceType.MEDIA_PLAYER)
+        dev.add_command(IRCommand(id="c1", name="Volume Up"))
+        manager._store.add_device(dev)
+        assert dev.entity_config.command_mapping == {}
+
+        await manager.async_apply_auto_map(dev.id, "c1")
+        mapping = manager._store.get_device(dev.id).entity_config.command_mapping
+        assert mapping.get("volume_up") == "Volume Up"
+
+    @pytest.mark.asyncio
+    async def test_registers_ac_fan_mode(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        dev = IRDevice(name="AC", device_type=DeviceType.AC)
+        dev.add_command(IRCommand(id="c1", name="Fan: Auto"))
+        manager._store.add_device(dev)
+
+        await manager.async_apply_auto_map(dev.id, "c1")
+        refreshed = manager._store.get_device(dev.id)
+        assert refreshed.entity_config.command_mapping.get("fan_auto") == "Fan: Auto"
+        assert "auto" in (refreshed.entity_config.fan_modes or [])
+
+    @pytest.mark.asyncio
+    async def test_noop_for_custom_name(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        dev = IRDevice(name="TV", device_type=DeviceType.MEDIA_PLAYER)
+        dev.add_command(IRCommand(id="c1", name="My Macro"))
+        manager._store.add_device(dev)
+
+        await manager.async_apply_auto_map(dev.id, "c1")
+        assert (
+            manager._store.get_device(dev.id).entity_config.command_mapping == {}
+        )
