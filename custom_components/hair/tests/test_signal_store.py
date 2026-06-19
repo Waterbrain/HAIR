@@ -589,6 +589,25 @@ class TestManualOrder:
         with pytest.raises(ValueError, match="Duplicate"):
             store.reorder_devices("sniffed", ["s1", "s1"])
 
+    def test_reorder_devices_allows_hidden_subset(self):
+        """The drag UI sends only the visible (min_hits-filtered) remotes, so a
+        reorder that omits a same-source device must succeed and leave the
+        hidden device in its slot. Regression: a low-hit remote in the store
+        used to make every Sniffer reorder fail with a 'missing' error."""
+        store = SignalStore(_make_hass())
+        a, b, c = (
+            _ordered_device("a"), _ordered_device("b"), _ordered_device("c")
+        )
+        for d in (a, b, c):
+            store.add_device(d)
+        # Pin a known order: a=0, b=1, c=2.
+        store.reorder_devices("sniffed", ["a", "b", "c"])
+        assert (a.order, b.order, c.order) == (0, 1, 2)
+        # The UI shows only a and c (b is below the hit threshold); swap them.
+        store.reorder_devices("sniffed", ["c", "a"])
+        # b stays in its slot (index 1); a and c swap around it.
+        assert (c.order, b.order, a.order) == (0, 1, 2)
+
     @pytest.mark.asyncio
     async def test_load_backfills_order_by_hit_count(self):
         """Pre-0.3.2 records (no order) seed manual order from hit_count."""

@@ -315,35 +315,40 @@ class SignalStore:
         self._devices[device.id] = device
 
     def reorder_devices(self, source: str, ordered_ids: list[str]) -> None:
-        """Reorder the devices of one source to match ``ordered_ids``.
+        """Reorder the *visible* devices of one source to ``ordered_ids``.
 
-        ``ordered_ids`` must be exactly the set of device ids currently
-        held for that ``source`` -- no duplicates, unknown, or missing.
-        The drag UI always sends the complete per-tab list, so any
-        divergence is a stale client and is rejected loudly. Devices of
-        the other source are untouched. Renumbers the given source 0..n.
+        The drag UI shows a filtered slice of a source: the ``min_hits``
+        noise filter hides low-hit remotes and dismissed remotes are hidden
+        too, so ``ordered_ids`` legitimately omits same-source devices. Those
+        hidden devices are left exactly where they sit in the overall order;
+        only the submitted (visible) devices are rearranged, within the slots
+        they already occupy. Devices of the other source are untouched.
 
-        Raises :class:`ValueError` on mismatch and changes nothing.
+        Rejects duplicates or an id that is not a current device of this
+        source (a stale client). Renumbers the source 0..n.
+
+        Raises :class:`ValueError` on a bad list and changes nothing.
         """
         if len(ordered_ids) != len(set(ordered_ids)):
             raise ValueError("Duplicate device ids in reorder list")
-        current = {
-            d.id for d in self._devices.values() if d.source == source
-        }
-        requested = set(ordered_ids)
-        if requested != current:
-            missing = current - requested
-            unknown = requested - current
-            details: list[str] = []
-            if missing:
-                details.append(f"missing {sorted(missing)}")
-            if unknown:
-                details.append(f"unknown {sorted(unknown)}")
+        same_source = sorted(
+            (d for d in self._devices.values() if d.source == source),
+            key=lambda d: d.order,
+        )
+        current = {d.id for d in same_source}
+        unknown = set(ordered_ids) - current
+        if unknown:
             raise ValueError(
-                "Reorder list does not match current devices: "
-                + ", ".join(details)
+                f"Reorder list has unknown devices: {sorted(unknown)}"
             )
-        for index, device_id in enumerate(ordered_ids):
+        # Fill each visible slot (a device the drag UI showed) with the next
+        # id from the requested order; leave hidden devices in their slots.
+        requested = set(ordered_ids)
+        req_iter = iter(ordered_ids)
+        final_ids = [
+            next(req_iter) if d.id in requested else d.id for d in same_source
+        ]
+        for index, device_id in enumerate(final_ids):
             self._devices[device_id].order = index
 
     def remove_device(self, device_id: str) -> bool:
