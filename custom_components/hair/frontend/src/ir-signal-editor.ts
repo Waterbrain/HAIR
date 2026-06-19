@@ -21,6 +21,19 @@ import type { ProntoValidation, UnknownSignal } from "./types.js";
 const SL_THRESHOLD = 0x30;
 const GAP_THRESHOLD = 0x0400;
 
+// Mirrors frequency_standards.py. Drives the off-standard snap notice; the
+// authoritative re-encode happens server-side via snap-preview.
+const IR_CARRIER_STANDARDS_HZ = [30000, 33000, 36000, 38000, 40000, 56000];
+const ON_STANDARD_TOLERANCE_HZ = 500;
+// Nearest standard; on a tie the lower one wins (matches Python's min), since
+// reduce keeps the earlier value when the new distance is not strictly less.
+const nearestStandard = (hz: number): number =>
+    IR_CARRIER_STANDARDS_HZ.reduce((a, b) =>
+        Math.abs(b - hz) < Math.abs(a - hz) ? b : a,
+    );
+const isOnStandard = (hz: number): boolean =>
+    Math.abs(hz - nearestStandard(hz)) <= ON_STANDARD_TOLERANCE_HZ;
+
 @customElement("ir-signal-editor")
 export class IrSignalEditor extends LitElement {
     @property({ attribute: false }) public api!: HairApi;
@@ -30,6 +43,8 @@ export class IrSignalEditor extends LitElement {
     @property({ attribute: false }) public initialPronto = "";
     @property({ attribute: false }) public initialAlias = "";
     @property({ type: Boolean }) public hasTrigger = false;
+    /** Sniffer-only: enables the off-standard carrier snap affordance. */
+    @property({ type: Boolean }) public allowSnap = false;
 
     @state() private _pronto = "";
     @state() private _alias = "";
@@ -37,6 +52,8 @@ export class IrSignalEditor extends LitElement {
     @state() private _error: string | null = null;
     @state() private _validation: ProntoValidation | null = null;
     @state() private _copied = false;
+    @state() private _snapping = false;
+    @state() private _snapFlash = false;
 
     private _debounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -245,6 +262,65 @@ export class IrSignalEditor extends LitElement {
         `;
     }
 
+    /** Current valid carrier in Hz, or null when not validatable. */
+    private get _carrierHz(): number | null {
+        const khz = this._validation?.valid ? this._validation.frequency_khz : null;
+        return khz != null ? Math.round(khz * 1000) : null;
+    }
+
+    /** Snap is offered only on the Sniffer when the carrier reads off-standard. */
+    private get _showSnap(): boolean {
+        if (!this.allowSnap) return false;
+        const hz = this._carrierHz;
+        return hz != null && !isOnStandard(hz);
+    }
+
+    private async _snap(target: number): Promise<void> {
+        this._snapping = true;
+        this._error = null;
+        try {
+            const res = await this.api.snapPreview({
+                pronto: this._pronto,
+                target_frequency: target,
+            });
+            this._pronto = res.pronto;
+            // Re-validate so the carrier reads the standard value and the
+            // off-standard notice clears; the flash settles the staged code.
+            await this._validate();
+            this._snapFlash = true;
+            setTimeout(() => {
+                this._snapFlash = false;
+            }, 700);
+        } catch (err) {
+            this._error = (err as Error).message;
+        } finally {
+            this._snapping = false;
+        }
+    }
+
+    private _renderSnap() {
+        if (!this._showSnap) return "";
+        const hz = this._carrierHz as number;
+        const target = nearestStandard(hz);
+        const curKhz = (hz / 1000).toFixed(1);
+        const tgtKhz = (target / 1000).toFixed(0);
+        return html`
+            <div class="snap-notice">
+                <div class="snap-text">
+                    Carrier is ${curKhz} kHz, off the IR standards. Some
+                    receivers reject it.
+                </div>
+                <button
+                    class="snap-btn"
+                    ?disabled=${this._snapping}
+                    @click=${() => this._snap(target)}
+                >
+                    ${this._snapping ? "Snapping..." : `Snap to ${tgtKhz} kHz`}
+                </button>
+            </div>
+        `;
+    }
+
     render() {
         const heading = this._isEdit ? "Edit signal" : "Create signal";
         const primaryLabel = this._isEdit
@@ -270,6 +346,7 @@ export class IrSignalEditor extends LitElement {
                 <div class="field">
                     <label>Pronto code</label>
                     <textarea
+                        class=${this._snapFlash ? "snap-flash" : ""}
                         rows="4"
                         .value=${this._pronto}
                         placeholder="0000 006D ..."
@@ -280,7 +357,7 @@ export class IrSignalEditor extends LitElement {
                     ></textarea>
                 </div>
 
-                ${this._renderFeedback()}
+                ${this._renderFeedback()} ${this._renderSnap()}
 
                 <div class="field">
                     <label>Alias${this._isEdit ? "" : " (optional)"}</label>
@@ -362,6 +439,55 @@ export class IrSignalEditor extends LitElement {
         textarea:focus {
             outline: none;
             border-color: #b87333;
+        }
+        @keyframes snap-flash {
+            0% {
+                border-color: #ff9800;
+                background: rgba(255, 152, 0, 0.18);
+            }
+            100% {
+                border-color: var(--divider-color);
+                background: var(--card-background-color);
+            }
+        }
+        textarea.snap-flash {
+            animation: snap-flash 700ms ease-out;
+        }
+        .snap-notice {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 4px 0 12px;
+            padding: 10px 12px;
+            border-radius: 6px;
+            background: rgba(255, 152, 0, 0.1);
+            border: 1px solid rgba(255, 152, 0, 0.35);
+        }
+        .snap-text {
+            flex: 1;
+            font-size: 0.8rem;
+            line-height: 1.3;
+            color: #b26500;
+        }
+        .snap-btn {
+            flex-shrink: 0;
+            background: none;
+            border: 1px solid #e65100;
+            color: #e65100;
+            border-radius: 4px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: background 150ms ease;
+        }
+        .snap-btn:hover:not(:disabled) {
+            background: rgba(255, 152, 0, 0.12);
+        }
+        .snap-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
         ha-alert {
             display: block;

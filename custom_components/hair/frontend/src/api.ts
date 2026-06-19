@@ -484,6 +484,16 @@ export class HairApi {
         });
     }
 
+    snapPreview(payload: {
+        pronto: string;
+        target_frequency: number;
+    }): Promise<{ pronto: string; frequency_khz: number }> {
+        return this.hass.connection.sendMessagePromise({
+            type: "hair/unknown/signal/snap-preview",
+            ...payload,
+        });
+    }
+
     deleteRemote(deviceId: string): Promise<{ deleted: boolean }> {
         return this.hass.connection.sendMessagePromise<{ deleted: boolean }>({
             type: "hair/clip/delete-remote",

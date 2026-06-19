@@ -997,6 +997,7 @@ export class IrSignalMonitor extends LitElement {
                       .signalId=${this._editSignal.signal.id}
                       .initialPronto=${this._editSignal.signal.code ?? ""}
                       .initialAlias=${this._editSignal.signal.alias ?? ""}
+                      .allowSnap=${true}
                       @signal-edited=${this._onSignalEdited}
                       @closed=${() => (this._editSignal = null)}
                   ></ir-signal-editor>`
