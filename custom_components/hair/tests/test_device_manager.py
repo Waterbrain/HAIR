@@ -15,8 +15,11 @@ from custom_components.hair.device_manager import (
     category_for_command_name,
 )
 from custom_components.hair.entity_factory import EntityFactory
-from custom_components.hair.models import IRCommand, IRDevice
+from custom_components.hair.event_parser import EventParser
+from custom_components.hair.models import IRCommand, IRDevice, IRTrigger
+from custom_components.hair.pronto_validator import validate_pronto
 from custom_components.hair.storage import HAIRStore
+from custom_components.hair.trigger_manager import TriggerManager
 
 
 class _FakeStore:
@@ -252,3 +255,156 @@ def test_category_for_command_name():
     assert category_for_command_name("Mode: Cool") == CommandCategory.MODE
     assert category_for_command_name("Fan: High") == CommandCategory.FAN_SPEED
     assert category_for_command_name("Random") == CommandCategory.CUSTOM
+
+
+# ---------------------------------------------------------------------------
+# async_update_command -- device-command editor + rename (F5/F6)
+# ---------------------------------------------------------------------------
+
+# Two structurally valid Prontos with distinct S/L fingerprints (all-short
+# vs all-long bursts), so an edit between them moves the matcher key.
+_CODE_SHORT = "0000 006D 0002 0000 0010 0010 0010 0010"
+_CODE_LONG = "0000 006D 0002 0000 0040 0040 0040 0040"
+
+
+def _fp(code: str, raw=None) -> str:
+    return EventParser.signal_fingerprint("PRONTO", code, raw)
+
+
+class TestUpdateCommand:
+    """device_manager.async_update_command edits a command in place."""
+
+    @pytest.mark.asyncio
+    async def test_code_edit_recomputes_identity_and_index(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO", code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        manager._store.add_device(dev)
+        old_fp = _fp(_CODE_SHORT)
+        assert manager._store.match_command(None, old_fp, None) == (dev.id, "c1")
+
+        with patch(
+            "custom_components.hair.protocol_decode.decode_to_fields",
+            return_value=(None, None, None, None),
+        ):
+            result = await manager.async_update_command(
+                dev.id, "c1", pronto=_CODE_LONG
+            )
+
+        assert result["success"] is True
+        updated = manager._store.get_device(dev.id).get_command("c1")
+        assert updated.code == validate_pronto(_CODE_LONG).normalized
+        # The new code is now the known command...
+        new_fp = _fp(updated.code, updated.raw_timings)
+        assert manager._store.match_command(
+            None, new_fp, updated.byte_hash
+        ) == (dev.id, "c1")
+        # ...and the old code no longer resolves to anything.
+        assert manager._store.match_command(None, old_fp, None) is None
+
+    @pytest.mark.asyncio
+    async def test_rename_cascades_mappings_two_features(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO", code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        # Two features mapped to the one command -- both must cascade.
+        dev.entity_config.command_mapping = {
+            "power_toggle": "Power",
+            "turn_on": "Power",
+        }
+        manager._store.add_device(dev)
+
+        result = await manager.async_update_command(
+            dev.id, "c1", name="Power Button"
+        )
+        assert result["success"] is True
+        assert result["mappings_updated"] == 2
+        refreshed = manager._store.get_device(dev.id)
+        assert refreshed.get_command("c1").name == "Power Button"
+        assert refreshed.entity_config.command_mapping == {
+            "power_toggle": "Power Button",
+            "turn_on": "Power Button",
+        }
+
+    @pytest.mark.asyncio
+    async def test_rename_rejects_duplicate_name(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        dev = IRDevice(
+            name="TV",
+            commands=[
+                IRCommand(id="c1", name="Power", protocol="PRONTO",
+                          code=_CODE_SHORT),
+                IRCommand(id="c2", name="Mute", protocol="PRONTO",
+                          code=_CODE_LONG),
+            ],
+        )
+        manager._store.add_device(dev)
+
+        result = await manager.async_update_command(dev.id, "c1", name="Mute")
+        assert result["success"] is False
+        assert result["code"] == "duplicate_name"
+        assert manager._store.get_device(dev.id).get_command("c1").name == "Power"
+
+    @pytest.mark.asyncio
+    async def test_rename_leaves_triggers_untouched(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO", code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        manager._store.add_device(dev)
+        trig = IRTrigger(
+            name="TV Power",
+            signal_fingerprint=_fp(_CODE_SHORT),
+            protocol="PRONTO",
+            code=_CODE_SHORT,
+        )
+        manager._store.add_trigger(trig)
+        tm = TriggerManager(manager._hass, manager._store)
+
+        result = await manager.async_update_command(
+            dev.id, "c1", name="Power Button", trigger_manager=tm
+        )
+        assert result["success"] is True
+        assert result["triggers"] == {"rewired": [], "skipped": []}
+        assert trig.signal_fingerprint == _fp(_CODE_SHORT)
+        assert trig.code == _CODE_SHORT
+
+    @pytest.mark.asyncio
+    async def test_code_edit_names_rewired_trigger(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO", code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        manager._store.add_device(dev)
+        trig = IRTrigger(
+            name="TV Power",
+            signal_fingerprint=_fp(_CODE_SHORT),
+            protocol="PRONTO",
+            code=_CODE_SHORT,
+        )
+        manager._store.add_trigger(trig)
+        tm = TriggerManager(manager._hass, manager._store)
+
+        with patch(
+            "custom_components.hair.protocol_decode.decode_to_fields",
+            return_value=(None, None, None, None),
+        ):
+            result = await manager.async_update_command(
+                dev.id, "c1", pronto=_CODE_LONG, trigger_manager=tm
+            )
+
+        assert result["success"] is True
+        assert result["triggers"]["rewired"] == ["TV Power"]
+        updated = manager._store.get_device(dev.id).get_command("c1")
+        assert trig.signal_fingerprint == _fp(updated.code, updated.raw_timings)
+
+    @pytest.mark.asyncio
+    async def test_not_found_errors(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        missing_device = await manager.async_update_command("nope", "c1", name="X")
+        assert missing_device["code"] == "device_not_found"
+
+        dev = IRDevice(name="TV", commands=[IRCommand(id="c1", name="Power")])
+        manager._store.add_device(dev)
+        missing_cmd = await manager.async_update_command(
+            dev.id, "missing", name="X"
+        )
+        assert missing_cmd["code"] == "command_not_found"
