@@ -34,6 +34,10 @@ const nearestStandard = (hz: number): number =>
 const isOnStandard = (hz: number): boolean =>
     Math.abs(hz - nearestStandard(hz)) <= ON_STANDARD_TOLERANCE_HZ;
 
+// mdi:content-copy -- corner copy/select affordance on the code box.
+const ICON_COPY =
+    "M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z";
+
 @customElement("ir-signal-editor")
 export class IrSignalEditor extends LitElement {
     @property({ attribute: false }) public api!: HairApi;
@@ -90,13 +94,17 @@ export class IrSignalEditor extends LitElement {
     }
 
     updated(): void {
-        // Grow the code box to fit its content (capped by CSS max-height),
-        // so a long Pronto opens fully visible instead of scrolled.
+        // Size the code box to fit its content so a long Pronto opens fully
+        // visible. Reset to 0 first so scrollHeight reports the true content
+        // height (not the current box height -- that overshoots), then clamp
+        // between a small baseline and ~45% of the viewport.
         const ta = this.shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
-        if (ta) {
-            ta.style.height = "auto";
-            ta.style.height = `${ta.scrollHeight}px`;
-        }
+        if (!ta) return;
+        const minPx = 64;
+        const maxPx = Math.round(window.innerHeight * 0.45);
+        ta.style.height = "0px";
+        const fit = Math.min(Math.max(ta.scrollHeight + 2, minPx), maxPx);
+        ta.style.height = `${fit}px`;
     }
 
     disconnectedCallback(): void {
@@ -374,16 +382,36 @@ export class IrSignalEditor extends LitElement {
 
                 <div class="field">
                     <label>Pronto code</label>
-                    <textarea
-                        class=${this._snapFlash ? "snap-flash" : ""}
-                        rows="4"
-                        .value=${this._pronto}
-                        placeholder="0000 006D ..."
-                        autofocus
-                        spellcheck="false"
-                        @input=${this._onProntoInput}
-                        @keydown=${this._onKeydown}
-                    ></textarea>
+                    <div class="code-wrap">
+                        <textarea
+                            class=${this._snapFlash ? "snap-flash" : ""}
+                            rows="4"
+                            .value=${this._pronto}
+                            placeholder="0000 006D ..."
+                            autofocus
+                            spellcheck="false"
+                            @input=${this._onProntoInput}
+                            @keydown=${this._onKeydown}
+                        ></textarea>
+                        ${this._pronto.trim()
+                            ? html`
+                                  ${this._copyHint
+                                      ? html`<span class="copy-flash"
+                                            >${this._copyHint}</span
+                                        >`
+                                      : ""}
+                                  <button
+                                      class="copy-icon"
+                                      title="Select all (then Cmd/Ctrl+C)"
+                                      @click=${this._selectCode}
+                                  >
+                                      <ha-svg-icon
+                                          .path=${ICON_COPY}
+                                      ></ha-svg-icon>
+                                  </button>
+                              `
+                            : ""}
+                    </div>
                 </div>
 
                 ${this._renderFeedback()} ${this._renderSnap()}
@@ -405,14 +433,6 @@ export class IrSignalEditor extends LitElement {
                     : ""}
 
                 <div class="dialog-actions">
-                    ${this._isEdit
-                        ? html`<button
-                              class="action-btn copy-btn"
-                              @click=${this._selectCode}
-                          >
-                              ${this._copyHint ?? "Select code"}
-                          </button>`
-                        : ""}
                     <span class="spacer"></span>
                     <button
                         class="action-btn cancel-btn"
@@ -460,10 +480,50 @@ export class IrSignalEditor extends LitElement {
         textarea {
             font-family: monospace;
             resize: vertical;
-            /* updated() grows the height to fit the code; cap it here so a
-               very long Pronto scrolls instead of overflowing the dialog. */
-            max-height: 45vh;
+            /* Extra top padding keeps the first line of code clear of the
+               corner copy icon. */
+            padding-top: 24px;
+            /* updated() sizes the height to fit the code (clamped in JS), so
+               a long Pronto scrolls instead of overflowing the dialog. */
             overflow-y: auto;
+        }
+        .code-wrap {
+            position: relative;
+        }
+        .copy-icon {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            z-index: 2;
+            display: inline-flex;
+            align-items: center;
+            padding: 2px;
+            border: none;
+            background: none;
+            color: var(--secondary-text-color);
+            cursor: pointer;
+            opacity: 0.55;
+            transition: opacity 150ms ease;
+        }
+        .copy-icon:hover {
+            opacity: 0.9;
+        }
+        .copy-icon ha-svg-icon {
+            --mdc-icon-size: 12px;
+        }
+        .copy-flash {
+            position: absolute;
+            top: 7px;
+            right: 34px;
+            z-index: 2;
+            font-size: 0.72rem;
+            white-space: nowrap;
+            color: var(--secondary-text-color);
+            background: var(--card-background-color);
+            border: 1px solid var(--divider-color);
+            border-radius: 4px;
+            padding: 1px 6px;
+            pointer-events: none;
         }
         input[type="text"]:focus,
         textarea:focus {
