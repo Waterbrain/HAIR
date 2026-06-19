@@ -54,3 +54,4 @@ docs/internal/
 
 # Working files
 trash/
+.mypy_cache/
