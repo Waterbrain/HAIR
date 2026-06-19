@@ -1781,3 +1781,105 @@ class TestNativeSignalProcessing:
         await _run_native_signal(monitor, hass, signal)
         assert len(received) == 1
         assert "signal_fingerprint" in received[0]
+
+
+class TestEditSignalPronto:
+    """edit_signal_pronto: re-evaluate a stored signal's code as a capture."""
+
+    _A = "0000 006D 0002 0000 0010 0010 0010 0010"
+    _B = "0000 006D 0002 0000 0010 0040 0010 0010"
+
+    @pytest.mark.asyncio
+    async def test_recomputes_identity_and_reevaluates_timings(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            sid = created["signal"]["id"]
+            old_fp = device.signals[0].fingerprint
+            res = await monitor.edit_signal_pronto(device.id, sid, self._B)
+        assert res["success"] is True
+        sig = device.get_signal_by_id(sid)
+        assert sig.code == self._B
+        assert sig.fingerprint != old_fp
+        # Re-evaluated as a capture: raw timings now derive from the new code.
+        assert sig.raw_timings
+
+    @pytest.mark.asyncio
+    async def test_edit_to_same_code_allowed_no_rewire(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        tm = MagicMock()
+        tm.rewire = AsyncMock(return_value={"rewired": [], "skipped": []})
+        monitor = SignalMonitor(hass, store, _make_hair_store(), tm)
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            res = await monitor.edit_signal_pronto(
+                device.id, created["signal"]["id"], self._A
+            )
+        assert res["success"] is True  # self is excluded from the collision guard
+        tm.rewire.assert_not_awaited()  # fingerprint unchanged
+
+    @pytest.mark.asyncio
+    async def test_collision_with_other_signal_rejected(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            a = await monitor.create_manual_signal(device.id, self._A)
+            await monitor.create_manual_signal(device.id, self._B)
+            res = await monitor.edit_signal_pronto(
+                device.id, a["signal"]["id"], self._B
+            )
+        assert res["success"] is False
+        assert res["code"] == "duplicate_signal"
+
+    @pytest.mark.asyncio
+    async def test_rewires_triggers_on_fingerprint_change(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        tm = MagicMock()
+        tm.rewire = AsyncMock(return_value={"rewired": ["TV"], "skipped": []})
+        monitor = SignalMonitor(hass, store, _make_hair_store(), tm)
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            sid = created["signal"]["id"]
+            old_fp = device.signals[0].fingerprint
+            res = await monitor.edit_signal_pronto(device.id, sid, self._B)
+        assert res["success"] is True
+        tm.rewire.assert_awaited_once()
+        call_args = tm.rewire.await_args[0]
+        assert call_args[0] == old_fp
+        assert call_args[2] == "PRONTO"
+        assert call_args[3] == self._B
+        assert res["triggers"] == {"rewired": ["TV"], "skipped": []}
+
+    @pytest.mark.asyncio
+    async def test_missing_signal_errors(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            res = await monitor.edit_signal_pronto(device.id, "nope", self._A)
+        assert res["success"] is False
+        assert res["code"] == "signal_not_found"
+
+    @pytest.mark.asyncio
+    async def test_invalid_pronto_rejected(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        monitor = SignalMonitor(hass, store, _make_hair_store())
+        with patch.object(store, "async_save", AsyncMock()):
+            device = await monitor.create_manual_remote("R")
+            created = await monitor.create_manual_signal(device.id, self._A)
+            res = await monitor.edit_signal_pronto(
+                device.id, created["signal"]["id"], "garbage zz"
+            )
+        assert res["success"] is False
+        assert res["code"] == "invalid_pronto"

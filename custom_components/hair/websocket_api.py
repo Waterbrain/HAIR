@@ -83,6 +83,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     # Clips (manual remotes / signals)
     websocket_api.async_register_command(hass, ws_clip_create_remote)
     websocket_api.async_register_command(hass, ws_clip_create_signal)
+    websocket_api.async_register_command(hass, ws_unknown_signal_edit_pronto)
     websocket_api.async_register_command(hass, ws_clip_validate_pronto)
     websocket_api.async_register_command(hass, ws_clip_delete_remote)
 
@@ -1315,6 +1316,42 @@ async def ws_clip_create_signal(
         )
         return
     connection.send_result(msg["id"], {"signal": result["signal"]})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({
+    vol.Required("type"): f"{WS_PREFIX}/unknown/signal/edit-pronto",
+    vol.Required("device_id"): str,
+    vol.Required("signal_id"): str,
+    vol.Required("pronto"): str,
+    vol.Optional("alias"): vol.Any(str, None),
+})
+@websocket_api.async_response
+async def ws_unknown_signal_edit_pronto(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Edit a stored signal's Pronto in place, re-evaluated as a capture."""
+    data = _get_first_entry_data(hass)
+    if data is None:
+        connection.send_error(msg["id"], "not_configured", "HAIR not configured")
+        return
+    monitor: SignalMonitor = data["signal_monitor"]
+    result = await monitor.edit_signal_pronto(
+        msg["device_id"], msg["signal_id"], msg["pronto"], msg.get("alias")
+    )
+    if not result["success"]:
+        connection.send_error(
+            msg["id"],
+            result.get("code", "edit_failed"),
+            result.get("error", "Failed to edit signal"),
+        )
+        return
+    connection.send_result(
+        msg["id"],
+        {"signal": result["signal"], "triggers": result["triggers"]},
+    )
 
 
 @websocket_api.require_admin

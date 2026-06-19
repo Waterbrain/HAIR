@@ -992,6 +992,108 @@ class SignalMonitor:
             await self._signal_store.async_save()
         return {"success": True, "signal": signal.to_dict()}
 
+    async def edit_signal_pronto(
+        self,
+        device_id: str,
+        signal_id: str,
+        pronto: str,
+        alias: str | None = None,
+    ) -> dict[str, Any]:
+        """Edit a stored signal's Pronto in place, re-evaluated as a capture.
+
+        Validates, locates the signal by ``id``, and re-derives every
+        identity field from the new code -- frequency, raw timings (from the
+        Pronto), S/L fingerprint, byte_hash, and ``decoded_*`` -- so an edited
+        signal is indistinguishable from a freshly captured one and stays
+        snappable. Rejects a code that collides with a *different* signal on
+        the same remote (self excluded by id). When the S/L fingerprint
+        changes, bound triggers are auto-rewired to the new identity.
+
+        Returns ``{success, signal, triggers}`` where ``triggers`` is the
+        rewire result (``{"rewired": [...], "skipped": [...]}``) so the caller
+        can name the affected trigger(s) in a note.
+        """
+        result = validate_pronto(pronto)
+        if not result.valid:
+            return {
+                "success": False,
+                "code": "invalid_pronto",
+                "error": (
+                    result.errors[0] if result.errors else "Invalid Pronto code"
+                ),
+            }
+
+        from .ir_command import ProntoCommand
+
+        async with self._lock:
+            device = self._signal_store.get_device(device_id)
+            if device is None:
+                return {"success": False, "code": "device_not_found",
+                        "error": "Remote not found"}
+            signal = device.get_signal_by_id(signal_id)
+            if signal is None:
+                return {"success": False, "code": "signal_not_found",
+                        "error": "Signal not found"}
+
+            code = result.normalized
+            new_fp = EventParser.signal_fingerprint("PRONTO", code, [])
+            new_byte_hash = EventParser.pronto_byte_hash(code)
+
+            # Refuse a code a *different* signal on this remote already holds.
+            # Editing to the identity the signal already has is allowed (it
+            # resolves to this same signal, so no collision).
+            existing = device.get_signal(new_fp, new_byte_hash)
+            if existing is not None and existing.id != signal.id:
+                return {
+                    "success": False,
+                    "code": "duplicate_signal",
+                    "error": "Another signal on this remote already has that code",
+                }
+
+            old_fp = signal.fingerprint
+
+            # Re-evaluate the new code as a fresh capture: derive timings from
+            # the Pronto and decode, so the signal stays first-class and (on
+            # the Sniffer) snappable.
+            try:
+                raw = ProntoCommand(code).get_raw_timings()
+            except Exception:
+                raw = None
+            (
+                decoded_protocol,
+                decoded_address,
+                decoded_command,
+                decoded_fingerprint,
+            ) = decode_to_fields(raw)
+            frequency = (
+                round(result.frequency_khz * 1000)
+                if result.frequency_khz
+                else DEFAULT_CARRIER_FREQUENCY
+            )
+
+            signal.code = code
+            signal.fingerprint = new_fp
+            signal.byte_hash = new_byte_hash
+            signal.raw_timings = list(raw) if raw else []
+            signal.frequency = frequency
+            signal.decoded_protocol = decoded_protocol
+            signal.decoded_address = decoded_address
+            signal.decoded_command = decoded_command
+            signal.decoded_fingerprint = decoded_fingerprint
+            if alias is not None:
+                signal.alias = alias.strip()
+            signal.last_seen = datetime.now(UTC).isoformat()
+
+            rewire: dict[str, list[str]] = {"rewired": [], "skipped": []}
+            if self._trigger_manager is not None and new_fp != old_fp:
+                rewire = await self._trigger_manager.rewire(
+                    old_fp, new_fp, "PRONTO", code
+                )
+
+            await self._signal_store.async_save()
+
+        return {"success": True, "signal": signal.to_dict(), "triggers": rewire}
+
     async def import_manual_remote(
         self, name: str, entries: list[dict[str, Any]]
     ) -> dict[str, Any]:
