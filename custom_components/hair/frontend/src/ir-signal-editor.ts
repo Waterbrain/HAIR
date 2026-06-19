@@ -163,14 +163,40 @@ export class IrSignalEditor extends LitElement {
     }
 
     private async _copy(): Promise<void> {
+        const text = this._pronto;
+        let ok = false;
         try {
-            await navigator.clipboard.writeText(this._pronto);
+            if (window.isSecureContext && navigator.clipboard) {
+                await navigator.clipboard.writeText(text);
+                ok = true;
+            }
+        } catch {
+            ok = false;
+        }
+        if (!ok) {
+            // HA is often served over plain http on a LAN IP, where
+            // navigator.clipboard is unavailable. Fall back to a hidden
+            // textarea + execCommand, which works in a non-secure context.
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = text;
+                ta.style.position = "fixed";
+                ta.style.top = "-1000px";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ok = document.execCommand("copy");
+                document.body.removeChild(ta);
+            } catch {
+                ok = false;
+            }
+        }
+        if (ok) {
             this._copied = true;
             setTimeout(() => {
                 this._copied = false;
             }, 1500);
-        } catch {
-            // Clipboard may be unavailable; the text stays selectable.
         }
     }
 

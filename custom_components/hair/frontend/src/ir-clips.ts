@@ -823,7 +823,7 @@ export class IrClips extends LitElement {
                       >
                           <ha-svg-icon
                               .path=${ICON_COPY}
-                              style="--mdc-icon-size:18px"
+                              style="--mdc-icon-size:10px"
                           ></ha-svg-icon>
                       </button>`
                     : ""}
