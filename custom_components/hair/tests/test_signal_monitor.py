@@ -968,6 +968,29 @@ class TestAssignSignal:
         assert remaining.get_signal("sig_fp") is not None
 
     @pytest.mark.asyncio
+    async def test_assign_sets_send_count(self):
+        hass = _make_hass()
+        store = _make_signal_store(hass)
+        hair_store = _make_hair_store()
+        monitor = SignalMonitor(hass, store, hair_store)
+
+        sig = UnknownSignal(
+            id="sig_fp", fingerprint="sig_fp", protocol="NEC", code="0x1234",
+            frequency=38000, hit_count=1,
+        )
+        store.add_device(
+            UnknownDevice(id="ud1", fingerprint="dev_fp", signals=[sig])
+        )
+        hair_device = IRDevice(id="hd1", name="TV")
+        hair_store.get_device.return_value = hair_device
+
+        result = await monitor.assign_signal(
+            "ud1", "sig_fp", "hd1", "Power", "custom", send_count=3,
+        )
+        assert result["success"] is True
+        assert hair_device.commands[0].send_count == 3
+
+    @pytest.mark.asyncio
     async def test_assign_from_dismissed_device_keeps_device(self):
         """Assigning a signal no longer consumes it, so a dismissed device
         stays put and its (legitimate) dismiss entry is retained.

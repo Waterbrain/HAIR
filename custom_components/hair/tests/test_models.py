@@ -39,6 +39,14 @@ def test_command_round_trip():
     assert restored.category == CommandCategory.POWER
 
 
+def test_command_send_count_round_trip():
+    cmd = IRCommand(name="Power", send_count=3)
+    assert IRCommand.from_dict(cmd.to_dict()).send_count == 3
+    # Default and legacy records (no key) fall back to 1.
+    assert IRCommand(name="X").send_count == 1
+    assert IRCommand.from_dict({"name": "X"}).send_count == 1
+
+
 def test_device_round_trip(mock_device: IRDevice):
     restored = IRDevice.from_dict(mock_device.to_dict())
     assert restored.id == mock_device.id

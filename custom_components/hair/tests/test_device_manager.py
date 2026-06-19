@@ -113,6 +113,50 @@ async def test_send_command_falls_back_when_tx_force_raw(manager):
 
 
 @pytest.mark.asyncio
+async def test_send_command_repeats_whole_frame(manager):
+    """send_count loops the whole built frame across every emitter."""
+    cmd = IRCommand(
+        id="c1", name="Power", protocol="PRONTO",
+        code="0000 006D 0002 0000 0020 0040 0020 0040",
+        send_count=3,
+    )
+    dev = IRDevice(
+        name="TV",
+        emitter_entity_ids=["infrared.a", "infrared.b"],
+        commands=[cmd],
+    )
+    manager._store.add_device(dev)
+    with patch.object(
+        _infrared_mod, "async_send_command", AsyncMock()
+    ) as ir_send, patch(
+        "custom_components.hair.device_manager.asyncio.sleep", AsyncMock()
+    ) as sleep:
+        await manager.async_send_command(dev.id, "c1")
+    # 3 repeats x 2 emitters; a gap between each repeat (not after the last).
+    assert ir_send.await_count == 6
+    assert sleep.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_send_command_default_sends_once(manager):
+    """Default send_count=1 sends once per emitter, with no inter-frame gap."""
+    cmd = IRCommand(
+        id="c1", name="Power", protocol="PRONTO",
+        code="0000 006D 0002 0000 0020 0040 0020 0040",
+    )
+    dev = IRDevice(name="TV", emitter_entity_ids=["infrared.a"], commands=[cmd])
+    manager._store.add_device(dev)
+    with patch.object(
+        _infrared_mod, "async_send_command", AsyncMock()
+    ) as ir_send, patch(
+        "custom_components.hair.device_manager.asyncio.sleep", AsyncMock()
+    ) as sleep:
+        await manager.async_send_command(dev.id, "c1")
+    assert ir_send.await_count == 1
+    assert sleep.await_count == 0
+
+
+@pytest.mark.asyncio
 async def test_set_command_tx_force_raw(manager):
     dev = IRDevice(name="TV", commands=[IRCommand(id="c1", name="Power")])
     manager._store.add_device(dev)
@@ -408,3 +452,26 @@ class TestUpdateCommand:
             dev.id, "missing", name="X"
         )
         assert missing_cmd["code"] == "command_not_found"
+
+    @pytest.mark.asyncio
+    async def test_sets_send_count(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO",
+                        code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        manager._store.add_device(dev)
+        result = await manager.async_update_command(dev.id, "c1", send_count=4)
+        assert result["success"] is True
+        assert manager._store.get_device(dev.id).get_command("c1").send_count == 4
+
+    @pytest.mark.asyncio
+    async def test_clamps_send_count(self, manager):
+        manager._entity_factory.async_update_entities = AsyncMock()
+        cmd = IRCommand(id="c1", name="Power", protocol="PRONTO",
+                        code=_CODE_SHORT)
+        dev = IRDevice(name="TV", commands=[cmd])
+        manager._store.add_device(dev)
+        await manager.async_update_command(dev.id, "c1", send_count=99)
+        assert manager._store.get_device(dev.id).get_command("c1").send_count == 10
+        await manager.async_update_command(dev.id, "c1", send_count=0)
+        assert manager._store.get_device(dev.id).get_command("c1").send_count == 1
