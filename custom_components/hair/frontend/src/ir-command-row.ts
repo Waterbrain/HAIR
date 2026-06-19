@@ -155,19 +155,6 @@ export class IrCommandRow extends LitElement {
                                       ></span
                                   >`
                             : html`${this.templateName}`}
-                        ${learned &&
-                        this.command &&
-                        this.command.repeat_count > 1
-                            ? html`<span
-                                  class="repeat-indicator"
-                                  title="Repeats the IR frame ${this.command
-                                      .repeat_count - 1} extra time(s)"
-                                  ><ha-svg-icon
-                                      .path=${ICON_REPEAT}
-                                  ></ha-svg-icon
-                                  >${this.command.repeat_count}</span
-                              >`
-                            : ""}
                     </div>
                     <div class="meta">
                         ${diamonds
@@ -175,11 +162,36 @@ export class IrCommandRow extends LitElement {
                             : learned
                               ? html`${this._commandLabel()}`
                               : html`<span class="muted">Not yet learned</span>`}
+                        ${learned &&
+                        this.command &&
+                        this.command.send_count > 1
+                            ? html`<span
+                                  class="repeat-indicator"
+                                  title="Sends this command ${this.command
+                                      .send_count} times"
+                                  ><ha-svg-icon
+                                      .path=${ICON_REPEAT}
+                                  ></ha-svg-icon
+                                  >${this.command.send_count}</span
+                              >`
+                            : ""}
                     </div>
                 </div>
                 <div class="actions">
                     ${learned
                         ? html`
+                              ${this.command?.decoded_fingerprint
+                                  ? html`<button
+                                  class="action-btn tx-btn ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
+                                  ?disabled=${this.busy}
+                                  @click=${() => this._emit("toggle-tx-raw")}
+                                  title=${this.command.tx_force_raw
+                                      ? "Replaying the captured Pronto. Click to transmit clean decoded packet timings instead."
+                                      : "Transmitting clean decoded packet timings. Click to replay the captured Pronto instead."}
+                              >${this.command.tx_force_raw
+                                      ? "PRONTO"
+                                      : this.command.decoded_protocol ?? "AUTO"}</button>`
+                                  : ""}
                               <button
                                   class="icon-btn edit-btn"
                                   ?disabled=${this.busy}
@@ -209,16 +221,6 @@ export class IrCommandRow extends LitElement {
                                   @click=${() => this._emit("toggle-trigger")}
                                   title=${this.hasTrigger ? "Edit trigger" : "Create trigger"}
                               >Trigger</button>
-                              ${this.command?.decoded_fingerprint
-                                  ? html`<button
-                                  class="action-btn tx-btn ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
-                                  ?disabled=${this.busy}
-                                  @click=${() => this._emit("toggle-tx-raw")}
-                                  title=${this.command.tx_force_raw
-                                      ? "Transmitting the captured timings. Click to send clean decoded timings."
-                                      : "Transmitting clean decoded timings. Click to replay the captured timings instead."}
-                              >${this.command.tx_force_raw ? "RAW" : "AUTO"}</button>`
-                                  : ""}
                               <button
                                   class="action-btn delete-btn"
                                   ?disabled=${this.busy}
@@ -306,14 +308,16 @@ export class IrCommandRow extends LitElement {
             display: inline-flex;
             align-items: center;
             gap: 1px;
-            margin-left: 8px;
-            font-size: 0.72rem;
+            /* Sit one clear space past the end of the diamonds. */
+            margin-left: 12px;
+            font-size: 0.65rem;
             font-weight: 600;
-            color: #e65100;
+            /* Match the short-diamond orange. */
+            color: var(--warning-color, #ff9800);
             vertical-align: middle;
         }
         .repeat-indicator ha-svg-icon {
-            --mdc-icon-size: 13px;
+            --mdc-icon-size: 12px;
         }
         .icon-btn {
             background: none;
@@ -438,17 +442,26 @@ export class IrCommandRow extends LitElement {
         /* TX-mode toggle: AUTO (canonical decoded timings) is the neutral
            default; RAW (replay captured timings) reads as the active,
            deliberately-chosen override. */
+        /* Signal-related toggle: colored to match the S/L diamonds. The
+           protocol (decoded) state reads in the long-diamond blue; the
+           captured-replay (PRONTO) override fills with the short-diamond
+           orange so it stands out as the deliberate non-default choice. */
         .action-btn.tx-btn {
             min-width: 46px;
             text-align: center;
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .action-btn.tx-btn:hover:not(:disabled) {
+            background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
         }
         .action-btn.tx-btn.tx-raw-on {
-            color: #fff;
-            background: #6a5acd;
-            border-color: #6a5acd;
+            color: var(--warning-color, #ff9800);
+            border-color: var(--warning-color, #ff9800);
+            background: none;
         }
-        .action-btn.tx-btn.tx-raw-on:hover {
-            background: #5847b8;
+        .action-btn.tx-btn.tx-raw-on:hover:not(:disabled) {
+            background: rgba(255, 152, 0, 0.08);
         }
     `;
 }

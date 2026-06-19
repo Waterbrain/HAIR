@@ -332,6 +332,7 @@ export class HairApi {
         hair_device_id: string;
         command_name: string;
         command_category?: string;
+        send_count?: number;
     }): Promise<AssignResult> {
         return this.hass.connection.sendMessagePromise<AssignResult>({
             type: "hair/unknown/assign",
@@ -347,6 +348,7 @@ export class HairApi {
         emitter_entity_ids: string[];
         command_name: string;
         command_category?: string;
+        send_count?: number;
     }): Promise<AssignResult> {
         return this.hass.connection.sendMessagePromise<AssignResult>({
             type: "hair/unknown/assign-new-device",
@@ -499,6 +501,7 @@ export class HairApi {
         command_id: string;
         name?: string;
         pronto?: string;
+        send_count?: number;
     }): Promise<{
         command: IRCommand;
         triggers: { rewired: string[]; skipped: string[] };

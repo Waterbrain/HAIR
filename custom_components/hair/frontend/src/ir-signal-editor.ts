@@ -48,12 +48,15 @@ export class IrSignalEditor extends LitElement {
     @property({ attribute: false }) public commandId: string | null = null;
     @property({ attribute: false }) public initialPronto = "";
     @property({ attribute: false }) public initialAlias = "";
+    /** Command mode only: the command's current whole-frame send count. */
+    @property({ attribute: false }) public initialSendCount = 1;
     @property({ type: Boolean }) public hasTrigger = false;
     /** Sniffer-only: enables the off-standard carrier snap affordance. */
     @property({ type: Boolean }) public allowSnap = false;
 
     @state() private _pronto = "";
     @state() private _alias = "";
+    @state() private _sendCount = 1;
     @state() private _busy = false;
     @state() private _error: string | null = null;
     @state() private _validation: ProntoValidation | null = null;
@@ -74,7 +77,8 @@ export class IrSignalEditor extends LitElement {
     private get _dirty(): boolean {
         return (
             this._pronto !== this.initialPronto ||
-            this._alias !== this.initialAlias
+            this._alias !== this.initialAlias ||
+            (this._isCommand && this._sendCount !== this.initialSendCount)
         );
     }
 
@@ -88,6 +92,7 @@ export class IrSignalEditor extends LitElement {
         // editable copies and validate a pre-filled code immediately.
         this._pronto = this.initialPronto;
         this._alias = this.initialAlias;
+        this._sendCount = this.initialSendCount;
         if (this._pronto.trim()) {
             void this._validate();
         }
@@ -118,6 +123,13 @@ export class IrSignalEditor extends LitElement {
         this.dispatchEvent(
             new CustomEvent("closed", { bubbles: true, composed: true }),
         );
+    }
+
+    private _onSendCountInput(e: Event): void {
+        const raw = parseInt((e.target as HTMLInputElement).value, 10);
+        this._sendCount = Number.isNaN(raw)
+            ? 1
+            : Math.max(1, Math.min(raw, 10));
     }
 
     private _onProntoInput(e: Event): void {
@@ -173,6 +185,7 @@ export class IrSignalEditor extends LitElement {
                     command_id: this.commandId as string,
                     name: this._alias.trim(),
                     pronto: this._pronto,
+                    send_count: this._sendCount,
                 });
                 this.dispatchEvent(
                     new CustomEvent("command-edited", {
@@ -428,6 +441,25 @@ export class IrSignalEditor extends LitElement {
                     />
                 </div>
 
+                ${this._isCommand
+                    ? html`<div class="field">
+                          <label>Send times</label>
+                          <input
+                              class="send-count"
+                              type="number"
+                              min="1"
+                              max="10"
+                              .value=${String(this._sendCount)}
+                              @input=${this._onSendCountInput}
+                              @keydown=${this._onKeydown}
+                          />
+                          <div class="hint">
+                              Transmit the whole command this many times per
+                              press (for devices that need a repeat).
+                          </div>
+                      </div>`
+                    : ""}
+
                 ${showTriggerNote
                     ? html`<div class="note">${triggerNoteText}</div>`
                     : ""}
@@ -529,6 +561,26 @@ export class IrSignalEditor extends LitElement {
         textarea:focus {
             outline: none;
             border-color: #b87333;
+        }
+        input.send-count {
+            width: 80px;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
+            font-size: 0.95rem;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        input.send-count:focus {
+            outline: none;
+            border-color: #b87333;
+        }
+        .hint {
+            margin-top: 6px;
+            font-size: 0.78rem;
+            color: var(--secondary-text-color);
         }
         @keyframes snap-flash {
             0% {
