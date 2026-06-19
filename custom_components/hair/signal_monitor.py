@@ -27,7 +27,6 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant
 
 from .const import (
     ASSIGN_SERVICE_TIMEOUT_S,
-    DECODED_FINGERPRINT_FORMAT,
     DEFAULT_CARRIER_FREQUENCY,
     EVENT_DISMISS_ACTIVITY,
     EVENT_SIGNAL_DETECTED,
@@ -41,7 +40,7 @@ from .const import (
 from .event_parser import EventParser
 from .models import UnknownDevice, UnknownSignal
 from .pronto_validator import validate_pronto
-from .protocol_decode import try_decode
+from .protocol_decode import decode_to_fields
 from .signal_store import SignalStore
 from .storage import HAIRStore
 
@@ -303,18 +302,12 @@ class SignalMonitor:
         # point for both the native and legacy RX paths, which both arrive
         # here. None for undecodable signals or when the library is
         # unavailable; capture continues unchanged either way.
-        decoded = try_decode(parsed.raw_timings)
-        decoded_protocol: str | None = None
-        decoded_address: int | None = None
-        decoded_command: int | None = None
-        decoded_fingerprint: str | None = None
-        if decoded is not None:
-            decoded_protocol, decoded_address, decoded_command = decoded
-            decoded_fingerprint = DECODED_FINGERPRINT_FORMAT.format(
-                protocol=decoded_protocol,
-                address=decoded_address,
-                command=decoded_command,
-            )
+        (
+            decoded_protocol,
+            decoded_address,
+            decoded_command,
+            decoded_fingerprint,
+        ) = decode_to_fields(parsed.raw_timings)
 
         # Step 2: Check triggers (before known-command skip so triggers
         # work for both assigned commands and unknown signals).

@@ -104,7 +104,7 @@ class TestDecodeAtCaptureAndForgeGuard:
     async def test_decoded_fields_stored_on_capture(self):
         """A decode result is wired onto the stored signal.
 
-        Patches ``try_decode`` so the wiring is verified without the
+        Patches ``decode_to_fields`` so the wiring is verified without the
         library; real decode correctness lives in test_protocol_decode.
         """
         hass = _make_hass()
@@ -112,8 +112,8 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.try_decode",
-            return_value=("NEC", 0xFB04, 0x08),
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         devices = store.get_all_devices()
@@ -131,8 +131,8 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.try_decode",
-            return_value=None,
+            "custom_components.hair.signal_monitor.decode_to_fields",
+            return_value=(None, None, None, None),
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         sig = store.get_all_devices()[0].signals[0]

@@ -148,6 +148,58 @@ class TriggerManager:
                 _LOGGER.exception("Error notifying trigger subscriber")
 
     # -----------------------------------------------------------------
+    # Rewire (edit/snap of a bound signal or command)
+    # -----------------------------------------------------------------
+
+    async def rewire(
+        self,
+        old_fingerprint: str,
+        new_fingerprint: str,
+        new_protocol: str | None,
+        new_code: str | None,
+    ) -> dict[str, list[str]]:
+        """Repoint triggers from an old signal fingerprint to a new one.
+
+        Used when an edit changes a signal/command's S/L fingerprint: any
+        trigger bound to the old fingerprint is updated to the new
+        ``(signal_fingerprint, protocol, code)`` together so it keeps firing
+        on the edited signal. A no-op when the fingerprint is unchanged (snap
+        and byte-only edits preserve the S/L fingerprint).
+
+        Skip-and-report on collision: if a *different* trigger already owns
+        the new fingerprint (the one-trigger-per-fingerprint invariant), it is
+        left alone and named in ``skipped`` instead of creating a duplicate.
+        All matching triggers are mutated in memory, then a single
+        ``async_save`` persists -- never a per-trigger save.
+
+        Returns ``{"rewired": [names], "skipped": [names]}`` so the caller can
+        build a note that names the affected trigger(s).
+        """
+        rewired: list[str] = []
+        skipped: list[str] = []
+        if not new_fingerprint or old_fingerprint == new_fingerprint:
+            return {"rewired": rewired, "skipped": skipped}
+
+        existing = self._store.get_trigger_by_fingerprint(new_fingerprint)
+        changed = False
+        for trigger in self._store.get_all_triggers():
+            if trigger.signal_fingerprint != old_fingerprint:
+                continue
+            if existing is not None and existing.id != trigger.id:
+                skipped.append(trigger.name)
+                continue
+            trigger.signal_fingerprint = new_fingerprint
+            trigger.protocol = new_protocol
+            trigger.code = new_code
+            self._store.update_trigger(trigger)
+            rewired.append(trigger.name)
+            changed = True
+
+        if changed:
+            await self._store.async_save()
+        return {"rewired": rewired, "skipped": skipped}
+
+    # -----------------------------------------------------------------
     # Subscriber management (WebSocket push for card glow)
     # -----------------------------------------------------------------
 

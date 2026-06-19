@@ -200,9 +200,8 @@ class HAIRStore:
         commands are left untouched. Idempotent: a command that already
         carries a ``decoded_fingerprint`` is skipped.
         """
-        from .const import DECODED_FINGERPRINT_FORMAT
         from .ir_command import ProntoCommand
-        from .protocol_decode import try_decode
+        from .protocol_decode import decode_to_fields
 
         changed = 0
         for device in self._data.values():
@@ -215,16 +214,13 @@ class HAIRStore:
                         raw = ProntoCommand(cmd.code).get_raw_timings()
                     except (ValueError, IndexError):
                         raw = None
-                decoded = try_decode(raw)
-                if decoded is None:
+                protocol, address, command, fingerprint = decode_to_fields(raw)
+                if fingerprint is None:
                     continue
-                protocol, address, command = decoded
                 cmd.decoded_protocol = protocol
                 cmd.decoded_address = address
                 cmd.decoded_command = command
-                cmd.decoded_fingerprint = DECODED_FINGERPRINT_FORMAT.format(
-                    protocol=protocol, address=address, command=command
-                )
+                cmd.decoded_fingerprint = fingerprint
                 changed += 1
         if changed:
             _LOGGER.info(

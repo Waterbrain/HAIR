@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -46,6 +46,50 @@ def _make_trigger(
         min_hits=min_hits,
         enabled=enabled,
     )
+
+
+class TestRewire:
+    """TriggerManager.rewire repoints bound triggers on a fingerprint change."""
+
+    async def test_updates_bound_trigger(self, manager, mock_store):
+        mock_store.async_save = AsyncMock()
+        t = _make_trigger(name="TV Power", fingerprint="OLD", code="0000 AAAA")
+        mock_store.add_trigger(t)
+        result = await manager.rewire("OLD", "NEW", "PRONTO", "0000 BBBB")
+        assert result == {"rewired": ["TV Power"], "skipped": []}
+        assert t.signal_fingerprint == "NEW"
+        assert t.protocol == "PRONTO"
+        assert t.code == "0000 BBBB"
+        mock_store.async_save.assert_awaited_once()
+
+    async def test_noop_when_fingerprint_unchanged(self, manager, mock_store):
+        mock_store.async_save = AsyncMock()
+        t = _make_trigger(fingerprint="SAME", code="0000 0001")
+        mock_store.add_trigger(t)
+        result = await manager.rewire("SAME", "SAME", "PRONTO", "0000 CCCC")
+        assert result == {"rewired": [], "skipped": []}
+        assert t.code == "0000 0001"  # untouched
+        mock_store.async_save.assert_not_awaited()
+
+    async def test_skips_collision_and_reports(self, manager, mock_store):
+        mock_store.async_save = AsyncMock()
+        bound = _make_trigger(name="A", fingerprint="OLD")
+        owner = _make_trigger(name="B", fingerprint="NEW")
+        mock_store.add_trigger(bound)
+        mock_store.add_trigger(owner)
+        result = await manager.rewire("OLD", "NEW", "PRONTO", "0000 DDDD")
+        assert result == {"rewired": [], "skipped": ["A"]}
+        assert bound.signal_fingerprint == "OLD"  # left alone, no duplicate
+        mock_store.async_save.assert_not_awaited()
+
+    async def test_ignores_unbound_triggers(self, manager, mock_store):
+        mock_store.async_save = AsyncMock()
+        other = _make_trigger(name="Other", fingerprint="DIFFERENT")
+        mock_store.add_trigger(other)
+        result = await manager.rewire("OLD", "NEW", "PRONTO", "0000 EEEE")
+        assert result == {"rewired": [], "skipped": []}
+        assert other.signal_fingerprint == "DIFFERENT"
+        mock_store.async_save.assert_not_awaited()
 
 
 class TestIRTriggerModel:
