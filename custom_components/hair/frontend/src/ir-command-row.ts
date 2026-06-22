@@ -155,16 +155,19 @@ export class IrCommandRow extends LitElement {
                                       ></span
                                   >`
                             : html`${this.templateName}`}
-                    </div>
-                    <div class="meta">
-                        ${diamonds
-                            ? diamonds
-                            : learned
-                              ? html`${this._commandLabel()}`
-                              : html`<span class="muted">Not yet learned</span>`}
-                        ${learned &&
-                        this.command &&
-                        this.command.send_count > 1
+                        ${learned && this.command?.decoded_fingerprint
+                            ? html`<button
+                                  class="tx-pill ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
+                                  ?disabled=${this.busy}
+                                  @click=${() => this._emit("toggle-tx-raw")}
+                                  title=${this.command.tx_force_raw
+                                      ? "Replaying the captured Pronto. Click to transmit clean decoded packet timings instead."
+                                      : "Transmitting clean decoded packet timings. Click to replay the captured Pronto instead."}
+                              >${this.command.tx_force_raw
+                                      ? "PRONTO"
+                                      : this.command.decoded_protocol ?? "AUTO"}</button>`
+                            : ""}
+                        ${learned && this.command && this.command.send_count > 1
                             ? html`<span
                                   class="repeat-indicator"
                                   title="Sends this command ${this.command
@@ -176,22 +179,17 @@ export class IrCommandRow extends LitElement {
                               >`
                             : ""}
                     </div>
+                    <div class="meta">
+                        ${diamonds
+                            ? diamonds
+                            : learned
+                              ? html`${this._commandLabel()}`
+                              : html`<span class="muted">Not yet learned</span>`}
+                    </div>
                 </div>
                 <div class="actions">
                     ${learned
                         ? html`
-                              ${this.command?.decoded_fingerprint
-                                  ? html`<button
-                                  class="action-btn tx-btn ${this.command.tx_force_raw ? "tx-raw-on" : ""}"
-                                  ?disabled=${this.busy}
-                                  @click=${() => this._emit("toggle-tx-raw")}
-                                  title=${this.command.tx_force_raw
-                                      ? "Replaying the captured Pronto. Click to transmit clean decoded packet timings instead."
-                                      : "Transmitting clean decoded packet timings. Click to replay the captured Pronto instead."}
-                              >${this.command.tx_force_raw
-                                      ? "PRONTO"
-                                      : this.command.decoded_protocol ?? "AUTO"}</button>`
-                                  : ""}
                               <button
                                   class="icon-btn edit-btn"
                                   ?disabled=${this.busy}
@@ -270,13 +268,17 @@ export class IrCommandRow extends LitElement {
             justify-content: center;
         }
         .name {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            flex-wrap: wrap;
             font-weight: 500;
         }
         .editable-name {
             cursor: pointer;
+            position: relative;
             display: inline-flex;
             align-items: center;
-            gap: 4px;
             border-bottom: 1px dashed transparent;
             transition: border-color 150ms ease;
         }
@@ -284,6 +286,15 @@ export class IrCommandRow extends LitElement {
             border-bottom-color: var(--primary-color);
         }
         .rename-pencil {
+            /* Out of layout flow so it reserves no width: the name-to-pill
+               gap stays the true 7px flex gap (matches pill-to-count).
+               Tucked over the tail of the name; fades in on hover and never
+               reaches the pill. */
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
             font-size: 0.7rem;
             color: var(--secondary-text-color);
             opacity: 0;
@@ -308,16 +319,16 @@ export class IrCommandRow extends LitElement {
             display: inline-flex;
             align-items: center;
             gap: 1px;
-            /* Sit one clear space past the end of the diamonds. */
-            margin-left: 12px;
-            font-size: 0.65rem;
+            font-size: 9px;
             font-weight: 600;
-            /* Match the short-diamond orange. */
+            /* Match the short-diamond orange; bare (no pill) on the name line.
+               Vertically centered in line with the pill via the name flex.
+               Slight knock-down to sit softer next to the pill. */
             color: var(--warning-color, #ff9800);
-            vertical-align: middle;
+            opacity: 0.85;
         }
         .repeat-indicator ha-svg-icon {
-            --mdc-icon-size: 12px;
+            --mdc-icon-size: 10px;
         }
         .icon-btn {
             background: none;
@@ -438,29 +449,41 @@ export class IrCommandRow extends LitElement {
         .action-btn.delete-btn:hover {
             background: rgba(230, 81, 0, 0.08);
         }
-        /* TX-mode toggle: AUTO (canonical decoded timings) is the neutral
-           default; RAW (replay captured timings) reads as the active,
-           deliberately-chosen override. */
-        /* Signal-related toggle: colored to match the S/L diamonds. The
-           protocol (decoded) state reads in the long-diamond blue; the
-           captured-replay (PRONTO) override fills with the short-diamond
-           orange so it stands out as the deliberate non-default choice. */
-        .action-btn.tx-btn {
-            min-width: 46px;
-            text-align: center;
-            color: var(--primary-color);
-            border-color: var(--primary-color);
+        /* Protocol toggle on the name line: a tiny solid pill with white
+           text. Blue fill = decoded protocol (NEC); orange fill = the
+           captured-replay (PRONTO) override. Same tx_force_raw toggle. */
+        .tx-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            height: 11px;
+            border: none;
+            border-radius: 999px;
+            /* Slightly more top than bottom pad to optically center the caps. */
+            padding: 1px 5px 0;
+            font-size: 9px;
+            font-weight: 500;
+            font-family: inherit;
+            letter-spacing: 0.03em;
+            line-height: 1;
+            color: #fff;
+            /* Soften the fill (not the whole pill) so the white text stays
+               crisp while the hue reads lighter / less poppy than the diamonds. */
+            background: color-mix(in srgb, var(--primary-color) 82%, transparent);
+            cursor: pointer;
+            transition: opacity 150ms ease;
         }
-        .action-btn.tx-btn:hover:not(:disabled) {
-            background: rgba(var(--rgb-primary-color, 33, 150, 243), 0.08);
+        .tx-pill.tx-raw-on {
+            /* Match the short-diamond orange, softened the same amount. */
+            background: color-mix(in srgb, var(--warning-color, #ff9800) 82%, transparent);
         }
-        .action-btn.tx-btn.tx-raw-on {
-            color: var(--warning-color, #ff9800);
-            border-color: var(--warning-color, #ff9800);
-            background: none;
+        .tx-pill:hover:not(:disabled) {
+            opacity: 0.85;
         }
-        .action-btn.tx-btn.tx-raw-on:hover:not(:disabled) {
-            background: rgba(255, 152, 0, 0.08);
+        .tx-pill:disabled {
+            opacity: 0.5;
+            cursor: default;
         }
     `;
 }
