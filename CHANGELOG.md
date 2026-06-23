@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Tested and newly-assigned NEC commands now transmit clean decoded timings, so receivers that are strict on timing tolerance accept them on the first try.
+- Tested and newly-assigned NEC commands now transmit clean decoded timings, so receivers that are strict on timing tolerance accept them on the first try. Reported by @frafall (GH #14 follow-up).
 
 ## [0.5.0] - 2026-06-22
 
