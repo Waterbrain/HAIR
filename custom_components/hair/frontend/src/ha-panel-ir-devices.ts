@@ -15,6 +15,11 @@ import "./ir-clips.js";
 import "./ir-pluck.js";
 import type { DeviceSummary, IRDevice } from "./types.js";
 
+// Bump alongside manifest.json on every release. Surfaced as a quiet
+// footer line at the bottom of the panel so users (and bug reporters)
+// can identify the installed HAIR version without opening Settings.
+const HAIR_VERSION = "0.5.6";
+
 type PanelTab = "devices" | "sniffer" | "clips" | "plucker";
 
 @customElement("ha-panel-ir-devices")
@@ -169,7 +174,6 @@ export class HaPanelIrDevices extends LitElement {
                     slot="navigationIcon"
                     .hass=${this.hass}
                 ></ha-menu-button>
-            </ha-top-app-bar-fixed>
 
             <div class="mobile-nav-row">
                 <button
@@ -279,6 +283,9 @@ export class HaPanelIrDevices extends LitElement {
                       ></ir-add-device-dialog>
                   `
                 : ""}
+
+            <div class="version-footer">v${HAIR_VERSION}</div>
+            </ha-top-app-bar-fixed>
         `;
     }
 
@@ -288,6 +295,13 @@ export class HaPanelIrDevices extends LitElement {
             background: var(--primary-background-color);
             color: var(--primary-text-color);
             min-height: 100vh;
+        }
+        .version-footer {
+            text-align: center;
+            color: var(--secondary-text-color);
+            opacity: 0.5;
+            font-size: 12px;
+            padding: 24px 0 16px;
         }
         .header-banner {
             max-width: 1100px;

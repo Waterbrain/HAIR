@@ -5,6 +5,16 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-06-25 -- Forehead Removal
+
+### Fixed
+
+- HAIR panel layout under Home Assistant 2026.7+. The `ha-top-app-bar-fixed` component now expects panel content slotted inside it; HAIR was rendering content as siblings, which caused the empty scroll container to expand to viewport height and push the page content down by roughly 1200 pixels (a sizeable forehead). Panel content is now slotted correctly. No change for users on HA 2026.6 or earlier. Reported by @Didgeridrew (GH #31).
+
+### Added
+
+- HAIR version number is now shown as a quiet centered footer at the bottom of the panel, so the installed version is identifiable at a glance without opening Settings.
+
 ## [0.5.5] - 2026-06-24
 
 ### Added

@@ -6202,7 +6202,6 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                     slot="navigationIcon"
                     .hass=${this.hass}
                 ></ha-menu-button>
-            </ha-top-app-bar-fixed>
 
             <div class="mobile-nav-row">
                 <button
@@ -6299,12 +6298,22 @@ function e(e,t,i,s){var a,o=arguments.length,n=o<3?t:null===s?s=Object.getOwnPro
                           @device-created=${this._onDeviceCreated}
                       ></ir-add-device-dialog>
                   `:""}
+
+            <div class="version-footer">v${"0.5.6"}</div>
+            </ha-top-app-bar-fixed>
         `:F`<div class="loading">Loading…</div>`}};us.styles=n`
         :host {
             display: block;
             background: var(--primary-background-color);
             color: var(--primary-text-color);
             min-height: 100vh;
+        }
+        .version-footer {
+            text-align: center;
+            color: var(--secondary-text-color);
+            opacity: 0.5;
+            font-size: 12px;
+            padding: 24px 0 16px;
         }
         .header-banner {
             max-width: 1100px;
