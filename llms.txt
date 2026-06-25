@@ -98,6 +98,19 @@ Signal fingerprinting details:
   save all prefer the re-encoded clean timings when a decoded identity is present.
   Assigning a signal and saving a captured command carry that identity onto the new
   command at creation time, not just at the next load.
+- Two user-tunable TX knobs, editable on catalog signals, device commands, and
+  the assign dialog: Ditto count (the NEC repeat-frame count appended after the
+  main frame, for receivers that need a held-key pattern) and Send times
+  (whole-frame retransmissions). The catalog-signal Test path honors both,
+  matching device TX. The Ditto count input and chip honor the per-command
+  NEC/PRONTO toggle and the signal's decoded state: when a command is set to
+  PRONTO transmit (tx_force_raw) or a signal has no decoded protocol, the chip
+  and the matching editor / assign-dialog input all hide, since dittos do not
+  fire on the raw TX path.
+- At capture, NEC dittos that follow a main frame are observed (single-anchor
+  attribution with a 1.0s window and a 250ms inter-frame gate, max-merged) and
+  surfaced in the signal editor as a read-only "Observed at capture" hint. The
+  observation does not auto-set the TX Ditto count; the user acts on it.
 
 Supported capture providers (auto-discovered):
 - Native InfraredReceiverEntity instances (HA 2026.6+, hardware-agnostic)

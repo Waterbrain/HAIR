@@ -5,6 +5,18 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-06-24
+
+### Added
+
+- Send times and Ditto count are now editable on every catalog signal (Sniffer, Clipper, Plucker) and every device command. Send times retransmits the full command. Ditto count appends repeat frames after the main frame; some strict receivers, notably commercial audio gear, require at least one to register the command. Both fields are also available in the assign dialog when assigning a sniffed signal to a HAIR device.
+- HAIR observes NEC dittos at capture time and shows the count in the signal editor as a hint ("Observed at capture: N dittos"), so you can match Ditto count to what the remote emits.
+
+### Fixed
+
+- The Test button on catalog signals now honors Send times and Ditto count, matching the device-side Test behavior.
+- The Ditto count chip on a command row, and the matching editor and assign-dialog inputs, all hide when the command or signal will transmit as raw Pronto (no decoded protocol, or the per-command NEC/PRONTO pill toggled to PRONTO). Previously they showed even though dittos do not fire on the raw replay path.
+
 ## [0.5.1] - 2026-06-23
 
 ### Fixed
