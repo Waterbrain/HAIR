@@ -18,6 +18,7 @@ import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
 import "./ir-count-dot.js";
 import "./ir-trigger-popover.js";
+import { triggerMatchesSignal } from "./types.js";
 import type {
     AssignResult,
     DeviceSummary,
@@ -668,16 +669,15 @@ export class IrSignalMonitor extends LitElement {
 
     // --- Trigger helpers ---
 
-    /** Check if a signal fingerprint already has a trigger. */
-    private _hasTrigger(fingerprint: string): boolean {
-        return this._triggers.some((t) => t.signal_fingerprint === fingerprint);
+    /** Check if a signal already has a trigger (identity-aware, v0.5.8). */
+    private _hasTrigger(signal: UnknownSignal): boolean {
+        return this._triggers.some((t) => triggerMatchesSignal(t, signal));
     }
 
-    /** Count triggers bound to a fingerprint (yellow dot count). */
-    private _triggerCountFor(fingerprint: string): number {
-        return this._triggers.filter(
-            (t) => t.signal_fingerprint === fingerprint,
-        ).length;
+    /** Count triggers bound to a signal (yellow dot count). */
+    private _triggerCountFor(signal: UnknownSignal): number {
+        return this._triggers.filter((t) => triggerMatchesSignal(t, signal))
+            .length;
     }
 
     private _openTriggerDialog(
@@ -685,8 +685,8 @@ export class IrSignalMonitor extends LitElement {
         signal: UnknownSignal,
         ev?: Event,
     ): void {
-        const matches = this._triggers.filter(
-            (t) => t.signal_fingerprint === signal.fingerprint,
+        const matches = this._triggers.filter((t) =>
+            triggerMatchesSignal(t, signal),
         );
         // Zero triggers: open the Create dialog directly (no popover).
         if (matches.length === 0) {
@@ -1146,10 +1146,11 @@ export class IrSignalMonitor extends LitElement {
             ${this._triggerPopover
                 ? html`
                       <ir-trigger-popover
-                          .triggers=${this._triggers.filter(
-                              (t) =>
-                                  t.signal_fingerprint ===
-                                  this._triggerPopover!.signal.fingerprint,
+                          .triggers=${this._triggers.filter((t) =>
+                              triggerMatchesSignal(
+                                  t,
+                                  this._triggerPopover!.signal,
+                              ),
                           )}
                           .receivers=${this._receivers}
                           .top=${this._triggerPopover.top}
@@ -1164,6 +1165,8 @@ export class IrSignalMonitor extends LitElement {
                       <ir-trigger-dialog
                           .api=${this.api}
                           .signalFingerprint=${this._triggerDialog.signal.fingerprint}
+                          .byteHash=${this._triggerDialog.signal.byte_hash ?? null}
+                          .decodedFingerprint=${this._triggerDialog.signal.decoded_fingerprint ?? null}
                           .protocol=${this._triggerDialog.signal.protocol}
                           .code=${this._triggerDialog.signal.code}
                           .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}
@@ -1409,14 +1412,14 @@ export class IrSignalMonitor extends LitElement {
                                             this._openTriggerDialog(device.id, sig, e);
                                         }}
                                         ?disabled=${device.dismissed}
-                                        title=${this._hasTrigger(sig.fingerprint)
+                                        title=${this._hasTrigger(sig)
                                             ? "Edit trigger(s) for this signal"
                                             : (device.dismissed
                                                 ? "Restore this remote first"
                                                 : "Create an HA event entity that fires on this signal")}
                                     >Trigger<ir-count-dot
                                             color="yellow"
-                                            .count=${this._triggerCountFor(sig.fingerprint)}
+                                            .count=${this._triggerCountFor(sig)}
                                         ></ir-count-dot></button>
                                     <button
                                         class="action-btn delete-btn"

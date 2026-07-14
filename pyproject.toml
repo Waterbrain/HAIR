@@ -33,9 +33,15 @@ test = [
     "voluptuous>=0.13",
     # Runtime consumes infrared-protocols via HA core's `infrared` dependency
     # (no manifest pin). It is declared here only so the test suite can
-    # exercise the real NEC decoder. Pinned to the 5.x line HA core ships
-    # (5.6.1 in 2026.6, API stable through 5.8.x); 6.0 may break the surface.
-    "infrared-protocols>=5.6,<6.0; python_version >= '3.13'",
+    # exercise the real NEC decoder. Version policy: cover the library line
+    # shipped across HAIR's supported HA window, which is the current HA
+    # release back through roughly four monthly releases (floor: HA 2026.4,
+    # matching hacs.json). HA 2026.6 shipped 5.6.1 and HA 2026.7 ships
+    # 6.3.0; the 6.x line is verified compatible on live HA 2026.7 hardware
+    # (decode paths in protocol_decode.py are defensively guarded either
+    # way). PyPI currently publishes through 5.8.1, so CI installs the
+    # newest 5.x today and picks up 6.x automatically once it is published.
+    "infrared-protocols>=5.6,<7.0; python_version >= '3.13'",
 ]
 lint = [
     "ruff>=0.4",

@@ -189,7 +189,14 @@ class DeviceManager:
             old_fp = EventParser.signal_fingerprint(
                 command.protocol, command.code, command.raw_timings
             )
+            # Captured BEFORE the mutations below: a sub-threshold edit
+            # (Sony code A to code B) changes only the byte_hash -- and
+            # rewire needs the old byte-level AND decoded values to repoint
+            # precisely (v0.5.8 unified identity).
+            old_byte_hash = command.byte_hash
+            old_decoded_fingerprint = command.decoded_fingerprint
             new_fp = EventParser.signal_fingerprint("PRONTO", new_code, [])
+            new_byte_hash = EventParser.pronto_byte_hash(new_code)
             try:
                 raw = ProntoCommand(new_code).get_raw_timings()
             except Exception:  # bad code falls back to no decoded timings
@@ -203,7 +210,7 @@ class DeviceManager:
             command.protocol = "PRONTO"
             command.code = new_code
             command.raw_timings = list(raw) if raw else None
-            command.byte_hash = EventParser.pronto_byte_hash(new_code)
+            command.byte_hash = new_byte_hash
             command.frequency = (
                 round(result.frequency_khz * 1000)
                 if result.frequency_khz
@@ -213,9 +220,24 @@ class DeviceManager:
             command.decoded_address = decoded_address
             command.decoded_command = decoded_command
             command.decoded_fingerprint = decoded_fingerprint
-            if trigger_manager is not None and new_fp and new_fp != old_fp:
+            # Rewire on ANY identity component changing (v0.5.8): a
+            # sub-threshold edit shifts only the byte_hash, never the S/L
+            # fingerprint, and would otherwise orphan a scoped trigger.
+            if (
+                trigger_manager is not None
+                and new_fp
+                and (
+                    new_fp != old_fp
+                    or new_byte_hash != old_byte_hash
+                    or decoded_fingerprint != old_decoded_fingerprint
+                )
+            ):
                 rewire = await trigger_manager.rewire(
-                    old_fp, new_fp, "PRONTO", new_code
+                    old_fp, new_fp, "PRONTO", new_code,
+                    old_byte_hash=old_byte_hash,
+                    new_byte_hash=new_byte_hash,
+                    old_decoded_fingerprint=old_decoded_fingerprint,
+                    new_decoded_fingerprint=decoded_fingerprint,
                 )
 
         # --- whole-frame send count ---

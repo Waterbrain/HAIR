@@ -177,11 +177,19 @@ class TestHasReceivers:
         monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
         assert monitor.has_receivers is False
 
-    def test_true_in_native_mode(self):
+    def test_true_when_a_receiver_is_subscribed(self):
+        hass = _make_hass()
+        monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
+        monitor._receiver_subs["infrared.rx"] = MagicMock()
+        assert monitor.has_receivers is True
+
+    def test_false_in_native_mode_with_zero_receivers(self):
+        """v0.5.8 hot-plug: native mode with nothing subscribed genuinely
+        cannot receive, so the Sniffer empty state must say so."""
         hass = _make_hass()
         monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
         monitor._native_mode = True
-        assert monitor.has_receivers is True
+        assert monitor.has_receivers is False
 
     def test_true_when_a_bridge_has_fired(self):
         hass = _make_hass()
@@ -684,10 +692,12 @@ class TestRepeatSuppression:
         assert monitor._check_repeat("fp1")
         assert not monitor._check_repeat("fp1")
 
-        # Simulate time beyond suppression window. The suppression map is keyed
-        # per (fingerprint, receiver); a bare-fingerprint capture uses the
-        # "__legacy__" sentinel (v0.5.7 per-receiver suppression).
-        monitor._last_seen_times[("fp1", "__legacy__")] = (
+        # Simulate time beyond suppression window. The suppression map is
+        # keyed per (strongest identity, receiver) since v0.5.8 unified
+        # identity: a bare-fingerprint capture keys at identity tier 3 --
+        # (3, fingerprint) -- with the "__legacy__" receiver sentinel
+        # (v0.5.7 per-receiver suppression).
+        monitor._last_seen_times[((3, "fp1"), "__legacy__")] = (
             time.monotonic() - (SIGNAL_REPEAT_SUPPRESS_MS / 1000.0) - 0.01
         )
         assert monitor._check_repeat("fp1")
@@ -1633,7 +1643,8 @@ class TestNativeReceiverLifecycle:
 
     @pytest.mark.asyncio
     async def test_native_mode_activates_when_api_available(self):
-        """When async_subscribe_receiver is importable, native mode activates."""
+        """When the native API is importable, native mode activates and the
+        receiver subscription lands in _receiver_subs (v0.5.8 hot-plug)."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
@@ -1646,11 +1657,7 @@ class TestNativeReceiverLifecycle:
         def fake_subscribe(_hass, entity_id, callback):
             return mock_unsub
 
-        with patch(
-            "custom_components.hair.signal_monitor.SignalMonitor"
-            "._start_native_receivers",
-            wraps=monitor._start_native_receivers,
-        ), patch.dict(
+        with patch.dict(
             "sys.modules",
             {
                 "homeassistant.components.infrared": MagicMock(
@@ -1659,14 +1666,19 @@ class TestNativeReceiverLifecycle:
                 ),
             },
         ):
-            await monitor._start_native_receivers()
+            monitor._start_native_tracking()
 
         assert monitor.native_mode
-        assert len(monitor._unsubs) == 1
+        assert set(monitor._receiver_subs) == {"infrared.living_room_rx"}
+        assert monitor._receiver_subs["infrared.living_room_rx"] is mock_unsub
 
     @pytest.mark.asyncio
-    async def test_native_no_receivers_falls_back(self):
-        """If native API exists but no receivers found, falls back to legacy."""
+    async def test_native_no_receivers_stays_native(self):
+        """FLIPPED (v0.5.8 hot-plug): zero receivers at start no longer
+        latches legacy mode. HAIR stays on the native path, subscribes
+        nothing, and waits for a receiver to appear -- the old fallback
+        listened on a bus our shipped YAML does not emit, permanently,
+        which was blalor's post-#85 cold-boot bug."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
@@ -1679,14 +1691,19 @@ class TestNativeReceiverLifecycle:
             {
                 "homeassistant.components.infrared": MagicMock(
                     async_get_receivers=fake_get_receivers,
+                    async_subscribe_receiver=MagicMock(),
                 ),
             },
         ):
-            await monitor._start_native_receivers()
+            monitor._start_native_tracking()
 
-        # Should have fallen back to legacy.
-        assert not monitor.native_mode
-        hass.bus.async_listen.assert_called_once()
+        assert monitor.native_mode
+        assert monitor._receiver_subs == {}
+        # The legacy signal-processing path must NOT be wired: the only
+        # bus listener a bare _start_native_tracking may create is the
+        # started-once re-scan, never _on_ir_event.
+        for call in hass.bus.async_listen.call_args_list:
+            assert call.args[1] != monitor._on_ir_event
 
     @pytest.mark.asyncio
     async def test_native_stop_cleans_up_all_unsubs(self):

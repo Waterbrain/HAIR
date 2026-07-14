@@ -413,11 +413,18 @@ class EventParser:
         The S/L fingerprint classifies each timing word as short or long,
         which collapses two genuinely different commands into one signal
         when a protocol's "long" pulse sits below ``PRONTO_SL_THRESHOLD``
-        (e.g. Panasonic/Kaseikyo at 46 cycles, TCL112 at 40). This hash
-        preserves the distinction without over-fragmenting jittered
-        captures of the same physical button: each pre-gap timing word is
-        rounded to the nearest ``PRONTO_BYTE_HASH_BIN`` carrier cycles,
-        and the comma-joined sequence is SHA-256 hashed (first 16 hex).
+        (e.g. Panasonic/Kaseikyo at 46 cycles, TCL112 at 40, Sony SIRC at
+        45-47 -- Sony encodes bits in mark width, so EVERY Sony pulse
+        classifies short and all buttons on the remote share one S/L
+        pattern). This hash preserves the distinction without
+        over-fragmenting jittered captures of the same physical button:
+        each pre-gap timing word is rounded to the nearest
+        ``PRONTO_BYTE_HASH_BIN`` carrier cycles, and the comma-joined
+        sequence is SHA-256 hashed (first 16 hex).
+
+        Since v0.5.8 this hash is identity, not just a storage tiebreaker:
+        triggers, the known-command matcher, and repeat suppression all key
+        on ``(signal_fingerprint, byte_hash)``.
 
         Uses the same parse and gap-break point as ``_pronto_sl_pattern``
         so the two layers of the composite key stay consistent. Returns

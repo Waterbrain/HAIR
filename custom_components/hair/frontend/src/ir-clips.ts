@@ -24,6 +24,7 @@ import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
 import "./ir-count-dot.js";
 import "./ir-trigger-popover.js";
+import { triggerMatchesSignal } from "./types.js";
 import type {
     AssignResult,
     DeviceSummary,
@@ -497,14 +498,14 @@ export class IrClips extends LitElement {
         }, 3000);
     }
 
-    private _hasTrigger(fingerprint: string): boolean {
-        return this._triggers.some((t) => t.signal_fingerprint === fingerprint);
+    /** Identity-aware trigger matching (v0.5.8): fingerprint + byte_hash. */
+    private _hasTrigger(signal: UnknownSignal): boolean {
+        return this._triggers.some((t) => triggerMatchesSignal(t, signal));
     }
 
-    private _triggerCountFor(fingerprint: string): number {
-        return this._triggers.filter(
-            (t) => t.signal_fingerprint === fingerprint,
-        ).length;
+    private _triggerCountFor(signal: UnknownSignal): number {
+        return this._triggers.filter((t) => triggerMatchesSignal(t, signal))
+            .length;
     }
 
     private _openTriggerDialog(
@@ -512,8 +513,8 @@ export class IrClips extends LitElement {
         signal: UnknownSignal,
         ev?: Event,
     ): void {
-        const matches = this._triggers.filter(
-            (t) => t.signal_fingerprint === signal.fingerprint,
+        const matches = this._triggers.filter((t) =>
+            triggerMatchesSignal(t, signal),
         );
         if (matches.length === 0) {
             this._triggerDialog = { signal, deviceId };
@@ -915,7 +916,7 @@ export class IrClips extends LitElement {
                     >${isTesting ? "Sending..." : "Test"}</button>
                     <button
                         class="action-btn trigger-btn"
-                        title=${this._hasTrigger(sig.fingerprint)
+                        title=${this._hasTrigger(sig)
                             ? "Edit trigger(s) for this signal"
                             : "Create an HA event entity that fires on this signal"}
                         @click=${(e: Event) => {
@@ -924,7 +925,7 @@ export class IrClips extends LitElement {
                         }}
                     >Trigger<ir-count-dot
                             color="yellow"
-                            .count=${this._triggerCountFor(sig.fingerprint)}
+                            .count=${this._triggerCountFor(sig)}
                         ></ir-count-dot></button>
                     <button
                         class="action-btn delete-btn"
@@ -968,9 +969,7 @@ export class IrClips extends LitElement {
                       .initialDitto=${this._editSignal.signal.repeat_count ?? 1}
                       .initialObservedRepeatCount=${this._editSignal.signal
                           .observed_repeat_count ?? 0}
-                      .hasTrigger=${this._hasTrigger(
-                          this._editSignal.signal.fingerprint,
-                      )}
+                      .hasTrigger=${this._hasTrigger(this._editSignal.signal)}
                       @signal-edited=${this._onSignalEdited}
                       @closed=${() => (this._editSignal = null)}
                   ></ir-signal-editor>`
@@ -1036,10 +1035,8 @@ export class IrClips extends LitElement {
 
             ${this._triggerPopover
                 ? html`<ir-trigger-popover
-                      .triggers=${this._triggers.filter(
-                          (t) =>
-                              t.signal_fingerprint ===
-                              this._triggerPopover!.signal.fingerprint,
+                      .triggers=${this._triggers.filter((t) =>
+                          triggerMatchesSignal(t, this._triggerPopover!.signal),
                       )}
                       .receivers=${this._receivers}
                       .top=${this._triggerPopover.top}
@@ -1053,6 +1050,8 @@ export class IrClips extends LitElement {
                 ? html`<ir-trigger-dialog
                       .api=${this.api}
                       .signalFingerprint=${this._triggerDialog.signal.fingerprint}
+                      .byteHash=${this._triggerDialog.signal.byte_hash ?? null}
+                      .decodedFingerprint=${this._triggerDialog.signal.decoded_fingerprint ?? null}
                       .protocol=${this._triggerDialog.signal.protocol}
                       .code=${this._triggerDialog.signal.code}
                       .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}

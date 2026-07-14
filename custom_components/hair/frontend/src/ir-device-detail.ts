@@ -1102,6 +1102,8 @@ export class IrDeviceDetail extends LitElement {
                           .api=${this.api}
                           .protocol=${this._triggerCommand.protocol}
                           .code=${this._triggerCommand.code}
+                          .byteHash=${this._triggerCommand.byte_hash ?? null}
+                          .decodedFingerprint=${this._triggerCommand.decoded_fingerprint ?? null}
                           .sourceDeviceId=${this.device.id}
                           .sourceCommandId=${this._triggerCommand.id}
                           @trigger-saved=${this._onTriggerSaved}

@@ -96,11 +96,20 @@ SIGNAL_RAW_FINGERPRINT_LEN = 64
 # ---------------------------------------------------------------------------
 TRIGGER_HIT_RESET_WINDOW_S = 5
 EVENT_TRIGGER_FIRED = f"{DOMAIN}_trigger_fired"
-# Location-aware triggers (v0.5.7). A single physical press captured by several
-# receivers within this window counts as one press per (trigger, fingerprint):
-# it increments a trigger's hit state once and fires each matching trigger at
-# most once. Composes with min_hits (distinct presses still accumulate).
-MULTI_RECEIVER_DEDUP_WINDOW_S = 0.060
+# Trigger dedup window (v0.5.7, resized v0.5.8). A single physical press
+# captured by several receivers within this window counts as one press per
+# (trigger, fingerprint): it increments a trigger's hit state once and fires
+# each matching trigger at most once. Composes with min_hits (distinct
+# presses still accumulate).
+#
+# Since v0.5.8 the window SLIDES (each suppressed capture refreshes it), so it
+# must only cover the gap BETWEEN consecutive frames of one press, not the
+# whole burst. It is sized against the widest inter-frame gap we know of:
+# Sony SIRC repeats a full frame about every 45ms while a button is held.
+# 100ms leaves real headroom for a jittery receiver without approaching a
+# human double-press interval (150ms+ between distinct presses, since a
+# release and re-press cannot happen faster).
+MULTI_RECEIVER_DEDUP_WINDOW_S = 0.100
 
 # Pronto S/L classification threshold (in Pronto timing units).
 # Timing words below this are "short" (S), above are "long" (L).

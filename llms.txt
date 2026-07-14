@@ -85,9 +85,30 @@ Key components:
   backward compatible); scoped triggers fire only when a listed receiver observes
   the signal, and legacy ESPHome-bridge captures (receiver_entity_id=None) match
   only unscoped triggers. Multiple triggers per signal fingerprint are legal (one
-  per room). A single press observed by several receivers within a 60ms window
-  fires each matching trigger once (per-(trigger, fingerprint) dedup) and counts as
-  one hit toward min_hits.
+  per room). A single press observed by several receivers fires each matching
+  trigger once (per-trigger dedup over a sliding window) and counts as one hit
+  toward min_hits.
+  Tiered signal identity (v0.5.8): every "is this the same signal?" decision --
+  trigger matching, the known-command matcher, Sniffer row dedup, repeat
+  suppression, the Assign dot -- uses one tiered rule: decoded protocol identity
+  when both sides have it, else the byte-level hash when both sides have it, else
+  the coarse S/L fingerprint. The highest tier both sides carry decides; a tier
+  only one side carries is skipped. Triggers store all three layers (null layers
+  on pre-0.5.8 triggers = legacy-broad matching, so existing triggers are never
+  narrowed; decoded identity is backfilled at load from the stored code, byte_hash
+  deliberately is not). This matters on remotes whose buttons all share one S/L
+  fingerprint because the protocol encodes bits in pulse widths below the
+  short/long threshold -- Sony SIRC is the common case, alongside the
+  Panasonic/Kaseikyo/TCL family -- and doubly on Sony, whose long mark sits
+  exactly ON the classification threshold, so the same button's fingerprint can
+  flip between captures: without the byte tier a trigger created for one button
+  fires for every button, and without dropping the fingerprint-equality
+  precondition the trigger then randomly misses its own button. The dedup window
+  slides and is keyed per trigger, so protocols that transmit several full frames
+  per press (Sony sends 4-5) count as one press even when frames flip fingerprints.
+  When an upstream decoder lands for a protocol (e.g. Sony SIRC in
+  infrared-protocols), the decoded tier takes over automatically with no further
+  HAIR changes.
 
 Signal fingerprinting details:
 - Uses S/L (short/long) pulse-duration classification. Each pulse is classified as

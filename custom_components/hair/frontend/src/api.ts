@@ -660,6 +660,8 @@ export class HairApi {
         source_device_id?: string | null;
         source_command_id?: string | null;
         receiver_entity_ids?: string[];
+        byte_hash?: string | null;
+        decoded_fingerprint?: string | null;
     }): Promise<IRTrigger> {
         return this.hass.connection.sendMessagePromise<IRTrigger>({
             type: "hair/trigger/create",
@@ -674,6 +676,8 @@ export class HairApi {
             min_hits: number;
             enabled: boolean;
             receiver_entity_ids: string[];
+            byte_hash: string | null;
+            decoded_fingerprint: string | null;
         }>,
     ): Promise<IRTrigger> {
         return this.hass.connection.sendMessagePromise<IRTrigger>({

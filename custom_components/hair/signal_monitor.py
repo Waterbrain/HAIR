@@ -24,7 +24,19 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, STATE_UNAVAILABLE
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    CoreState,
+    Event,
+    HomeAssistant,
+    callback,
+)
+from homeassistant.helpers.event import (
+    async_track_state_added_domain,
+    async_track_state_change_event,
+    async_track_state_removed_domain,
+)
 
 from .const import (
     ASSIGN_SERVICE_TIMEOUT_S,
@@ -214,16 +226,38 @@ class SignalMonitor:
         self._trigger_manager = trigger_manager
         self._unsub: CALLBACK_TYPE | None = None
         self._unsubs: list[CALLBACK_TYPE] = []
+        # Per-receiver subscription handles, keyed by entity_id (receiver
+        # hot-plug, v0.5.8). Receivers are tracked DYNAMICALLY -- see
+        # _reconcile_receivers -- so this dict grows and shrinks as
+        # receiver entities appear and disappear; _unsubs keeps only the
+        # non-per-receiver listeners (domain trackers, bridge tracking,
+        # the started-once re-scan).
+        self._receiver_subs: dict[str, CALLBACK_TYPE] = {}
+        # Availability watcher over the current receiver inventory,
+        # rewired at the end of every reconcile. This -- not the domain
+        # add/remove trackers -- is what heals subscriptions across a
+        # config entry reload: registry-registered entities are NEVER
+        # state-removed on unload (HA writes an ``unavailable``
+        # placeholder instead, verified live on 2026.7.2), so the reload
+        # signal is the unavailable->available transition. Mirrors HA
+        # core's own InfraredReceiverConsumerEntity, which drops its
+        # subscription on unavailable and resubscribes on available.
+        self._receiver_watch_unsub: CALLBACK_TYPE | None = None
         self._lock = asyncio.Lock()
         self._native_mode: bool = False
 
         # Rate limiting: fingerprint -> list of event timestamps (monotonic).
         self._rate_buckets: dict[str, list[float]] = defaultdict(list)
 
-        # Repeat suppression: fingerprint -> last event time (monotonic).
-        # Keyed by (fingerprint, receiver_key) so cross-receiver captures of
-        # the same press are not dropped as storage-path repeats (v0.5.7).
-        self._last_seen_times: dict[tuple[str, str], float] = {}
+        # Repeat suppression: signal identity -> last event time (monotonic).
+        # Keyed by (strongest identity, receiver_key): per-receiver so
+        # cross-receiver captures of the same press are not dropped as
+        # storage-path repeats (v0.5.7); identity is the strongest tier the
+        # capture carries -- (tier, value) from SignalIdentity.strongest_key
+        # -- so two different sub-threshold buttons in quick succession are
+        # both stored, while a boundary protocol's fingerprint flip does
+        # not defeat suppression (v0.5.8 unified identity).
+        self._last_seen_times: dict[tuple[tuple[int, str], str], float] = {}
 
         # Per-device-fingerprint rate limit for the dismiss-activity bus
         # event push. Separate from ``_rate_buckets`` so the dismiss-activity
@@ -280,14 +314,27 @@ class SignalMonitor:
     async def async_start(self) -> None:
         """Start listening for IR events.
 
-        Tries the native receiver API (HA 2026.6+) first.  Falls back
-        to the legacy ESPHome event bus bridge if ``async_subscribe_receiver``
-        is not available.
+        Native path (HA 2026.6+): receivers are tracked DYNAMICALLY. Two
+        separate questions used to be conflated here, and the difference
+        is the blalor hot-plug/cold-boot bug class:
 
-        Even when the native path succeeds, we also wire a tracking-only
+        - *Does this HA ship the native receiver API?* A capability
+          question, stable for the process lifetime, answered by whether
+          the import succeeds. This -- and ONLY this -- selects legacy
+          mode (HA 2026.4-2026.5, ``_start_legacy_event_bus``).
+        - *Are any receivers present right now?* A transient inventory
+          question whose answer can legitimately be "none yet" (cold-boot
+          ordering, proxy added later). Inventory is handled by
+          ``_reconcile_receivers`` and the domain trackers, never by
+          falling back to the legacy bus -- the old empty-inventory
+          fallback latched HAIR onto a channel our shipped YAML does not
+          even emit, permanently, until a manual reload.
+
+        Even when the native path is active, we also wire a tracking-only
         listener on ``esphome.remote_received`` so the Receivers UI can
         surface ``RX-BRIDGE`` for devices that still have ``on_pronto:``
-        YAML configured alongside their native receiver. In legacy mode
+        YAML configured alongside their native receiver (this now also
+        covers the native-with-zero-receivers wait state). In legacy mode
         the main ``_on_ir_event`` handler already records device_ids as
         part of its processing, so we don't double-subscribe.
         """
@@ -295,15 +342,16 @@ class SignalMonitor:
             await self._signal_store.async_load()
 
         try:
-            await self._start_native_receivers()
+            # Capability probe only -- no inventory consulted, nothing
+            # subscribed here. Raises ImportError on HA 2026.4-2026.5,
+            # where the infrared component lacks the receiver API.
+            from homeassistant.components.infrared import (  # noqa: F401
+                async_subscribe_receiver,
+            )
         except ImportError:
             self._start_legacy_event_bus()
-        except Exception:
-            _LOGGER.warning(
-                "Native receiver API failed; falling back to legacy event bus",
-                exc_info=True,
-            )
-            self._start_legacy_event_bus()
+        else:
+            self._start_native_tracking()
 
         if self._native_mode:
             unsub = self._hass.bus.async_listen(
@@ -311,57 +359,246 @@ class SignalMonitor:
             )
             self._unsubs.append(unsub)
 
+    @callback
     def _on_bridge_tracking_event(self, event: Event) -> None:
         """Record bridge-active device_ids alongside native mode.
 
         Native mode handles signal processing via the receiver subscription;
         this listener exists purely so the UI can show ``RX-BRIDGE`` for
         ESPHome devices that still emit legacy bus events from a residual
-        ``on_pronto:`` YAML block. Cheap, runs on the bus thread.
+        ``on_pronto:`` YAML block. Cheap; runs in the event loop.
+
+        Native mode with ZERO receivers plus bridge activity is a special
+        case worth shouting about: the device is emitting legacy events
+        that nothing is processing (the native path owns processing, and
+        it has no receivers). That is an old-firmware/old-YAML device on
+        a modern HA -- tell the user, once per device, instead of letting
+        the Sniffer silently show nothing.
         """
         device_id = (event.data or {}).get("device_id")
         if isinstance(device_id, str) and device_id:
+            if (
+                device_id not in self._bridge_active_device_ids
+                and not self._receiver_subs
+            ):
+                _LOGGER.warning(
+                    "ESPHome device %s is emitting legacy on_pronto bus "
+                    "events, but no native receiver entity is subscribed, "
+                    "so its signals are NOT being processed. On HA 2026.6+ "
+                    "update the device's ESPHome YAML/firmware to the "
+                    "native receiver platform (see HAIR's esphome/ "
+                    "examples)",
+                    device_id,
+                )
             self._bridge_active_device_ids.add(device_id)
 
-    async def _start_native_receivers(self) -> None:
-        """Subscribe to all native ``InfraredReceiverEntity`` instances.
+    @callback
+    def _start_native_tracking(self) -> None:
+        """Enter native mode and track receiver entities dynamically.
 
-        Uses ``infrared.async_subscribe_receiver()`` from HA 2026.6+.
-        Both helpers are synchronous ``@callback`` functions (not coroutines).
-        Raises ``ImportError`` if the API is not available (pre-2026.6).
+        ``_native_mode`` means exactly "we are on the native path" -- it is
+        set here unconditionally, receivers present or not. The infrared
+        component exposes no dispatcher signal or hook for receivers
+        appearing (verified against HA 2026.7 source), so inventory is
+        tracked the way HA core's own ``InfraredConsumerEntity`` does it:
+        through the state machine, via the domain add/remove trackers.
+
+        Ordering matters: the trackers are wired BEFORE the first
+        reconcile, so a receiver registering in between is caught by the
+        tracker instead of falling into a snapshot-vs-listener gap. The
+        ``EVENT_HOMEASSISTANT_STARTED`` re-scan is belt-and-braces for
+        cold boots (and guarded, so a config entry added at runtime does
+        not wait on an event that already fired).
+        """
+        self._native_mode = True
+        self._unsubs.append(
+            async_track_state_added_domain(
+                self._hass, "infrared", self._on_infrared_entity_added
+            )
+        )
+        self._unsubs.append(
+            async_track_state_removed_domain(
+                self._hass, "infrared", self._on_infrared_entity_removed
+            )
+        )
+        if self._hass.state is not CoreState.running:
+            self._unsubs.append(
+                self._hass.bus.async_listen_once(
+                    EVENT_HOMEASSISTANT_STARTED, self._on_hass_started
+                )
+            )
+        self._reconcile_receivers()
+        if self._receiver_subs:
+            _LOGGER.info(
+                "Signal monitor started (native mode, %d receiver(s))",
+                len(self._receiver_subs),
+            )
+        else:
+            _LOGGER.info(
+                "Signal monitor started (native mode); no receivers "
+                "present yet, waiting for one to appear"
+            )
+
+    @callback
+    def _on_hass_started(self, _event: Event) -> None:
+        """Re-scan for receivers once Home Assistant finishes starting."""
+        self._reconcile_receivers()
+
+    @callback
+    def _on_infrared_entity_added(self, event: Event) -> None:
+        """An infrared-domain entity appeared in the state machine.
+
+        Fires for emitters too (Tuya, Broadlink, HAIR's own Tweezer);
+        harmless, because reconcile filters through
+        ``async_get_receivers``. This tracker only sees BRAND-NEW
+        entities (old_state None) -- a config entry reload does NOT fire
+        it, because registered entities keep an ``unavailable`` state
+        placeholder across unload; the reload heal lives in
+        ``_on_receiver_availability_change``. The release-first branch
+        below is defensive belt-and-braces for any path where an added
+        event arrives for an id we still track.
+        """
+        entity_id = (event.data or {}).get("entity_id")
+        if entity_id in self._receiver_subs:
+            self._release_receiver(entity_id)
+        self._reconcile_receivers()
+
+    @callback
+    def _on_infrared_entity_removed(self, event: Event) -> None:
+        """An infrared-domain entity left the state machine.
+
+        Only genuine removal from the state machine fires this -- an
+        entity deleted outright, or removed from the entity registry.
+        Config entry unload/reload does NOT: registered entities keep an
+        ``unavailable`` placeholder (that transition is handled by
+        ``_on_receiver_availability_change`` instead).
+        """
+        entity_id = (event.data or {}).get("entity_id")
+        if entity_id in self._receiver_subs:
+            self._release_receiver(entity_id)
+
+    @callback
+    def _reconcile_receivers(self) -> None:
+        """Bring receiver subscriptions in line with the current inventory.
+
+        Idempotent and cheap; safe to call from any path (initial start,
+        domain trackers, the started-once re-scan). Subscribes every
+        receiver not yet tracked and releases every tracked id no longer
+        listed. One bad entity cannot abort the loop -- and can NEVER
+        route us onto the legacy bus.
         """
         from homeassistant.components.infrared import (  # type: ignore[attr-defined]
             async_get_receivers,
             async_subscribe_receiver,
         )
 
-        receivers = async_get_receivers(self._hass)
-        if not receivers:
-            _LOGGER.info(
-                "Native receiver API available but no receivers found; "
-                "falling back to legacy event bus"
+        try:
+            current = set(async_get_receivers(self._hass))
+        except Exception:
+            # Never fail setup (or a tracker callback) on a bad scan; the
+            # trackers and the started-once re-scan retry naturally. And
+            # never, ever select legacy mode from here.
+            _LOGGER.warning(
+                "Receiver inventory scan failed; will retry on the next "
+                "reconcile",
+                exc_info=True,
             )
-            self._start_legacy_event_bus()
             return
+        states = self._hass.states
+        for entity_id in [e for e in self._receiver_subs if e not in current]:
+            self._release_receiver(entity_id)
+        for entity_id in sorted(current - set(self._receiver_subs)):
+            state = states.get(entity_id)
+            if state is None or state.state == STATE_UNAVAILABLE:
+                # Mirror core's consumer entity: never subscribe to an
+                # unavailable receiver (its object may be mid-teardown).
+                # The availability watcher below subscribes it the moment
+                # it comes (back) up.
+                continue
+            try:
+                # rid=... binds the loop var by value (avoids late-binding)
+                # and threads the capturing receiver's entity_id into the
+                # callback so location-aware triggers know where the signal
+                # was received.
+                unsub = async_subscribe_receiver(
+                    self._hass,
+                    entity_id,
+                    lambda sig, rid=entity_id: self._on_received_signal(
+                        sig, rid
+                    ),
+                )
+            except Exception:
+                # HomeAssistantError when the entity is missing or not a
+                # receiver (it may still be registering). Skip it; the
+                # added-domain tracker will bring it back when it settles.
+                _LOGGER.warning(
+                    "Could not subscribe to receiver %s; skipping",
+                    entity_id,
+                    exc_info=True,
+                )
+                continue
+            self._receiver_subs[entity_id] = unsub
+            _LOGGER.debug("Subscribed to receiver %s", entity_id)
 
-        for receiver_entity_id in receivers:
-            # rid=... binds the loop var by value (avoids late-binding) and
-            # threads the capturing receiver's entity_id into the callback so
-            # location-aware triggers know where the signal was received.
-            unsub = async_subscribe_receiver(
-                self._hass,
-                receiver_entity_id,
-                lambda sig, rid=receiver_entity_id: self._on_received_signal(
-                    sig, rid
-                ),
+        # (Re)wire the availability watcher over the full inventory,
+        # available or not -- unavailable receivers are exactly the ones
+        # we need to hear come up.
+        if self._receiver_watch_unsub is not None:
+            self._receiver_watch_unsub()
+            self._receiver_watch_unsub = None
+        if current:
+            self._receiver_watch_unsub = async_track_state_change_event(
+                self._hass, sorted(current), self._on_receiver_availability_change
             )
-            self._unsubs.append(unsub)
 
-        self._native_mode = True
-        _LOGGER.info(
-            "Signal monitor started (native mode, %d receiver(s))",
-            len(receivers),
+    @callback
+    def _on_receiver_availability_change(self, event: Event) -> None:
+        """A tracked receiver's state changed; manage its subscription.
+
+        The reload/ghost heal (mirrors HA core's
+        ``InfraredReceiverConsumerEntity``): a receiver going
+        ``unavailable`` has its subscription released -- across a config
+        entry reload the entity object is about to be replaced, and a
+        handle bound to the dead object would otherwise look "covered"
+        forever. When it transitions back to available, subscribe fresh,
+        which resolves the CURRENT entity object. Ordinary value updates
+        (every received signal bumps the receiver's state) return on the
+        cheap path.
+        """
+        data = event.data or {}
+        entity_id = data.get("entity_id")
+        new_state = data.get("new_state")
+        available = (
+            new_state is not None and new_state.state != STATE_UNAVAILABLE
         )
+        if not available:
+            if entity_id in self._receiver_subs:
+                self._release_receiver(entity_id)
+            return
+        if entity_id not in self._receiver_subs:
+            self._reconcile_receivers()
+
+    @callback
+    def _release_receiver(self, entity_id: str) -> None:
+        """Release one receiver subscription and purge its state.
+
+        The v0.5.7 in-flight ditto attribution is keyed per receiver; a
+        fresh entity object must never inherit a stale anchor. Repeat
+        suppression is keyed ``((tier, value), receiver_key)`` (v0.5.8
+        unified identity) and its entries expire in
+        ``SIGNAL_REPEAT_SUPPRESS_MS`` anyway, but the sweep bounds growth
+        across many reload cycles.
+        """
+        unsub = self._receiver_subs.pop(entity_id, None)
+        if unsub is not None:
+            with contextlib.suppress(Exception):
+                unsub()
+        self._ditto_anchor.pop(entity_id, None)
+        self._ditto_running_count.pop(entity_id, None)
+        self._last_ditto_monotonic.pop(entity_id, None)
+        for key in [k for k in self._last_seen_times if k[1] == entity_id]:
+            del self._last_seen_times[key]
+        _LOGGER.debug("Released receiver subscription for %s", entity_id)
 
     def _start_legacy_event_bus(self) -> None:
         """Subscribe to ``esphome.remote_received`` events (legacy path)."""
@@ -380,19 +617,25 @@ class SignalMonitor:
     def has_receivers(self) -> bool:
         """Whether HAIR currently has any working receive path.
 
-        True when native receivers are subscribed (native mode), or at
-        least one ESPHome bridge has fired an event this session. False
-        means the Sniffer's empty state should explain that no receiver is
-        configured, rather than implying the user simply has not pressed a
-        button yet.
+        True when at least one native receiver is actually subscribed, or
+        at least one ESPHome bridge has fired an event this session. Note
+        this is subscription presence, not mode (v0.5.8 hot-plug): native
+        mode with zero receivers genuinely cannot receive, and the
+        Sniffer's empty state should say "no receiver is set up" rather
+        than implying the user simply has not pressed a button yet.
         """
-        return self._native_mode or bool(self._bridge_active_device_ids)
+        return bool(self._receiver_subs) or bool(self._bridge_active_device_ids)
 
     async def async_stop(self) -> None:
         """Stop listening, flush pending writes."""
         if self._unsub is not None:
             self._unsub()
             self._unsub = None
+        for entity_id in list(self._receiver_subs):
+            self._release_receiver(entity_id)
+        if self._receiver_watch_unsub is not None:
+            self._receiver_watch_unsub()
+            self._receiver_watch_unsub = None
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -428,6 +671,19 @@ class SignalMonitor:
         # whether the signal passes downstream filters).
         device_id = event_data.get("device_id")
         if isinstance(device_id, str) and device_id:
+            if (
+                device_id not in self._bridge_active_device_ids
+                and not self._receiver_subs
+            ):
+                _LOGGER.warning(
+                    "ESPHome device %s is emitting legacy on_pronto bus "
+                    "events, but no native receiver entity is subscribed, "
+                    "so its signals are NOT being processed. On HA 2026.6+ "
+                    "update the device's ESPHome YAML/firmware to the "
+                    "native receiver platform (see HAIR's esphome/ "
+                    "examples)",
+                    device_id,
+                )
             self._bridge_active_device_ids.add(device_id)
 
         # Filter out repeat frames (no command data).
@@ -489,7 +745,7 @@ class SignalMonitor:
         if self._trigger_manager is not None:
             self._trigger_manager.on_signal_captured(
                 sig_fp, parsed.protocol, parsed.code, dev_fp,
-                receiver_entity_id,
+                receiver_entity_id, byte_hash, decoded_fingerprint,
             )
 
         # Step 3: Check known commands. The matcher returns the matched
@@ -531,7 +787,9 @@ class SignalMonitor:
 
         # Step 6: Repeat suppression (per receiver, so cross-receiver captures
         # of the same press are not dropped as storage-path repeats).
-        if not self._check_repeat(sig_fp, receiver_entity_id):
+        if not self._check_repeat(
+            sig_fp, receiver_entity_id, byte_hash, decoded_fingerprint
+        ):
             self._ditto_anchor.pop(rid_key, None)  # invalidate this receiver's sentinel
             return
 
@@ -552,7 +810,7 @@ class SignalMonitor:
                 )
                 self._signal_store.add_device(device)
 
-            signal = device.get_signal(sig_fp, byte_hash)
+            signal = device.get_signal(sig_fp, byte_hash, decoded_fingerprint)
             if signal is None:
                 signal = UnknownSignal(
                     fingerprint=sig_fp,
@@ -610,9 +868,9 @@ class SignalMonitor:
         self._hass.bus.async_fire(EVENT_SIGNAL_DETECTED, summary)
 
         # Step 12: Notify subscribers.
-        for callback in self._subscribers:
+        for subscriber in self._subscribers:
             try:
-                callback(summary)
+                subscriber(summary)
             except Exception:
                 _LOGGER.exception("Error notifying signal subscriber")
 
@@ -792,15 +1050,33 @@ class SignalMonitor:
     # -----------------------------------------------------------------
 
     def _check_repeat(
-        self, fingerprint: str, receiver_entity_id: str | None = None
+        self,
+        fingerprint: str,
+        receiver_entity_id: str | None = None,
+        byte_hash: str | None = None,
+        decoded_fingerprint: str | None = None,
     ) -> bool:
         """Return True if the event is NOT a repeat (passes suppression).
 
-        Suppresses duplicate fingerprints within ``SIGNAL_REPEAT_SUPPRESS_MS``,
-        keyed per receiver (v0.5.7) so the same press captured by two receivers
-        is not dropped -- each receiver's captures suppress only their own.
+        Suppresses duplicate signals within ``SIGNAL_REPEAT_SUPPRESS_MS``,
+        keyed per receiver (v0.5.7) so the same press captured by two
+        receivers is not dropped -- each receiver's captures suppress only
+        their own. The signal side of the key is the STRONGEST identity
+        tier the capture carries (v0.5.8 unified identity): two DIFFERENT
+        sub-threshold buttons in quick succession (Sony red then green
+        share an S/L fingerprint but differ in byte_hash) are both stored,
+        while one button whose S/L fingerprint flips across the
+        classification boundary between frames still suppresses correctly
+        via its stable byte_hash. Known wrinkle (accepted): if one frame of
+        a press decodes and the next frame's decode fails, the two frames
+        key at different tiers and suppression misses between them -- the
+        tiered store dedup still merges the rows, so the cost is live-feed
+        noise only.
         """
-        key = (fingerprint, receiver_entity_id or "__legacy__")
+        from .identity import SignalIdentity
+
+        ident = SignalIdentity(decoded_fingerprint, byte_hash, fingerprint)
+        key = (ident.strongest_key(), receiver_entity_id or "__legacy__")
         now = time.monotonic()
         last = self._last_seen_times.get(key)
         suppress_s = SIGNAL_REPEAT_SUPPRESS_MS / 1000.0
@@ -1252,31 +1528,14 @@ class SignalMonitor:
             code = result.normalized
             sig_fp = EventParser.signal_fingerprint("PRONTO", code, [])
             byte_hash = EventParser.pronto_byte_hash(code)
-            # Reject a paste of a signal already on this remote. The match
-            # is on the composite (fingerprint, byte_hash): a genuinely
-            # different code that merely shares an S/L fingerprint (e.g.
-            # Panasonic, TCL) has a different byte_hash and is allowed
-            # through as a distinct signal. Only a true duplicate (same
-            # fingerprint AND same byte_hash) is refused. The Sniffer
-            # dedupes the same way on capture.
-            if device.get_signal(sig_fp, byte_hash) is not None:
-                return {
-                    "success": False,
-                    "code": "duplicate_signal",
-                    "error": "This signal is already on this remote",
-                }
-            frequency = (
-                round(result.frequency_khz * 1000)
-                if result.frequency_khz
-                else DEFAULT_CARRIER_FREQUENCY
-            )
             from .ir_command import ProntoCommand
 
             # Decode-on-paste: mirror the Sniffer capture path so a pasted NEC
             # code transmits canonical re-encoded timings instead of the
             # quantized Pronto. Guarded; a non-NEC or unreadable code stays
             # Pronto-only. Timings are computed only to feed the decoder --
-            # raw_timings stays [] (TX uses decoded_*, not raw).
+            # raw_timings stays [] (TX uses decoded_*, not raw). Runs BEFORE
+            # the duplicate guard so the guard sees the full tiered identity.
             try:
                 decode_raw = ProntoCommand(code).get_raw_timings()
             except Exception:
@@ -1287,6 +1546,26 @@ class SignalMonitor:
                 decoded_command,
                 decoded_fingerprint,
             ) = decode_to_fields(decode_raw)
+
+            # Reject a paste of a signal already on this remote. The match
+            # is the tiered identity rule (decoded > byte_hash > S/L
+            # fingerprint): a genuinely different code that merely shares an
+            # S/L fingerprint (e.g. Panasonic, TCL, Sony) differs at the
+            # byte level and is allowed through as a distinct signal, while
+            # a jittered copy of an existing button is refused even when its
+            # coarse fingerprint flipped across the classification boundary.
+            # The Sniffer dedupes the same way on capture.
+            if device.get_signal(sig_fp, byte_hash, decoded_fingerprint) is not None:
+                return {
+                    "success": False,
+                    "code": "duplicate_signal",
+                    "error": "This signal is already on this remote",
+                }
+            frequency = (
+                round(result.frequency_khz * 1000)
+                if result.frequency_khz
+                else DEFAULT_CARRIER_FREQUENCY
+            )
             signal = UnknownSignal(
                 fingerprint=sig_fp,
                 byte_hash=byte_hash,
@@ -1383,22 +1662,12 @@ class SignalMonitor:
             code = result.normalized
             sig_fp = EventParser.signal_fingerprint("PRONTO", code, [])
             byte_hash = EventParser.pronto_byte_hash(code)
-            if device.get_signal(sig_fp, byte_hash) is not None:
-                return {
-                    "success": False,
-                    "code": "duplicate_signal",
-                    "error": "This signal is already on this blaster",
-                }
-            frequency = (
-                round(result.frequency_khz * 1000)
-                if result.frequency_khz
-                else DEFAULT_CARRIER_FREQUENCY
-            )
             from .ir_command import ProntoCommand
 
             # Decode-on-place: mirror the Sniffer/clip path so a plucked NEC
             # code transmits canonical re-encoded timings. Guarded; a non-NEC
-            # or unreadable code stays Pronto-only.
+            # or unreadable code stays Pronto-only. Runs BEFORE the duplicate
+            # guard so the guard sees the full tiered identity.
             try:
                 decode_raw = ProntoCommand(code).get_raw_timings()
             except Exception:
@@ -1409,6 +1678,22 @@ class SignalMonitor:
                 decoded_command,
                 decoded_fingerprint,
             ) = decode_to_fields(decode_raw)
+
+            # Tiered duplicate guard (matches the paste/edit/capture paths):
+            # a re-encoding of an already-plucked command is refused even
+            # when it bins or classifies differently, so the load-time heal
+            # never has to merge (and thereby delete) a plucked row later.
+            if device.get_signal(sig_fp, byte_hash, decoded_fingerprint) is not None:
+                return {
+                    "success": False,
+                    "code": "duplicate_signal",
+                    "error": "This signal is already on this blaster",
+                }
+            frequency = (
+                round(result.frequency_khz * 1000)
+                if result.frequency_khz
+                else DEFAULT_CARRIER_FREQUENCY
+            )
             signal = UnknownSignal(
                 fingerprint=sig_fp,
                 byte_hash=byte_hash,
@@ -1481,22 +1766,10 @@ class SignalMonitor:
             new_fp = EventParser.signal_fingerprint("PRONTO", code, [])
             new_byte_hash = EventParser.pronto_byte_hash(code)
 
-            # Refuse a code a *different* signal on this remote already holds.
-            # Editing to the identity the signal already has is allowed (it
-            # resolves to this same signal, so no collision).
-            existing = device.get_signal(new_fp, new_byte_hash)
-            if existing is not None and existing.id != signal.id:
-                return {
-                    "success": False,
-                    "code": "duplicate_signal",
-                    "error": "Another signal on this remote already has that code",
-                }
-
-            old_fp = signal.fingerprint
-
-            # Re-evaluate the new code as a fresh capture: derive timings from
-            # the Pronto and decode, so the signal stays first-class and (on
-            # the Sniffer) snappable.
+            # Re-evaluate the new code as a fresh capture: derive timings
+            # from the Pronto and decode, so the signal stays first-class
+            # and (on the Sniffer) snappable. Runs BEFORE the duplicate
+            # guard so the guard sees the full tiered identity.
             try:
                 raw = ProntoCommand(code).get_raw_timings()
             except Exception:
@@ -1507,6 +1780,27 @@ class SignalMonitor:
                 decoded_command,
                 decoded_fingerprint,
             ) = decode_to_fields(raw)
+
+            # Refuse a code a *different* signal on this remote already holds
+            # (tiered identity, so a jittered re-paste of an existing button
+            # is caught even when its coarse fingerprint flipped). Editing to
+            # the identity the signal already has is allowed (it resolves to
+            # this same signal, so no collision).
+            existing = device.get_signal(new_fp, new_byte_hash, decoded_fingerprint)
+            if existing is not None and existing.id != signal.id:
+                return {
+                    "success": False,
+                    "code": "duplicate_signal",
+                    "error": "Another signal on this remote already has that code",
+                }
+
+            old_fp = signal.fingerprint
+            # Captured BEFORE the mutation below: a sub-threshold edit (Sony
+            # code A to code B) changes only the byte_hash -- and rewire
+            # needs the old byte-level AND decoded values to repoint
+            # precisely (v0.5.8 unified identity).
+            old_byte_hash = signal.byte_hash
+            old_decoded_fingerprint = signal.decoded_fingerprint
             frequency = (
                 round(result.frequency_khz * 1000)
                 if result.frequency_khz
@@ -1537,9 +1831,20 @@ class SignalMonitor:
             signal.last_seen = datetime.now(UTC).isoformat()
 
             rewire: dict[str, list[str]] = {"rewired": [], "skipped": []}
-            if self._trigger_manager is not None and new_fp != old_fp:
+            # Rewire on ANY identity component changing (v0.5.8): a
+            # sub-threshold edit shifts only the byte_hash, never the S/L
+            # fingerprint, and would otherwise orphan a scoped trigger.
+            if self._trigger_manager is not None and (
+                new_fp != old_fp
+                or new_byte_hash != old_byte_hash
+                or decoded_fingerprint != old_decoded_fingerprint
+            ):
                 rewire = await self._trigger_manager.rewire(
-                    old_fp, new_fp, "PRONTO", code
+                    old_fp, new_fp, "PRONTO", code,
+                    old_byte_hash=old_byte_hash,
+                    new_byte_hash=new_byte_hash,
+                    old_decoded_fingerprint=old_decoded_fingerprint,
+                    new_decoded_fingerprint=decoded_fingerprint,
                 )
 
             await self._signal_store.async_save()
@@ -1579,7 +1884,12 @@ class SignalMonitor:
                 code = result.normalized
                 sig_fp = EventParser.signal_fingerprint("PRONTO", code, [])
                 byte_hash = EventParser.pronto_byte_hash(code)
-                if device.get_signal(sig_fp, byte_hash) is not None:
+                # Tiered in-batch duplicate guard: codebook entries carry a
+                # decoded identity, so two encodings of the same command
+                # dedupe here instead of surviving until the load-time heal.
+                if device.get_signal(
+                    sig_fp, byte_hash, entry.get("decoded_fingerprint")
+                ) is not None:
                     skipped += 1
                     continue
                 frequency = (

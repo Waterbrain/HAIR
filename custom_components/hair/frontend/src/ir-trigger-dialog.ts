@@ -25,6 +25,12 @@ export class IrTriggerDialog extends LitElement {
     @property() public slPattern: string | null = null;
     /** Optional signal alias, shown instead of bare diamonds when set. */
     @property() public alias: string | null = null;
+    /** Byte-level identity of the source signal (v0.5.8). Distinguishes
+     * sub-threshold sibling buttons that share an S/L fingerprint. */
+    @property() public byteHash: string | null = null;
+    /** Decoded protocol identity of the source signal (v0.5.8 unified
+     * identity). Jitter-immune tier-1 matching where a decoder exists. */
+    @property() public decodedFingerprint: string | null = null;
 
     /** For create mode: optional source references. */
     @property() public sourceDeviceId: string | null = null;
@@ -85,6 +91,12 @@ export class IrTriggerDialog extends LitElement {
                 };
                 if (this.signalFingerprint) {
                     payload.signal_fingerprint = this.signalFingerprint;
+                }
+                if (this.byteHash) {
+                    payload.byte_hash = this.byteHash;
+                }
+                if (this.decodedFingerprint) {
+                    payload.decoded_fingerprint = this.decodedFingerprint;
                 }
                 saved = await this.api.createTrigger(payload);
             }
