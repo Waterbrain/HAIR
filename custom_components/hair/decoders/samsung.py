@@ -140,7 +140,16 @@ class Samsung32Command(Command):
             if space > _SPACE_MIDPOINT_US:
                 data |= 1 << i
 
-        if not _MARK_MIN_US <= frame[66] <= _MARK_MAX_US:
+        # End pulse. Nominally 560us, but real emitters that replay the
+        # packet for repeats can butt the replay directly against it
+        # with no junction gap, fusing the end mark with whatever comes
+        # next into one long mark (v0.6.1 bench: Broadlink TX honors
+        # the command's repeat_count on top of the timings' baked
+        # repeat frames; observed fusions of ~4900us and ~7000us). So
+        # the end pulse has NO upper bound: once fusion is possible its
+        # length carries no information, and the 32 data pairs plus the
+        # inverted-command checksum already gate the decode.
+        if frame[66] < _MARK_MIN_US:
             return None
         if any(value > 0 for value in frame[67:]):
             return None
