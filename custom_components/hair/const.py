@@ -94,6 +94,13 @@ SIGNAL_RAW_FINGERPRINT_LEN = 64
 # ---------------------------------------------------------------------------
 # Triggers
 # ---------------------------------------------------------------------------
+# min_hits accumulation window, anchored at the FIRST press of a chain
+# (v0.6.6): all min_hits presses must land within this many seconds of the
+# first one, exactly as the trigger dialog's "within 5s" copy states. A
+# press arriving after the window closes starts a fresh chain. (Pre-0.6.6
+# the window slid on every press, letting slow chains accumulate across an
+# unbounded total span.) Distinct from MULTI_RECEIVER_DEDUP_WINDOW_S below,
+# which collapses one physical press seen by several receivers.
 TRIGGER_HIT_RESET_WINDOW_S = 5
 EVENT_TRIGGER_FIRED = f"{DOMAIN}_trigger_fired"
 # Trigger dedup window (v0.5.7, resized v0.5.8). A single physical press
@@ -166,6 +173,28 @@ PLUCK_TIMEOUT_S = 5
 # HA's general infrared emitter list (vendor services must be able to target
 # it).
 TWEEZER_OBSERVER_ATTR = "hair_observer"
+
+# --- The Mirror (v0.6.6) ----------------------------------------------------
+# Synthetic Sniffer-store device that logs every HA-originated IR
+# transmission (send-time rows; echoes enrich with heard_by). Rendered by
+# the Mirror tab; the Sniffer filters it out of its own feed.
+MIRROR_DEVICE_FP = "hair-mirror"
+MIRROR_DEVICE_LABEL = "Mirror"
+# How long after a send (or a foreign emitter beacon) an arriving capture
+# may still be claimed as that send's echo. Generous for slow emitters
+# (Broadlink queueing) and multi-frame sends.
+MIRROR_ECHO_TTL_S = 2.5
+# A state beacon on an emitter within this window of HAIR's own recorded
+# send on that emitter is HAIR's own beacon, not a foreign integration's.
+# 3.0s, not 1.0: the mark is set BEFORE the send loop, and a queued
+# Broadlink can take over a second to actually transmit and write its
+# state -- at 1.0s the bench caught HAIR mistaking its own send for a
+# foreign integration's (which then claimed stray captures as echoes).
+# Matches the echo TTL's generosity for slow emitters.
+MIRROR_OWN_BEACON_WINDOW_S = 3.0
+# Synthetic per-emitter fingerprint prefix for foreign sends that no
+# receiver heard (identity unknown, send still audited).
+MIRROR_UNKNOWN_SEND_FP_PREFIX = "mirror-unknown::"
 # Directory (relative to this package) holding the pluckable YAML registry,
 # one file per vendor integration. Files starting with "_" are skipped by
 # the loader (templates, drafts).

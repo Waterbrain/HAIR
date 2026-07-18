@@ -117,6 +117,8 @@ For ready-made, HAIR-tested configurations for common ESP32 boards and IR device
 
 **HAIR Plucker** - Pull IR codes that already live in a vendor blaster, the codes you learned in the vendor's own app, into HAIR as native signals without re-learning each one at a receiver. The Plucker works with integrations that can replay a stored code by name through a chosen emitter on HA's native `infrared` platform. HAIR points that replay at its own observer emitter (the HAIR Tweezer) and captures the code before it becomes physical IR, so nothing is broadcast over the air during a pluck and your blaster keeps working normally. [Tuya Local](https://github.com/make-all/tuya-local) is the first integration to support it; adding another is a single YAML file (see [Making your integration pluckable](docs/making-your-integration-pluckable.md)). The Plucker tab, and a Blasters (Pluckable) section on the Devices tab, appear only when a compatible blaster is configured.
 
+**HAIR Mirror** - See what your house transmits. Every IR command sent through Home Assistant appears as a row on the Mirror tab, whether anything heard it or not: HAIR device commands, catalog tests, automations, and other integrations sending through the native `infrared` platform. Each row shows the send's identity, which emitter carried it, whether a receiver heard it back and in which room, how it originated, and a running send count. Because Mirror rows carry the same Assign, Test, and Trigger actions as everywhere else, the Mirror is also a third road for getting codes into HAIR alongside the Clipper and the Plucker: press a button in any vendor app whose blaster transmits through the infrared platform, and if a receiver hears the transmission, the code lands in the Mirror one Assign away from living in HAIR. The Mirror also gates triggers, so the house's own sends never fire them.
+
 **Signal Aliases** - Give any signal a nickname by clicking its S/L diamond pattern and typing. The alias replaces the diamonds in the list so you can tell your signals apart at a glance, in both the Sniffer and Clipper. Click an existing alias to rename it, or clear the field to remove the alias and bring the diamonds back. An alias is a label on the signal, not a command name, so the same signal can still become differently-named commands on different devices.
 
 **Device Management** - Create profiles for your IR-controlled devices (TVs, ACs, fans, lights, switches, screens). Assign captured signals as named commands from a device-type-aware template list, or enter custom names. Assigning a signal copies it into the device and leaves the original in place, so the same signal can be assigned to more than one device or as more than one command. Each device gets native HA entities automatically based on its type. One-click duplicate clones an existing device with all its commands, action mappings, and emitter assignments preserved, useful when you have several remotes of the same model or a stack of similar AC units.
@@ -171,7 +173,7 @@ The Test button on any captured signal opens an emitter picker so you can choose
 
 Devices already managed by HAIR are tagged with a "HAIR Device" badge. You can dismiss noisy sources (like a neighbor's remote leaking through a window) and bring them back later with the "Show Dismissed" toggle (hover tooltip: "Restore previously hidden remotes"). When dismissed remotes are still firing in the background, the button quietly glows blue and shows a small dot indicator, so you can tell at a glance that there is still activity arriving from remotes you have hidden, without re-exposing those signals in the live feed. Clicking the button clears the dot and reveals the dismissed remotes so you can restore the ones you actually want back.
 
-You can give any signal an alias by clicking its diamond pattern and typing a name. The alias replaces the diamonds in the row, which makes it easy to tell signals apart before you assign them. Assigning a signal no longer removes it from the Sniffer either. The signal is copied into the device and stays in the list, so you can assign the same signal to several devices, or as several commands, and reuse it later. Only Delete, Dismiss, and Clear All take a signal out of the Sniffer.
+You can give any signal an alias by clicking its diamond pattern and typing a name. The alias replaces the diamonds in the row, which makes it easy to tell signals apart before you assign them. Assigning a signal no longer removes it from the Sniffer either. The signal is copied into the device and stays in the list, so you can assign the same signal to several devices, or as several commands, and reuse it later. Only Delete, Dismiss, and Clear All take a signal out of the Sniffer -- and an assigned button keeps flashing its row when you press it, so you can always see that the remote is alive. A deleted signal comes back the next time a receiver hears it, exactly like any other signal; if you want activity to stay hidden, dismiss the remote.
 
 Remotes and signals are yours to arrange. Drag the grip handle on a remote to reorder your remotes, and drag the grip on a signal row to reorder the signals inside a remote. The order you set is remembered, and a newly seen remote or signal appears at the top until you move it.
 
@@ -194,6 +196,16 @@ The Plucker tab pulls IR codes off a vendor blaster that already has them learne
 Click "+ Add Blaster" to register one: pick the vendor entity, then enter the appliance name you used when you learned the codes in the vendor's app (required for vendors that group codes by appliance, such as Tuya). Expand the blaster card and click "+ Pluck Signal", type the name of a stored command (for example "pwr_on"), and HAIR asks the vendor to replay it through the HAIR Tweezer, captures it, and adds it to the card. From there a plucked signal is identical to a sniffed or clipped one: test it, alias it, turn it into a trigger, assign it to a device, or promote the whole blaster.
 
 Nothing is transmitted over the air during a pluck, and your blaster keeps working normally. If your integration is not pluckable yet, the tab stays hidden. See [Making your integration pluckable](docs/making-your-integration-pluckable.md) for what it takes to add support.
+
+### The Mirror Tab
+
+The Mirror logs every IR transmission that originates inside Home Assistant, at the moment it is sent. A HAIR device command, a Test from any catalog tab, an automation firing a command, or another integration sending through the native `infrared` platform: each lands as a row showing what was sent (the assigned command name when there is one, otherwise the decoded protocol identity), which emitter carried it, whether a receiver heard it back and in which room, where it came from, and how many times it has been sent. A send that arrives while you are watching blooms its row silver.
+
+The heard-back column is the part that earns the tab its place: a command that transmits but is never heard by any receiver reads "not heard", which is how you find a dead IR LED, a misaimed blaster, or an offline emitter without pointing a phone camera at anything. "Not heard" is neutral, not an alarm, because plenty of setups are transmit-only on purpose; the amber "Not heard" filter chip is there when you are actually troubleshooting. Homes with no receiver at all simply see their sends without heard-back detail. Filter chips narrow the list to one emitter, and search covers names, protocols, emitters, and origins.
+
+Every row carries the same Assign, Test, and Trigger buttons as the rest of the panel, plus the code viewer. That makes the Mirror the third road for importing codes, next to the Clipper (paste) and the Plucker (pull by name): press a button in any vendor app whose blaster transmits through the infrared platform, and if a receiver hears the transmission, the decoded code appears in the Mirror ready to assign to a HAIR device. No pasting, no vendor support file, no re-learning.
+
+Repeat sends of the same command bump one row's count rather than piling up, and deleting a row just clears the entry -- it returns the next time that signal is sent, so tidying up old experiments never damages the audit. One rule the Mirror never bends: triggers do not fire on anything it records. When Home Assistant sends a command and a receiver hears the echo, that capture is attributed to the send rather than treated as a new signal, so a trigger means "this arrived from the outside world" and can never feed back on the house's own output.
 
 ### Adding a Device
 
@@ -218,6 +230,8 @@ For air conditioners, command names like "Temp 22" and "Temp 24" wire themselves
 When you don't have the physical remote to hand, build the command in the Clipper instead: paste the button's Pronto code on the Clipper tab, then Assign it to a device exactly as you would a sniffed signal. Sniffed and clipped signals are interchangeable once captured.
 
 When the code already lives in a vendor blaster (such as Tuya Local), use the Plucker tab to pull it into HAIR by name without re-learning it at a receiver. Register the blaster with "+ Add Blaster", then "+ Pluck Signal" with the command name you used in the vendor's app, and the resulting signal is interchangeable with sniffed and clipped ones for assignment, alias, trigger, and promote.
+
+And when the send happens anyway, let the Mirror catch it: press the button in the vendor's own app, and if a receiver hears the blaster fire, the code lands on the Mirror tab with an Assign button on it. See [The Mirror Tab](#the-mirror-tab).
 
 You can also start from a device. A device's detail view has add-command buttons that take you to the appropriate capture surface (Sniffer, Clipper, or Plucker depending on what you have configured) so you can capture, paste, or pluck the signal and assign it back to the device.
 
@@ -289,7 +303,7 @@ S/L fingerprinting covers all major consumer IR protocols including NEC, Samsung
 
 ### Architecture
 
-Three signal sources feed one catalog: live capture (Sniffer), manual Pronto paste (Clipper), and vendor code import (Plucker).
+Four signal sources feed one catalog: live capture (Sniffer), manual Pronto paste (Clipper), vendor code import (Plucker), and the send audit (Mirror). The Mirror also closes the loop on the TX side: every outgoing send is logged with its provenance, and echoes of the house's own transmissions are attributed back to their send instead of re-entering the capture pipeline.
 
 ```
   Remote Control                              Pasted Pronto hex
@@ -302,22 +316,25 @@ Three signal sources feed one catalog: live capture (Sniffer), manual Pronto pas
   | async_subscribe_receiver | esphome.remote_received   |
   +--------------------------+---------------------------+
         |                                            |
-  HAIR Sniffer (RX capture)      Clipper (paste)      Plucker (vendor pluck)
-        |                             |                         |
-        +--------------+--------------+-------------+-----------+
+        |<-- echo attribution: captures matching a pending send
+        |    route to the Mirror, never to triggers or the Sniffer
+        |                                            |
+  HAIR Sniffer (RX capture)   Clipper (paste)   Plucker (vendor pluck)   Mirror (send audit)
+        |                          |                      |                    |
+        +--------------+-----------+----------+-----------+--------------------+
                               |
-   Signal Store  (S/L fingerprint + dedup; tracks sniffed / manual / plucked)
+   Signal Store  (S/L fingerprint + dedup; tracks sniffed / manual / plucked / echo)
                               |
                   Trigger Manager --> Event Entities (HA automations)
                               |
-   HAIR Admin Panel  (Sniffer tab + Clipper tab + Plucker tab)
+   HAIR Admin Panel  (Sniffer + Clipper + Plucker + Mirror tabs)
                               |
    Assign signal / Promote remote --> Device Manager --> Entity Factory
                               |
    HA Entities (media_player, climate, fan, light, switch, cover, remote, button)
                               |
    HA infrared Platform (infrared.send_command)  <-- TX path: any platform integration
-                              |
+                              |                       (every send logged on the Mirror)
    IR Emitter Hardware (ESPHome, Tuya Local, Broadlink, SMLIGHT, etc.)
 ```
 

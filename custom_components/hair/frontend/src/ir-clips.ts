@@ -9,6 +9,7 @@
  * editor that replaces the S/L diamonds on a signal once named.
  */
 import { LitElement, html, css, type PropertyValues } from "lit";
+import { actionChipStyles } from "./ir-action-chip-styles";
 import { customElement, property, state } from "./decorators.js";
 import { keyed } from "lit/directives/keyed.js";
 import { repeat } from "lit/directives/repeat.js";
@@ -24,12 +25,14 @@ import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
 import "./ir-count-dot.js";
 import "./ir-trigger-popover.js";
+import "./ir-assigned-popover.js";
 import { triggerMatchesSignal } from "./types.js";
 import type {
     AssignResult,
     DeviceSummary,
     IRTrigger,
     ReceiverInfo,
+    SignalAssignment,
     UnknownDevice,
     UnknownDeviceSummary,
     UnknownSignal,
@@ -104,6 +107,14 @@ export class IrClips extends LitElement {
     @state() private _triggerPopover: {
         deviceId: string;
         signal: UnknownSignal;
+        top: number;
+        left: number;
+    } | null = null;
+    // Assigned-commands popover (v0.6.6); mirrors the trigger popover flow.
+    @state() private _assignedPopover: {
+        deviceId: string;
+        signal: UnknownSignal;
+        label: string | null;
         top: number;
         left: number;
     } | null = null;
@@ -439,6 +450,55 @@ export class IrClips extends LitElement {
         this._assignSignal = { deviceId, signal, label: label ?? null };
     }
 
+    /** Assign-button click router (v0.6.6, mirrors the Trigger flow):
+     * zero assignments opens the Assign dialog directly; 1+ shows the
+     * assigned popover with "+ new assignment" and click-through rows. */
+    private _onAssignClick(
+        deviceId: string,
+        signal: UnknownSignal,
+        label: string | null | undefined,
+        ev?: Event,
+    ): void {
+        if (!signal.assigned_to?.length) {
+            this._openAssign(deviceId, signal, label);
+            return;
+        }
+        const btn = ev?.currentTarget as HTMLElement | undefined;
+        const rect = btn?.getBoundingClientRect();
+        this._assignedPopover = {
+            deviceId,
+            signal,
+            label: label ?? null,
+            top: rect ? rect.bottom + 4 : 120,
+            left: rect ? Math.max(8, rect.right - 220) : 120,
+        };
+        this._installPopoverDismiss();
+    }
+
+    private _closeAssignedPopover(): void {
+        this._assignedPopover = null;
+        this._removePopoverDismiss();
+    }
+
+    private _onAssignedPopoverCreateNew(): void {
+        const p = this._assignedPopover;
+        this._closeAssignedPopover();
+        if (p) this._openAssign(p.deviceId, p.signal, p.label);
+    }
+
+    private _onAssignedPopoverOpen(ev: CustomEvent): void {
+        const a = ev.detail as SignalAssignment | undefined;
+        this._closeAssignedPopover();
+        if (!a) return;
+        this.dispatchEvent(
+            new CustomEvent("navigate-device", {
+                detail: a.device_id,
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
     private async _onSignalAssigned(_ev: CustomEvent<AssignResult>): Promise<void> {
         this._assignSignal = null;
         await this._load();
@@ -549,13 +609,19 @@ export class IrClips extends LitElement {
     }
 
     private _onDocClickForPopover = (ev: Event): void => {
-        const pop = this.shadowRoot?.querySelector("ir-trigger-popover");
-        if (pop && ev.composedPath().includes(pop)) return;
+        const path = ev.composedPath();
+        const trig = this.shadowRoot?.querySelector("ir-trigger-popover");
+        const asgn = this.shadowRoot?.querySelector("ir-assigned-popover");
+        if ((trig && path.includes(trig)) || (asgn && path.includes(asgn))) {
+            return;
+        }
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _onScrollForPopover = (): void => {
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _installPopoverDismiss(): void {
@@ -894,12 +960,12 @@ export class IrClips extends LitElement {
                         class="action-btn assign-btn"
                         title=${sig.assignment_count && sig.assigned_to?.length
                             ? (sig.assignment_count === 1
-                                ? `Assigned to ${sig.assigned_to[0]}`
-                                : `Assigned to ${sig.assignment_count} commands:\n- ${sig.assigned_to.join("\n- ")}`)
+                                ? `Assigned to ${sig.assigned_to[0].device_name} / ${sig.assigned_to[0].command_name}`
+                                : `Assigned to ${sig.assignment_count} commands:\n- ${sig.assigned_to.map((a) => `${a.device_name} / ${a.command_name}`).join("\n- ")}`)
                             : "Assign this signal to a HAIR device"}
                         @click=${(e: Event) => {
                             e.stopPropagation();
-                            this._openAssign(deviceId, sig, label);
+                            this._onAssignClick(deviceId, sig, label, e);
                         }}
                     >Assign<ir-count-dot
                             color="green"
@@ -1046,6 +1112,16 @@ export class IrClips extends LitElement {
                   ></ir-trigger-popover>`
                 : ""}
 
+            ${this._assignedPopover
+                ? html`<ir-assigned-popover
+                      .assignments=${this._assignedPopover.signal.assigned_to ?? []}
+                      .top=${this._assignedPopover.top}
+                      .left=${this._assignedPopover.left}
+                      @create-new=${this._onAssignedPopoverCreateNew}
+                      @open-assignment=${this._onAssignedPopoverOpen}
+                  ></ir-assigned-popover>`
+                : ""}
+
             ${this._triggerDialog
                 ? html`<ir-trigger-dialog
                       .api=${this.api}
@@ -1097,7 +1173,7 @@ export class IrClips extends LitElement {
         `;
     }
 
-    static styles = css`
+    static styles = [actionChipStyles, css`
         :host {
             display: block;
         }
@@ -1443,58 +1519,7 @@ export class IrClips extends LitElement {
             gap: 4px;
             flex-shrink: 0;
         }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-        }
-        .action-btn:hover {
-            background: var(--secondary-background-color);
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .action-btn.assign-btn {
-            color: #2e7d32;
-            border-color: rgba(46, 125, 50, 0.3);
-            position: relative;
-        }
-        .action-btn.assign-btn:hover {
-            background: rgba(46, 125, 50, 0.08);
-        }
-        .action-btn.test-btn {
-            color: var(--primary-color);
-        }
-        .action-btn.trigger-btn {
-            color: #b89930;
-            border-color: rgba(184, 153, 48, 0.3);
-            position: relative;
-        }
-        .action-btn.trigger-btn:hover {
-            background: rgba(184, 153, 48, 0.08);
-        }
-        .action-btn.delete-btn {
-            color: #e65100;
-            border-color: rgba(230, 81, 0, 0.25);
-        }
-        .action-btn.delete-btn:hover {
-            background: rgba(230, 81, 0, 0.08);
-        }
-        .action-btn.dismiss-btn {
-            color: var(--secondary-text-color);
-            border-color: var(--divider-color);
-        }
-    `;
+    `];
 }
 
 declare global {

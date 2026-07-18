@@ -172,7 +172,12 @@ export interface CaptureStartResponse {
 // Signal Monitor (unknown devices)
 // ---------------------------------------------------------------------------
 
-export type SignalSourceId = "sniffed" | "manual" | "plucked";
+export type SignalSourceId = "sniffed" | "manual" | "plucked" | "echo";
+
+// The Mirror's synthetic catalog device (v0.6.6). Rows under this
+// fingerprint are send-audit entries, rendered by the Mirror tab and
+// filtered out of the Sniffer's live feed.
+export const MIRROR_DEVICE_FP = "hair-mirror";
 
 export interface UnknownSignal {
     // Stable per-signal identity. The fingerprint is NOT unique on a remote
@@ -206,11 +211,28 @@ export interface UnknownSignal {
     repeat_count?: number;
     send_count?: number;
     observed_repeat_count?: number;
-    // Assignment provenance (dots polish, v0.5.7). Number of HAIR device
-    // commands whose fingerprint matches this signal, and their
-    // "<device>.<command>" labels for the green Assign dot's tooltip.
+    // Assignment provenance (dots polish, v0.5.7; structured payloads for
+    // the assigned popover, v0.6.6). Number of HAIR device commands whose
+    // identity matches this signal, plus one structured entry per match:
+    // names render the popover rows, ids drive click-through navigation
+    // to the device card.
     assignment_count?: number;
-    assigned_to?: string[];
+    assigned_to?: SignalAssignment[];
+    // The Mirror (v0.6.6, source "echo" rows only). echo_source is the
+    // provenance display string "<label> -- via <friendly emitters>";
+    // heard_by lists the receiver entity_ids that echoed the LAST send
+    // (empty = sent, not heard).
+    echo_source?: string | null;
+    heard_by?: string[] | null;
+}
+
+// One catalog-signal-to-HAIR-command assignment link (v0.6.6, assigned
+// popover). Serialized by websocket_api._assignment_index.
+export interface SignalAssignment {
+    device_id: string;
+    device_name: string;
+    command_id: string;
+    command_name: string;
 }
 
 export interface UnknownDeviceSummary {
