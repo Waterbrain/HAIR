@@ -15,6 +15,8 @@
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "./decorators.js";
+import { t } from "./localize.js";
+import { dialogStyles } from "./ir-dialog-styles.js";
 import "./ir-emitter-picker.js";
 import type { HairApi } from "./api.js";
 
@@ -71,7 +73,7 @@ export class IrTestEmitterDialog extends LitElement {
         return html`
             <ha-dialog
                 open
-                heading="Send from"
+                heading=${t("test_emitter.heading")}
                 scrimClickAction=""
                 @closed=${this._close}
             >
@@ -89,47 +91,36 @@ export class IrTestEmitterDialog extends LitElement {
                         @click=${this._close}
                         ?disabled=${this.busy}
                     >
-                        Cancel
+                        ${t("common.cancel")}
                     </button>
                     <button
                         class="action-btn send-btn"
                         @click=${this._send}
                         ?disabled=${!canSend}
                     >
-                        ${this.busy ? "Sending..." : "Send"}
+                        ${this.busy ? t("test_emitter.sending") : t("test_emitter.send")}
                     </button>
                 </div>
             </ha-dialog>
         `;
     }
 
-    static styles = css`
+    static styles = [
+        dialogStyles,
+        css`
+        /* Slimmer actions row than the shared one; ships this way. */
         .dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
             margin-top: 16px;
+            padding-top: 0;
+            border-top: none;
         }
+        /* Opacity in the transition so the Send hover fades, not snaps. */
         .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
             transition: background 150ms ease, opacity 150ms ease;
         }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
+        /* Brighter cancel than the shared secondary; ships this way. */
         .cancel-btn {
             color: var(--primary-text-color);
-        }
-        .cancel-btn:hover:not(:disabled) {
-            background: var(--secondary-background-color);
         }
         .send-btn {
             background: #2e7d32;
@@ -139,7 +130,8 @@ export class IrTestEmitterDialog extends LitElement {
         .send-btn:hover:not(:disabled) {
             opacity: 0.9;
         }
-    `;
+    `,
+    ];
 }
 
 declare global {

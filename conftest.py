@@ -61,7 +61,9 @@ _stub("homeassistant.core", {
     "callback": lambda fn: fn,
     "CALLBACK_TYPE": None,  # type alias, not used at runtime in tests
     "Event": MagicMock,
-    "CoreState": MagicMock,
+    # Instance, not the class: code compares `hass.state is not
+    # CoreState.running`, and attribute access must auto-create.
+    "CoreState": MagicMock(),
 })
 
 # ---------------------------------------------------------------------------
@@ -86,6 +88,8 @@ class _UnitOfTemperature:
 _stub("homeassistant.const", {
     "Platform": _Platform,
     "UnitOfTemperature": _UnitOfTemperature,
+    "EVENT_HOMEASSISTANT_STARTED": "homeassistant_started",
+    "STATE_UNAVAILABLE": "unavailable",
 })
 
 # ---------------------------------------------------------------------------
@@ -391,6 +395,15 @@ _stub("homeassistant.helpers.entity_platform", {
     "AddEntitiesCallback": MagicMock,
 })
 
+# State-machine domain trackers (receiver hot-plug, v0.5.8). The stubs
+# only need to exist for import and to hand back an unsubscribe callable;
+# tests that exercise the trackers patch the signal_monitor module
+# attributes to capture the callbacks.
+_stub("homeassistant.helpers.event", {
+    "async_track_state_added_domain": lambda hass, domain, action: MagicMock(),
+    "async_track_state_removed_domain": lambda hass, domain, action: MagicMock(),
+    "async_track_state_change_event": lambda hass, ids, action: MagicMock(),
+})
 _stub("homeassistant.helpers.dispatcher", {
     "async_dispatcher_send": MagicMock(),
     "async_dispatcher_connect": MagicMock(),

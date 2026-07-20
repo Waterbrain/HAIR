@@ -23,6 +23,7 @@ from custom_components.hair.models import (
     UnknownDevice,
     UnknownSignal,
 )
+from custom_components.hair.protocol_decode import DecodedIdentity
 from custom_components.hair.signal_monitor import SignalMonitor
 from custom_components.hair.signal_store import SignalStore
 
@@ -112,8 +113,11 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.decode_to_fields",
-            return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
+            "custom_components.hair.signal_monitor.try_decode_identity",
+            return_value=DecodedIdentity(
+                protocol="NEC", address=0xFB04, command=0x08,
+                fingerprint="NEC:0xfb04:0x08", extras=None, source="upstream",
+            ),
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         devices = store.get_all_devices()
@@ -131,8 +135,8 @@ class TestDecodeAtCaptureAndForgeGuard:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         with patch(
-            "custom_components.hair.signal_monitor.decode_to_fields",
-            return_value=(None, None, None, None),
+            "custom_components.hair.signal_monitor.try_decode_identity",
+            return_value=None,
         ):
             await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
         sig = store.get_all_devices()[0].signals[0]
@@ -177,11 +181,19 @@ class TestHasReceivers:
         monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
         assert monitor.has_receivers is False
 
-    def test_true_in_native_mode(self):
+    def test_true_when_a_receiver_is_subscribed(self):
+        hass = _make_hass()
+        monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
+        monitor._receiver_subs["infrared.rx"] = MagicMock()
+        assert monitor.has_receivers is True
+
+    def test_false_in_native_mode_with_zero_receivers(self):
+        """v0.5.8 hot-plug: native mode with nothing subscribed genuinely
+        cannot receive, so the Sniffer empty state must say so."""
         hass = _make_hass()
         monitor = SignalMonitor(hass, _make_signal_store(hass), _make_hair_store())
         monitor._native_mode = True
-        assert monitor.has_receivers is True
+        assert monitor.has_receivers is False
 
     def test_true_when_a_bridge_has_fired(self):
         hass = _make_hass()
@@ -236,14 +248,15 @@ class TestLifecycle:
 
     @pytest.mark.asyncio
     async def test_start_subscribes_to_bus(self):
-        """Legacy fallback: subscribes to esphome.remote_received."""
+        """Legacy fallback subscribes esphome.remote_received; the Mirror
+        (v0.6.6) additionally subscribes the emitter state beacons."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
-        hass.bus.async_listen.assert_called_once()
-        args = hass.bus.async_listen.call_args
-        assert args[0][0] == LEGACY_ESPHOME_IR_EVENT
+        events = [c[0][0] for c in hass.bus.async_listen.call_args_list]
+        assert LEGACY_ESPHOME_IR_EVENT in events
+        assert "state_changed" in events
 
     @pytest.mark.asyncio
     async def test_start_legacy_fallback_sets_native_mode_false(self):
@@ -273,7 +286,8 @@ class TestLifecycle:
         monitor = SignalMonitor(hass, store, _make_hair_store())
         await monitor.async_start()
         await monitor.async_stop()
-        unsub.assert_called_once()
+        # Both subscriptions (legacy event + Mirror beacon) release.
+        assert unsub.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -390,11 +404,12 @@ class TestEventHandling:
 class TestKnownCommandCheck:
 
     @pytest.mark.asyncio
-    async def test_skips_known_command(self):
-        """When the store matches the signal to an assigned command, the
-        re-press is dropped from the live feed. The matcher delegates to
-        ``HAIRStore.match_command`` (whose tiered logic is covered in
-        test_storage); here we verify the monitor consults it and skips."""
+    async def test_known_command_no_longer_skips(self):
+        """Heard means shown (v0.6.6): a human pressing an assigned button
+        is Sniffer activity like any other press. The v0.4.0 suppression
+        is gone; the row lands / bumps regardless of assignment. (The
+        house's OWN sends stay out via the echo claim, covered in
+        test_mirror.)"""
         hass = _make_hass()
         store = _make_signal_store(hass)
         hair_store = _make_hair_store()
@@ -403,8 +418,7 @@ class TestKnownCommandCheck:
         monitor = SignalMonitor(hass, store, hair_store)
         await monitor._on_ir_event(_make_event(_nec_event("0x1234")))
 
-        assert store.device_count == 0
-        hair_store.match_command.assert_called()
+        assert store.device_count == 1
 
     @pytest.mark.asyncio
     async def test_does_not_skip_unknown_command(self):
@@ -684,10 +698,12 @@ class TestRepeatSuppression:
         assert monitor._check_repeat("fp1")
         assert not monitor._check_repeat("fp1")
 
-        # Simulate time beyond suppression window. The suppression map is keyed
-        # per (fingerprint, receiver); a bare-fingerprint capture uses the
-        # "__legacy__" sentinel (v0.5.7 per-receiver suppression).
-        monitor._last_seen_times[("fp1", "__legacy__")] = (
+        # Simulate time beyond suppression window. The suppression map is
+        # keyed per (strongest identity, receiver) since v0.5.8 unified
+        # identity: a bare-fingerprint capture keys at identity tier 3 --
+        # (3, fingerprint) -- with the "__legacy__" receiver sentinel
+        # (v0.5.7 per-receiver suppression).
+        monitor._last_seen_times[((3, "fp1"), "__legacy__")] = (
             time.monotonic() - (SIGNAL_REPEAT_SUPPRESS_MS / 1000.0) - 0.01
         )
         assert monitor._check_repeat("fp1")
@@ -756,8 +772,11 @@ class TestPublicAPI:
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
         with patch.object(store, "async_save", AsyncMock()), patch(
-            "custom_components.hair.signal_monitor.decode_to_fields",
-            return_value=("NEC", 0xFB04, 0x08, "NEC:0xfb04:0x08"),
+            "custom_components.hair.signal_monitor.try_decode_identity",
+            return_value=DecodedIdentity(
+                protocol="NEC", address=0xFB04, command=0x08,
+                fingerprint="NEC:0xfb04:0x08", extras=None, source="upstream",
+            ),
         ):
             device = await monitor.create_manual_remote("R")
             res = await monitor.create_manual_signal(
@@ -777,8 +796,8 @@ class TestPublicAPI:
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
         with patch.object(store, "async_save", AsyncMock()), patch(
-            "custom_components.hair.signal_monitor.decode_to_fields",
-            return_value=(None, None, None, None),
+            "custom_components.hair.signal_monitor.try_decode_identity",
+            return_value=None,
         ):
             device = await monitor.create_manual_remote("R")
             res = await monitor.create_manual_signal(
@@ -1633,7 +1652,8 @@ class TestNativeReceiverLifecycle:
 
     @pytest.mark.asyncio
     async def test_native_mode_activates_when_api_available(self):
-        """When async_subscribe_receiver is importable, native mode activates."""
+        """When the native API is importable, native mode activates and the
+        receiver subscription lands in _receiver_subs (v0.5.8 hot-plug)."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
@@ -1646,11 +1666,7 @@ class TestNativeReceiverLifecycle:
         def fake_subscribe(_hass, entity_id, callback):
             return mock_unsub
 
-        with patch(
-            "custom_components.hair.signal_monitor.SignalMonitor"
-            "._start_native_receivers",
-            wraps=monitor._start_native_receivers,
-        ), patch.dict(
+        with patch.dict(
             "sys.modules",
             {
                 "homeassistant.components.infrared": MagicMock(
@@ -1659,14 +1675,19 @@ class TestNativeReceiverLifecycle:
                 ),
             },
         ):
-            await monitor._start_native_receivers()
+            monitor._start_native_tracking()
 
         assert monitor.native_mode
-        assert len(monitor._unsubs) == 1
+        assert set(monitor._receiver_subs) == {"infrared.living_room_rx"}
+        assert monitor._receiver_subs["infrared.living_room_rx"] is mock_unsub
 
     @pytest.mark.asyncio
-    async def test_native_no_receivers_falls_back(self):
-        """If native API exists but no receivers found, falls back to legacy."""
+    async def test_native_no_receivers_stays_native(self):
+        """FLIPPED (v0.5.8 hot-plug): zero receivers at start no longer
+        latches legacy mode. HAIR stays on the native path, subscribes
+        nothing, and waits for a receiver to appear -- the old fallback
+        listened on a bus our shipped YAML does not emit, permanently,
+        which was blalor's post-#85 cold-boot bug."""
         hass = _make_hass()
         store = _make_signal_store(hass)
         monitor = SignalMonitor(hass, store, _make_hair_store())
@@ -1679,14 +1700,19 @@ class TestNativeReceiverLifecycle:
             {
                 "homeassistant.components.infrared": MagicMock(
                     async_get_receivers=fake_get_receivers,
+                    async_subscribe_receiver=MagicMock(),
                 ),
             },
         ):
-            await monitor._start_native_receivers()
+            monitor._start_native_tracking()
 
-        # Should have fallen back to legacy.
-        assert not monitor.native_mode
-        hass.bus.async_listen.assert_called_once()
+        assert monitor.native_mode
+        assert monitor._receiver_subs == {}
+        # The legacy signal-processing path must NOT be wired: the only
+        # bus listener a bare _start_native_tracking may create is the
+        # started-once re-scan, never _on_ir_event.
+        for call in hass.bus.async_listen.call_args_list:
+            assert call.args[1] != monitor._on_ir_event
 
     @pytest.mark.asyncio
     async def test_native_stop_cleans_up_all_unsubs(self):

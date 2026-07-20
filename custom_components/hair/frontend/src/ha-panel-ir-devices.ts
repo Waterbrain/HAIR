@@ -8,19 +8,21 @@
 import { LitElement, html, css, type PropertyValues } from "lit";
 import { customElement, property, state } from "./decorators.js";
 import { HairApi } from "./api.js";
+import { setPanelLanguage, t } from "./localize.js";
 import "./ir-device-list.js";
 import "./ir-add-device-dialog.js";
 import "./ir-signal-monitor.js";
 import "./ir-clips.js";
 import "./ir-pluck.js";
+import "./ir-mirror.js";
 import type { DeviceSummary, IRDevice } from "./types.js";
 
 // Bump alongside manifest.json on every release. Surfaced as a quiet
 // footer line at the bottom of the panel so users (and bug reporters)
 // can identify the installed HAIR version without opening Settings.
-const HAIR_VERSION = "0.5.6";
+const HAIR_VERSION = "0.6.9";
 
-type PanelTab = "devices" | "sniffer" | "clips" | "plucker";
+type PanelTab = "devices" | "sniffer" | "clips" | "plucker" | "mirror";
 
 @customElement("ha-panel-ir-devices")
 export class HaPanelIrDevices extends LitElement {
@@ -48,8 +50,14 @@ export class HaPanelIrDevices extends LitElement {
     }
 
     protected updated(changed: PropertyValues): void {
-        if (changed.has("hass") && this.hass && !this._api) {
-            this._init();
+        if (changed.has("hass") && this.hass) {
+            // Follow the USER's profile language (server language can
+            // differ). Cheap no-op when unchanged; a language change
+            // takes effect on reload per the i18n plan.
+            setPanelLanguage(this.hass.language);
+            if (!this._api) {
+                this._init();
+            }
         }
     }
 
@@ -75,13 +83,7 @@ export class HaPanelIrDevices extends LitElement {
     }
 
     private _tagline(): string {
-        const taglines: Record<PanelTab, string> = {
-            devices: "Manage your IR devices and the hardware that drives them.",
-            sniffer: "Capture IR codes live from the air.",
-            clips: "Build remotes by pasting known IR codes.",
-            plucker: "Pluck IR codes from existing blasters.",
-        };
-        return taglines[this._activeTab];
+        return t(`panel.tagline.${this._activeTab}`);
     }
 
     private async _refreshDevices(): Promise<void> {
@@ -91,7 +93,7 @@ export class HaPanelIrDevices extends LitElement {
             this._devices = await this._api.listDevices();
             this._error = null;
         } catch (err) {
-            this._error = `Failed to load devices: ${(err as Error).message}`;
+            this._error = t("panel.load_failed", { message: (err as Error).message });
         } finally {
             this._loading = false;
         }
@@ -111,6 +113,14 @@ export class HaPanelIrDevices extends LitElement {
     ): void {
         this._pendingPluckEntity = e.detail?.vendor_entity_id ?? "";
         this._switchTab("plucker");
+    }
+
+    /** Assigned-popover click-through (v0.6.6): switch to Devices and
+     * expand the assignment's device card. Set the expansion AFTER the
+     * tab switch, which clears it. */
+    private _onNavigateDevice(e: CustomEvent<string>): void {
+        this._switchTab("devices");
+        this._expandedDeviceId = e.detail;
     }
 
     private _closeAddDialog(): void {
@@ -165,7 +175,7 @@ export class HaPanelIrDevices extends LitElement {
 
     render() {
         if (!this._api) {
-            return html`<div class="loading">Loading…</div>`;
+            return html`<div class="loading">${t("panel.loading")}</div>`;
         }
 
         return html`
@@ -178,8 +188,8 @@ export class HaPanelIrDevices extends LitElement {
             <div class="mobile-nav-row">
                 <button
                     class="mobile-nav-button"
-                    title="Open menu"
-                    aria-label="Open menu"
+                    title=${t("panel.open_menu")}
+                    aria-label=${t("panel.open_menu")}
                     @click=${this._openHaSidebar}
                 >
                     <ha-svg-icon
@@ -201,7 +211,7 @@ export class HaPanelIrDevices extends LitElement {
                     class="tab ${this._activeTab === "devices" ? "active" : ""}"
                     @click=${() => this._switchTab("devices")}
                 >
-                    Devices
+                    ${t("panel.tab.devices")}
                 </button>
                 <button
                     class="tab ${this._activeTab === "sniffer" ? "active" : ""}"
@@ -223,6 +233,12 @@ export class HaPanelIrDevices extends LitElement {
                           Plucker
                       </button>`
                     : ""}
+                <button
+                    class="tab mirror-tab ${this._activeTab === "mirror" ? "active" : ""}"
+                    @click=${() => this._switchTab("mirror")}
+                >
+                    Mirror
+                </button>
             </div>
 
             <div class="tab-tagline">${this._tagline()}</div>
@@ -245,6 +261,7 @@ export class HaPanelIrDevices extends LitElement {
                               @device-deleted=${this._onDeviceDeleted}
                               @navigate-sniffer=${() => this._switchTab("sniffer")}
                               @navigate-clips=${() => this._switchTab("clips")}
+                              @navigate-mirror=${() => this._switchTab("mirror")}
                               @navigate-plucker=${this._onNavigatePlucker}
                               @add-device=${this._openAddDialog}
                           ></ir-device-list>
@@ -255,6 +272,7 @@ export class HaPanelIrDevices extends LitElement {
                             <ir-signal-monitor
                                 .api=${this._api}
                                 .hass=${this.hass}
+                                @navigate-device=${this._onNavigateDevice}
                             ></ir-signal-monitor>
                         `
                       : this._activeTab === "clips"
@@ -262,15 +280,25 @@ export class HaPanelIrDevices extends LitElement {
                               <ir-clips
                                   .api=${this._api}
                                   .hass=${this.hass}
+                                  @navigate-device=${this._onNavigateDevice}
                               ></ir-clips>
                           `
-                        : html`
-                              <ir-pluck
-                                  .api=${this._api}
-                                  .hass=${this.hass}
-                                  .pendingEntity=${this._pendingPluckEntity}
-                              ></ir-pluck>
-                          `}
+                        : this._activeTab === "plucker"
+                          ? html`
+                                <ir-pluck
+                                    .api=${this._api}
+                                    .hass=${this.hass}
+                                    .pendingEntity=${this._pendingPluckEntity}
+                                    @navigate-device=${this._onNavigateDevice}
+                                ></ir-pluck>
+                            `
+                          : html`
+                                <ir-mirror
+                                    .api=${this._api}
+                                    .hass=${this.hass}
+                                    @navigate-device=${this._onNavigateDevice}
+                                ></ir-mirror>
+                            `}
             </div>
 
             ${this._addDialogOpen
@@ -384,6 +412,11 @@ export class HaPanelIrDevices extends LitElement {
         .tab.active {
             color: var(--primary-color);
             border-bottom-color: var(--primary-color);
+        }
+        /* The Mirror wears silver (v0.6.6), matching its tab accent. */
+        .tab.mirror-tab.active {
+            color: #607d8b;
+            border-bottom-color: #607d8b;
         }
         .content {
             padding: 16px;

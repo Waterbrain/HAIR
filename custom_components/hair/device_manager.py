@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
@@ -20,6 +21,7 @@ from .const import (
 from .entity_factory import EntityFactory
 from .models import IRCommand, IRDevice
 from .storage import HAIRStore
+from .vocabulary import localized_auto_map
 
 if TYPE_CHECKING:
     from .trigger_manager import TriggerManager
@@ -29,6 +31,14 @@ _LOGGER = logging.getLogger(__name__)
 # Maps a captured command name (lowercased) → a feature key on the entity.
 # The key space is platform-specific; the entity reads
 # ``entity_config.command_mapping[<feature key>]`` to find the command name.
+# Temp N naming convention for AC target temperatures (v0.6.1, GH #45).
+# Matches "Temp 24", "Temp: 24", "Temperature 24" (case-insensitive,
+# 1-3 digits). The degree value is unit-agnostic; HA interprets it in
+# the installation's unit system.
+_TEMP_COMMAND_PATTERN = re.compile(
+    r"temp(?:erature)?\s*:?\s*(\d{1,3})", re.IGNORECASE
+)
+
 AUTO_MAP_RULES: dict[str, str] = {
     "power": "power_toggle",
     "power on": "turn_on",
@@ -66,6 +76,8 @@ AUTO_MAP_RULES: dict[str, str] = {
     "off": "turn_off",
     "brightness up": "brightness_up",
     "brightness down": "brightness_down",
+    "color temp warmer": "color_temp_warmer",
+    "color temp cooler": "color_temp_cooler",
     # Cover / screen
     "open": "open_cover",
     "close": "close_cover",
@@ -138,7 +150,7 @@ class DeviceManager:
         from .event_parser import EventParser
         from .ir_command import ProntoCommand
         from .pronto_validator import validate_pronto
-        from .protocol_decode import decode_to_fields
+        from .protocol_decode import try_decode_identity
 
         device = self._store.get_device(device_id)
         if device is None:
@@ -187,21 +199,27 @@ class DeviceManager:
             old_fp = EventParser.signal_fingerprint(
                 command.protocol, command.code, command.raw_timings
             )
+            # Captured BEFORE the mutations below: a sub-threshold edit
+            # (Sony code A to code B) changes only the byte_hash -- and
+            # rewire needs the old byte-level AND decoded values to repoint
+            # precisely (v0.5.8 unified identity).
+            old_byte_hash = command.byte_hash
+            old_decoded_fingerprint = command.decoded_fingerprint
             new_fp = EventParser.signal_fingerprint("PRONTO", new_code, [])
+            new_byte_hash = EventParser.pronto_byte_hash(new_code)
             try:
                 raw = ProntoCommand(new_code).get_raw_timings()
             except Exception:  # bad code falls back to no decoded timings
                 raw = None
-            (
-                decoded_protocol,
-                decoded_address,
-                decoded_command,
-                decoded_fingerprint,
-            ) = decode_to_fields(raw)
+            identity = try_decode_identity(raw)
+            decoded_protocol = identity.protocol if identity else None
+            decoded_address = identity.address if identity else None
+            decoded_command = identity.command if identity else None
+            decoded_fingerprint = identity.fingerprint if identity else None
             command.protocol = "PRONTO"
             command.code = new_code
             command.raw_timings = list(raw) if raw else None
-            command.byte_hash = EventParser.pronto_byte_hash(new_code)
+            command.byte_hash = new_byte_hash
             command.frequency = (
                 round(result.frequency_khz * 1000)
                 if result.frequency_khz
@@ -211,9 +229,27 @@ class DeviceManager:
             command.decoded_address = decoded_address
             command.decoded_command = decoded_command
             command.decoded_fingerprint = decoded_fingerprint
-            if trigger_manager is not None and new_fp and new_fp != old_fp:
+            command.decoded_extras = (
+                dict(identity.extras) if identity and identity.extras else None
+            )
+            # Rewire on ANY identity component changing (v0.5.8): a
+            # sub-threshold edit shifts only the byte_hash, never the S/L
+            # fingerprint, and would otherwise orphan a scoped trigger.
+            if (
+                trigger_manager is not None
+                and new_fp
+                and (
+                    new_fp != old_fp
+                    or new_byte_hash != old_byte_hash
+                    or decoded_fingerprint != old_decoded_fingerprint
+                )
+            ):
                 rewire = await trigger_manager.rewire(
-                    old_fp, new_fp, "PRONTO", new_code
+                    old_fp, new_fp, "PRONTO", new_code,
+                    old_byte_hash=old_byte_hash,
+                    new_byte_hash=new_byte_hash,
+                    old_decoded_fingerprint=old_decoded_fingerprint,
+                    new_decoded_fingerprint=decoded_fingerprint,
                 )
 
         # --- whole-frame send count ---
@@ -327,6 +363,21 @@ class DeviceManager:
         await self._entity_factory.async_update_entities(device)
         return True
 
+    def _signal_monitor(self) -> Any | None:
+        """Resolve the SignalMonitor for Mirror send auditing (v0.6.6).
+
+        Looked up lazily through hass.data to avoid a construction-order
+        dependency; None (and silently no audit) when unavailable, e.g.
+        in tests that build a bare DeviceManager.
+        """
+        domain_data = self._hass.data.get(DOMAIN)
+        if not isinstance(domain_data, dict):
+            return None
+        entry = domain_data.get(self._config_entry_id)
+        if not isinstance(entry, dict):
+            return None
+        return entry.get("signal_monitor")
+
     async def async_send_command(
         self, device_id: str, command_id: str
     ) -> None:
@@ -370,7 +421,9 @@ class DeviceManager:
                 command.decoded_address,
                 command.decoded_command,
                 repeat_count=command.repeat_count or 0,
+                decoded_extras=command.decoded_extras,
             )
+        decoded_tx = ir_cmd is not None
         if ir_cmd is None:
             ir_cmd = build_command(
                 protocol=command.protocol,
@@ -380,15 +433,52 @@ class DeviceManager:
                 repeat_count=command.repeat_count or 0,
             )
 
+        # The Mirror (v0.6.6): audit this send and arm echo attribution
+        # BEFORE transmitting, so every emitter's state beacon reads as
+        # HAIR's own and the loopback captures enrich the Mirror row
+        # instead of entering the Sniffer.
+        monitor = self._signal_monitor()
+        if monitor is not None:
+            monitor.record_send(
+                ir_cmd,
+                f"{device.name} / {command.name}",
+                list(device.emitter_entity_ids),
+                decoded_fingerprint=(
+                    command.decoded_fingerprint
+                    if not command.tx_force_raw else None
+                ),
+            )
+
         # Whole-frame repetition: transmit the built Command send_count times
         # to every emitter, with a short pause between frames so the receiver
         # registers them as distinct presses. send_count defaults to 1.
+        # Sends route through the transmit gate, which staggers emitter
+        # CHANGES so a multi-emitter broadcast doesn't superimpose in the
+        # air at a receiver that hears both blasters (see tx_gate).
+        from .tx_gate import gated_send
+
         send_count = max(1, command.send_count or 1)
         for i in range(send_count):
             if i:
                 await asyncio.sleep(SEND_REPEAT_GAP)
             for emitter_id in device.emitter_entity_ids:
-                await ir_send(self._hass, emitter_id, ir_cmd)
+                await gated_send(self._hass, emitter_id, ir_cmd, ir_send)
+
+        # RC-5-family toggle state (v0.6.0): one send-command call is one
+        # logical press, so flip once after the full emitter loop completes
+        # without raising -- send_count > 1 deliberately re-sends the same
+        # toggle. The decoded fingerprint excludes toggle, so the reverse
+        # index is unaffected and a bare save is safe.
+        if (
+            decoded_tx
+            and command.decoded_extras
+            and "toggle" in command.decoded_extras
+        ):
+            command.decoded_extras["toggle"] = (
+                int(command.decoded_extras["toggle"]) ^ 1
+            )
+            self._store.update_device(device)
+            await self._store.async_save()
 
     async def async_set_command_tx_force_raw(
         self, device_id: str, command_id: str, tx_force_raw: bool
@@ -423,6 +513,37 @@ class DeviceManager:
     def _auto_map_command(self, device: IRDevice, command: IRCommand) -> None:
         feature = AUTO_MAP_RULES.get(command.name.casefold())
         if feature is None:
+            # Localized template names (v0.6.8 "French Braid"): accepting
+            # a localized template stores the localized string as the
+            # command name, so the English rules above miss it. The
+            # synonyms table recognizes the same vocabulary across every
+            # shipped locale at once (see vocabulary.py).
+            feature = localized_auto_map(AUTO_MAP_RULES).get(
+                command.name.casefold()
+            )
+        if feature is None:
+            # Pattern rule (v0.6.1, GH #45): "Temp 24" / "Temp: 24" /
+            # "Temperature 24" on an AC device maps to the temp_24
+            # feature the climate entity already dispatches to, and
+            # registers 24 as a temperature preset so the thermostat
+            # card gains the step. Unit-agnostic: presets are plain
+            # integers interpreted in the installation's unit system,
+            # so 16..30 behaves as Celsius on a metric install.
+            if device.device_type == DeviceType.AC:
+                match = _TEMP_COMMAND_PATTERN.fullmatch(command.name.strip())
+                if match is not None:
+                    degrees = int(match.group(1))
+                    device.entity_config.command_mapping[
+                        f"temp_{degrees}"
+                    ] = command.name
+                    presets = list(
+                        device.entity_config.temperature_presets or []
+                    )
+                    if degrees not in presets:
+                        presets.append(degrees)
+                        device.entity_config.temperature_presets = sorted(
+                            presets
+                        )
             return
         device.entity_config.command_mapping[feature] = command.name
 
@@ -454,12 +575,33 @@ class DeviceManager:
         for key, value in list(mapping.items()):
             if value.casefold() == command.name.casefold():
                 mapping.pop(key, None)
+                # Deleting a temp command retires its preset too, so the
+                # thermostat's min/max and snap targets track reality.
+                if key.startswith("temp_") and key[5:].isdigit():
+                    degrees = int(key[5:])
+                    presets = list(
+                        device.entity_config.temperature_presets or []
+                    )
+                    if degrees in presets:
+                        presets.remove(degrees)
+                        device.entity_config.temperature_presets = (
+                            sorted(presets) or None
+                        )
 
     def get_device(self, device_id: str) -> IRDevice | None:
         return self._store.get_device(device_id)
 
     def get_all_devices(self) -> list[IRDevice]:
         return self._store.get_all_devices()
+
+
+def prime_localized_auto_map() -> None:
+    """Build the localized name->action table (blocking file I/O).
+
+    Called once from ``async_setup_entry`` via the executor so the
+    first assign-time auto-map never reads files on the event loop.
+    """
+    localized_auto_map(AUTO_MAP_RULES)
 
 
 def _human_device_type(device_type: DeviceType) -> str:

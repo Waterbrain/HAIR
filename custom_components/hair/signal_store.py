@@ -152,9 +152,8 @@ class SignalStore:
         # decode the stored raw timings (or timings derived from the
         # Pronto code) and populate the identity. Non-decodable signals are
         # left untouched. Idempotent across restarts.
-        from .const import DECODED_FINGERPRINT_FORMAT
         from .ir_command import ProntoCommand
-        from .protocol_decode import try_decode
+        from .protocol_decode import try_decode_identity
 
         decoded_backfilled = 0
         for device in self._devices.values():
@@ -167,15 +166,15 @@ class SignalStore:
                         raw = ProntoCommand(sig.code).get_raw_timings()
                     except (ValueError, IndexError):
                         raw = None
-                decoded = try_decode(raw)
-                if decoded is None:
+                identity = try_decode_identity(raw)
+                if identity is None:
                     continue
-                protocol, address, command = decoded
-                sig.decoded_protocol = protocol
-                sig.decoded_address = address
-                sig.decoded_command = command
-                sig.decoded_fingerprint = DECODED_FINGERPRINT_FORMAT.format(
-                    protocol=protocol, address=address, command=command
+                sig.decoded_protocol = identity.protocol
+                sig.decoded_address = identity.address
+                sig.decoded_command = identity.command
+                sig.decoded_fingerprint = identity.fingerprint
+                sig.decoded_extras = (
+                    dict(identity.extras) if identity.extras else None
                 )
                 decoded_backfilled += 1
         if decoded_backfilled:
@@ -185,24 +184,62 @@ class SignalStore:
                 decoded_backfilled,
             )
 
-        # Duplicate-signal cleanup (v0.3.2, composite key as of v0.3.4).
-        # The Clipper's manual paste path historically had no guard, so a
-        # remote could hold two truly identical signals (the same Pronto
-        # pasted twice). Collapse each remote's signals to the first
-        # occurrence of each (fingerprint, byte_hash) on load. Two signals
-        # that share an S/L fingerprint but differ in byte_hash (Panasonic,
-        # TCL, and similar protocols) are distinct and are NOT collapsed.
+        # Duplicate-signal cleanup (v0.3.2; composite key as of v0.3.4;
+        # tiered identity as of v0.5.8). The Clipper's manual paste path
+        # historically had no guard, so a remote could hold two truly
+        # identical signals (the same Pronto pasted twice); and boundary
+        # protocols (Sony) minted flip-duplicates -- same byte_hash,
+        # DIFFERENT S/L fingerprint -- under the pre-unified runtime dedup.
+        # Collapse each remote's signals under the tiered identity rule
+        # (decoded > byte_hash > S/L fingerprint), merging each duplicate's
+        # hit count into the first (older) occurrence and keeping that
+        # row's alias (adopting the duplicate's alias only when the kept
+        # row has none). Two signals that share an S/L fingerprint but
+        # differ at the byte level (Panasonic, TCL, Sony siblings) are
+        # distinct and are NOT collapsed.
+        from .identity import SignalIdentity
+
         for device in self._devices.values():
-            seen: set[tuple[str, str | None]] = set()
-            deduped = []
+            kept: list = []
             for sig in device.signals:
-                key = (sig.fingerprint, sig.byte_hash)
-                if key in seen:
-                    continue
-                seen.add(key)
-                deduped.append(sig)
-            if len(deduped) != len(device.signals):
-                device.signals = deduped
+                ident = SignalIdentity(
+                    sig.decoded_fingerprint, sig.byte_hash, sig.fingerprint
+                )
+                # Strongest-match-wins across the kept rows (same tiered-
+                # passes reasoning as UnknownDevice.get_signal), so healing
+                # does not depend on row order when a remote holds both a
+                # decoded row and a decode-failed one.
+                best = None
+                best_tier = 99
+                for keep in kept:
+                    tier = SignalIdentity(
+                        keep.decoded_fingerprint, keep.byte_hash, keep.fingerprint
+                    ).match_tier(ident)
+                    if tier is not None and tier < best_tier:
+                        best = keep
+                        best_tier = tier
+                        if tier == 1:
+                            break
+                if best is not None:
+                    best.hit_count += sig.hit_count
+                    if not best.alias and sig.alias:
+                        best.alias = sig.alias
+                    if sig.last_seen and (
+                        not best.last_seen or sig.last_seen > best.last_seen
+                    ):
+                        best.last_seen = sig.last_seen
+                    _LOGGER.debug(
+                        "Healed duplicate signal %s into %s on remote %s "
+                        "(matched at identity tier %d)",
+                        sig.id,
+                        best.id,
+                        device.label or device.id,
+                        best_tier,
+                    )
+                else:
+                    kept.append(sig)
+            if len(kept) != len(device.signals):
+                device.signals = kept
                 self._dirty = True
 
         # One-time order backfill (v0.3.2). Pre-0.3.2 records have no

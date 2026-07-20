@@ -9,7 +9,9 @@
  * editor that replaces the S/L diamonds on a signal once named.
  */
 import { LitElement, html, css, type PropertyValues } from "lit";
+import { actionChipStyles } from "./ir-action-chip-styles";
 import { customElement, property, state } from "./decorators.js";
+import { formatLanguage, t, tp } from "./localize.js";
 import { keyed } from "lit/directives/keyed.js";
 import { repeat } from "lit/directives/repeat.js";
 import Sortable from "sortablejs";
@@ -24,11 +26,14 @@ import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
 import "./ir-count-dot.js";
 import "./ir-trigger-popover.js";
+import "./ir-assigned-popover.js";
+import { triggerMatchesSignal } from "./types.js";
 import type {
     AssignResult,
     DeviceSummary,
     IRTrigger,
     ReceiverInfo,
+    SignalAssignment,
     UnknownDevice,
     UnknownDeviceSummary,
     UnknownSignal,
@@ -36,7 +41,7 @@ import type {
 
 function fmtTime(iso: string): string {
     try {
-        return new Date(iso).toLocaleString(undefined, {
+        return new Date(iso).toLocaleString(formatLanguage(), {
             month: "short",
             day: "numeric",
             hour: "2-digit",
@@ -103,6 +108,14 @@ export class IrClips extends LitElement {
     @state() private _triggerPopover: {
         deviceId: string;
         signal: UnknownSignal;
+        top: number;
+        left: number;
+    } | null = null;
+    // Assigned-commands popover (v0.6.6); mirrors the trigger popover flow.
+    @state() private _assignedPopover: {
+        deviceId: string;
+        signal: UnknownSignal;
+        label: string | null;
         top: number;
         left: number;
     } | null = null;
@@ -438,6 +451,55 @@ export class IrClips extends LitElement {
         this._assignSignal = { deviceId, signal, label: label ?? null };
     }
 
+    /** Assign-button click router (v0.6.6, mirrors the Trigger flow):
+     * zero assignments opens the Assign dialog directly; 1+ shows the
+     * assigned popover with "+ new assignment" and click-through rows. */
+    private _onAssignClick(
+        deviceId: string,
+        signal: UnknownSignal,
+        label: string | null | undefined,
+        ev?: Event,
+    ): void {
+        if (!signal.assigned_to?.length) {
+            this._openAssign(deviceId, signal, label);
+            return;
+        }
+        const btn = ev?.currentTarget as HTMLElement | undefined;
+        const rect = btn?.getBoundingClientRect();
+        this._assignedPopover = {
+            deviceId,
+            signal,
+            label: label ?? null,
+            top: rect ? rect.bottom + 4 : 120,
+            left: rect ? Math.max(8, rect.right - 220) : 120,
+        };
+        this._installPopoverDismiss();
+    }
+
+    private _closeAssignedPopover(): void {
+        this._assignedPopover = null;
+        this._removePopoverDismiss();
+    }
+
+    private _onAssignedPopoverCreateNew(): void {
+        const p = this._assignedPopover;
+        this._closeAssignedPopover();
+        if (p) this._openAssign(p.deviceId, p.signal, p.label);
+    }
+
+    private _onAssignedPopoverOpen(ev: CustomEvent): void {
+        const a = ev.detail as SignalAssignment | undefined;
+        this._closeAssignedPopover();
+        if (!a) return;
+        this.dispatchEvent(
+            new CustomEvent("navigate-device", {
+                detail: a.device_id,
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
     private async _onSignalAssigned(_ev: CustomEvent<AssignResult>): Promise<void> {
         this._assignSignal = null;
         await this._load();
@@ -482,9 +544,9 @@ export class IrClips extends LitElement {
             ).length;
             const total = emitters.length;
             if (sent === total) {
-                this._testResult = total === 1 ? "Sent!" : `Sent! (${sent}/${total})`;
+                this._testResult = total === 1 ? t("mirror.sent") : t("mirror.sent_all_n", { sent, total });
             } else if (sent === 0) {
-                this._testResult = "Failed";
+                this._testResult = t("mirror.failed");
             } else {
                 this._testResult = `Sent (${sent}/${total})`;
             }
@@ -497,14 +559,14 @@ export class IrClips extends LitElement {
         }, 3000);
     }
 
-    private _hasTrigger(fingerprint: string): boolean {
-        return this._triggers.some((t) => t.signal_fingerprint === fingerprint);
+    /** Identity-aware trigger matching (v0.5.8): fingerprint + byte_hash. */
+    private _hasTrigger(signal: UnknownSignal): boolean {
+        return this._triggers.some((t) => triggerMatchesSignal(t, signal));
     }
 
-    private _triggerCountFor(fingerprint: string): number {
-        return this._triggers.filter(
-            (t) => t.signal_fingerprint === fingerprint,
-        ).length;
+    private _triggerCountFor(signal: UnknownSignal): number {
+        return this._triggers.filter((t) => triggerMatchesSignal(t, signal))
+            .length;
     }
 
     private _openTriggerDialog(
@@ -512,8 +574,8 @@ export class IrClips extends LitElement {
         signal: UnknownSignal,
         ev?: Event,
     ): void {
-        const matches = this._triggers.filter(
-            (t) => t.signal_fingerprint === signal.fingerprint,
+        const matches = this._triggers.filter((t) =>
+            triggerMatchesSignal(t, signal),
         );
         if (matches.length === 0) {
             this._triggerDialog = { signal, deviceId };
@@ -548,13 +610,19 @@ export class IrClips extends LitElement {
     }
 
     private _onDocClickForPopover = (ev: Event): void => {
-        const pop = this.shadowRoot?.querySelector("ir-trigger-popover");
-        if (pop && ev.composedPath().includes(pop)) return;
+        const path = ev.composedPath();
+        const trig = this.shadowRoot?.querySelector("ir-trigger-popover");
+        const asgn = this.shadowRoot?.querySelector("ir-assigned-popover");
+        if ((trig && path.includes(trig)) || (asgn && path.includes(asgn))) {
+            return;
+        }
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _onScrollForPopover = (): void => {
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _installPopoverDismiss(): void {
@@ -668,19 +736,19 @@ export class IrClips extends LitElement {
             <div class="toolbar">
                 <span class="title">
                     <ha-svg-icon .path=${ICON_CLIPPER}></ha-svg-icon>
-                    HAIR Clipper
+                    ${t("clips.title")}
                     ${!this._loading
                         ? html`<span class="count"
-                              >(${count} ${count === 1 ? "remote" : "remotes"})</span
+                              >(${tp("sniffer.remotes", count)})</span
                           >`
                         : ""}
                 </span>
                 <div class="toolbar-actions">
                     <button
-                        class="create-btn"
+                        class="action-btn create-btn"
                         @click=${() => (this._createRemoteOpen = true)}
                     >
-                        + Add Remote
+                        ${t("clips.add_remote")}
                     </button>
                 </div>
             </div>
@@ -690,19 +758,14 @@ export class IrClips extends LitElement {
                 : ""}
 
             ${this._loading
-                ? html`<div class="loading">Loading...</div>`
+                ? html`<div class="loading">${t("common.loading_plain")}</div>`
                 : count === 0
                   ? html`
                         <ha-card class="empty">
                             <ha-svg-icon class="empty-icon" .path=${ICON_CLIPPER}></ha-svg-icon>
-                            <h3>No virtual remotes yet</h3>
-                            <p>
-                                Clipper lets you build remotes by pasting Pronto codes.
-                                Create a remote, then add a signal for each button.
-                            </p>
-                            <p class="hint">
-                                Click "+ Add Remote" above to start a clipped remote.
-                            </p>
+                            <h3>${t("clips.empty_title")}</h3>
+                            <p>${t("clips.empty_body")}</p>
+                            <p class="hint">${t("clips.empty_hint")}</p>
                         </ha-card>
                     `
                   : html`
@@ -723,10 +786,10 @@ export class IrClips extends LitElement {
                       <div class="clear-all-row">
                           <button
                               class="action-btn delete-btn"
-                              title="Delete all clipped remotes and their signals. Sniffed signals are untouched."
+                              title=${t("clips.clear_all_title")}
                               @click=${() => (this._confirmClearAll = true)}
                           >
-                              Clear All
+                              ${t("sniffer.clear_all")}
                           </button>
                       </div>
                   `
@@ -758,29 +821,29 @@ export class IrClips extends LitElement {
                                 : html`<ha-svg-icon
                                           class="remote-grip"
                                           .path=${ICON_GRIP}
-                                          title="Drag to reorder"
+                                          title=${t("devdetail.drag")}
                                           @click=${(e: Event) => e.stopPropagation()}
                                       ></ha-svg-icon>
                                       <span
                                           class="protocol"
-                                          title="Click to rename"
+                                          title=${t("cmdrow.rename")}
                                           @click=${(e: Event) => this._startRename(d, e)}
-                                          >${d.label ?? "Remote"}</span
+                                          >${d.label ?? t("clips.remote_fallback")}</span
                                       >`}
                             <span class="stat"
                                 ><strong>${d.signal_count}</strong>
-                                ${d.signal_count === 1 ? "signal" : "signals"}</span
+                                ${tp("sniffer.signal_word", d.signal_count)}</span
                             >
                             ${d.label && this._matchesHairDevice(d.label)
                                 ? html`<span
                                       class="status-badge hair-device"
                                       @click=${(e: Event) => e.stopPropagation()}
-                                  >HAIR Device</span>`
+                                  >${t("sniffer.hair_device")}</span>`
                                 : d.label
                                     ? html`<span
                                           class="status-badge promote-badge"
                                           @click=${(e: Event) => this._promoteDevice(d, e)}
-                                      >Promote</span>`
+                                      >${t("sniffer.promote")}</span>`
                                     : ""}
                         </div>
                     </div>
@@ -801,20 +864,19 @@ export class IrClips extends LitElement {
         return html`
             <div class="expanded">
                 <div class="signal-header">
-                    <span>Signals (${device.signals.length})</span>
+                    <span>${t("sniffer.signals_head", { count: device.signals.length })}</span>
                     <button
-                        class="create-btn create-signal-btn"
-                        title="Add a signal to this remote"
+                        class="create-signal-btn"
+                        title=${t("clips.add_signal_title")}
                         @click=${(e: Event) => this._openCreateSignal(device.id, e)}
                     >
-                        + Add Signal
+                        ${t("clips.add_signal")}
                     </button>
                 </div>
                 ${device.signals.length === 0
                     ? html`<div class="no-signals-row">
                           <span class="no-signals"
-                              >No signals yet. Click "+ Add Signal" to paste a
-                              Pronto code.</span
+                              >${t("clips.no_signals")}</span
                           >
                       </div>`
                     : html`
@@ -837,12 +899,12 @@ export class IrClips extends LitElement {
                 <div class="remote-footer">
                     <button
                         class="action-btn delete-btn"
-                        title="Delete this remote and all its signals"
+                        title=${t("clips.delete_remote_title")}
                         @click=${(e: Event) => {
                             e.stopPropagation();
                             this._openDeleteRemote(device);
                         }}
-                    >Delete remote</button>
+                    >${t("clips.delete_remote")}</button>
                 </div>
             </div>
         `;
@@ -859,7 +921,7 @@ export class IrClips extends LitElement {
                 <ha-svg-icon
                     class="signal-grip"
                     .path=${ICON_GRIP}
-                    title="Drag to reorder"
+                    title=${t("devdetail.drag")}
                 ></ha-svg-icon>
                 <div class="signal-info">
                     <ir-signal-alias
@@ -877,7 +939,7 @@ export class IrClips extends LitElement {
                 </div>
                 ${sig.code
                     ? html`<button
-                          title="View or edit code"
+                          title=${t("cmdrow.edit_code")}
                           @click=${(e: Event) =>
                               this._openEditSignal(deviceId, sig, e)}
                           style="background:none;border:none;cursor:pointer;color:var(--secondary-text-color);padding:2px;display:inline-flex;align-items:center"
@@ -893,38 +955,38 @@ export class IrClips extends LitElement {
                         class="action-btn assign-btn"
                         title=${sig.assignment_count && sig.assigned_to?.length
                             ? (sig.assignment_count === 1
-                                ? `Assigned to ${sig.assigned_to[0]}`
-                                : `Assigned to ${sig.assignment_count} commands:\n- ${sig.assigned_to.join("\n- ")}`)
-                            : "Assign this signal to a HAIR device"}
+                                ? `Assigned to ${sig.assigned_to[0].device_name} / ${sig.assigned_to[0].command_name}`
+                                : `Assigned to ${sig.assignment_count} commands:\n- ${sig.assigned_to.map((a) => `${a.device_name} / ${a.command_name}`).join("\n- ")}`)
+                            : t("mirror.assign_title")}
                         @click=${(e: Event) => {
                             e.stopPropagation();
-                            this._openAssign(deviceId, sig, label);
+                            this._onAssignClick(deviceId, sig, label, e);
                         }}
-                    >Assign<ir-count-dot
+                    >${t("assign.assign")}<ir-count-dot
                             color="green"
                             .count=${sig.assignment_count ?? 0}
                         ></ir-count-dot></button>
                     <button
                         class="action-btn test-btn"
                         ?disabled=${isTesting}
-                        title="Send this signal through an emitter"
+                        title=${t("clips.test_title")}
                         @click=${(e: Event) => {
                             e.stopPropagation();
                             this._openTestDialog(sig);
                         }}
-                    >${isTesting ? "Sending..." : "Test"}</button>
+                    >${isTesting ? (this._testResult ?? t("mirror.sending")) : t("mirror.test")}</button>
                     <button
                         class="action-btn trigger-btn"
-                        title=${this._hasTrigger(sig.fingerprint)
-                            ? "Edit trigger(s) for this signal"
-                            : "Create an HA event entity that fires on this signal"}
+                        title=${this._hasTrigger(sig)
+                            ? t("mirror.trigger_edit")
+                            : t("sniffer.trigger_create")}
                         @click=${(e: Event) => {
                             e.stopPropagation();
                             this._openTriggerDialog(deviceId, sig, e);
                         }}
-                    >Trigger<ir-count-dot
+                    >${t("cmdrow.trigger")}<ir-count-dot
                             color="yellow"
-                            .count=${this._triggerCountFor(sig.fingerprint)}
+                            .count=${this._triggerCountFor(sig)}
                         ></ir-count-dot></button>
                     <button
                         class="action-btn delete-btn"
@@ -932,7 +994,7 @@ export class IrClips extends LitElement {
                             e.stopPropagation();
                             this._openDelete(deviceId, sig);
                         }}
-                    >Delete</button>
+                    >${t("common.delete")}</button>
                 </div>
             </div>
         `;
@@ -968,9 +1030,7 @@ export class IrClips extends LitElement {
                       .initialDitto=${this._editSignal.signal.repeat_count ?? 1}
                       .initialObservedRepeatCount=${this._editSignal.signal
                           .observed_repeat_count ?? 0}
-                      .hasTrigger=${this._hasTrigger(
-                          this._editSignal.signal.fingerprint,
-                      )}
+                      .hasTrigger=${this._hasTrigger(this._editSignal.signal)}
                       @signal-edited=${this._onSignalEdited}
                       @closed=${() => (this._editSignal = null)}
                   ></ir-signal-editor>`
@@ -1001,8 +1061,8 @@ export class IrClips extends LitElement {
 
             ${this._deleteSignal
                 ? html`<ir-confirm-dialog
-                      title="Delete Signal"
-                      message="Remove this signal permanently? This cannot be undone."
+                      title=${t("sniffer.del_signal_title")}
+                      message=${t("sniffer.del_signal_msg")}
                       confirmLabel="Delete"
                       .destructive=${true}
                       @confirmed=${this._confirmDelete}
@@ -1012,9 +1072,9 @@ export class IrClips extends LitElement {
 
             ${this._confirmClearAll
                 ? html`<ir-confirm-dialog
-                      title="Clear All Clips"
-                      message="Remove all clipped remotes and their signals? This cannot be undone. Sniffed signals are not affected."
-                      confirmLabel="Clear All"
+                      title=${t("clips.clear_all_confirm_title")}
+                      message=${t("clips.clear_all_confirm_msg")}
+                      confirmLabel=${t("sniffer.clear_all")}
                       .destructive=${true}
                       @confirmed=${this._doClearAll}
                       @closed=${() => (this._confirmClearAll = false)}
@@ -1023,10 +1083,10 @@ export class IrClips extends LitElement {
 
             ${this._deleteRemoteId
                 ? html`<ir-confirm-dialog
-                      title="Delete Remote"
+                      title=${t("clips.del_remote_confirm_title")}
                       message=${this._deleteRemoteCount > 0
-                          ? `Remove "${this._deleteRemoteLabel}" and its ${this._deleteRemoteCount} ${this._deleteRemoteCount === 1 ? "signal" : "signals"}? This cannot be undone.`
-                          : `Remove "${this._deleteRemoteLabel}"? This cannot be undone.`}
+                          ? tp("clips.del_remote_msg_n", this._deleteRemoteCount, { name: this._deleteRemoteLabel ?? "" })
+                          : t("clips.del_remote_msg", { name: this._deleteRemoteLabel ?? "" })}
                       confirmLabel="Delete"
                       .destructive=${true}
                       @confirmed=${this._confirmDeleteRemote}
@@ -1036,10 +1096,8 @@ export class IrClips extends LitElement {
 
             ${this._triggerPopover
                 ? html`<ir-trigger-popover
-                      .triggers=${this._triggers.filter(
-                          (t) =>
-                              t.signal_fingerprint ===
-                              this._triggerPopover!.signal.fingerprint,
+                      .triggers=${this._triggers.filter((t) =>
+                          triggerMatchesSignal(t, this._triggerPopover!.signal),
                       )}
                       .receivers=${this._receivers}
                       .top=${this._triggerPopover.top}
@@ -1049,10 +1107,22 @@ export class IrClips extends LitElement {
                   ></ir-trigger-popover>`
                 : ""}
 
+            ${this._assignedPopover
+                ? html`<ir-assigned-popover
+                      .assignments=${this._assignedPopover.signal.assigned_to ?? []}
+                      .top=${this._assignedPopover.top}
+                      .left=${this._assignedPopover.left}
+                      @create-new=${this._onAssignedPopoverCreateNew}
+                      @open-assignment=${this._onAssignedPopoverOpen}
+                  ></ir-assigned-popover>`
+                : ""}
+
             ${this._triggerDialog
                 ? html`<ir-trigger-dialog
                       .api=${this.api}
                       .signalFingerprint=${this._triggerDialog.signal.fingerprint}
+                      .byteHash=${this._triggerDialog.signal.byte_hash ?? null}
+                      .decodedFingerprint=${this._triggerDialog.signal.decoded_fingerprint ?? null}
                       .protocol=${this._triggerDialog.signal.protocol}
                       .code=${this._triggerDialog.signal.code}
                       .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}
@@ -1075,8 +1145,8 @@ export class IrClips extends LitElement {
 
             ${this._confirmDeleteTriggerId
                 ? html`<ir-confirm-dialog
-                      title="Delete Trigger"
-                      message="Remove this trigger? The associated HA event entity will also be removed."
+                      title=${t("mirror.del_trigger_title")}
+                      message=${t("devdetail.del_trigger_msg")}
                       confirmLabel="Delete"
                       .destructive=${true}
                       @confirmed=${this._doDeleteTrigger}
@@ -1098,7 +1168,7 @@ export class IrClips extends LitElement {
         `;
     }
 
-    static styles = css`
+    static styles = [actionChipStyles, css`
         :host {
             display: block;
         }
@@ -1134,39 +1204,28 @@ export class IrClips extends LitElement {
         }
         /* Header "+ Create" -- sized to match the Hide Dismissed (action-btn)
            button beside it: same padding/font, copper colors. */
-        .create-btn {
-            background: none;
+        /* Toolbar "+ Add Remote": shared chip anatomy, copper accent. */
+        .action-btn.create-btn {
             color: #b87333;
-            border: 1px solid #b87333;
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease;
+            border-color: #b87333;
         }
-        .create-btn:hover:not(:disabled) {
+        .action-btn.create-btn:hover:not(:disabled) {
             background: rgba(184, 115, 51, 0.08);
         }
-        .create-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        /* Card-internal "+ Add Signal" -- borderless copper text action
-           sitting just right of the "Signals (N)" label, so it reads as a
-           lighter sibling of the bordered "Add Remote" / "Add Device"
-           top-right buttons. No pill, no stroke; slightly larger than the
-           old pill label. */
+        /* Card-internal "+ Add Signal": borderless copper text action
+           (no chip, no stroke -- owner ruling), one pixel up from its
+           old size, font color matching the Add Remote accent. */
         .create-signal-btn {
             border: none;
             background: none;
             padding: 0;
-            font-size: 0.64rem;
-            position: relative;
-            top: 1px;
+            font-size: 10px;
+            font-weight: 500;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: #b87333;
+            cursor: pointer;
         }
         .create-signal-btn:hover:not(:disabled) {
             background: none;
@@ -1444,58 +1503,7 @@ export class IrClips extends LitElement {
             gap: 4px;
             flex-shrink: 0;
         }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-        }
-        .action-btn:hover {
-            background: var(--secondary-background-color);
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .action-btn.assign-btn {
-            color: #2e7d32;
-            border-color: rgba(46, 125, 50, 0.3);
-            position: relative;
-        }
-        .action-btn.assign-btn:hover {
-            background: rgba(46, 125, 50, 0.08);
-        }
-        .action-btn.test-btn {
-            color: var(--primary-color);
-        }
-        .action-btn.trigger-btn {
-            color: #b89930;
-            border-color: rgba(184, 153, 48, 0.3);
-            position: relative;
-        }
-        .action-btn.trigger-btn:hover {
-            background: rgba(184, 153, 48, 0.08);
-        }
-        .action-btn.delete-btn {
-            color: #e65100;
-            border-color: rgba(230, 81, 0, 0.25);
-        }
-        .action-btn.delete-btn:hover {
-            background: rgba(230, 81, 0, 0.08);
-        }
-        .action-btn.dismiss-btn {
-            color: var(--secondary-text-color);
-            border-color: var(--divider-color);
-        }
-    `;
+    `];
 }
 
 declare global {

@@ -8,6 +8,8 @@
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "./decorators.js";
+import { t } from "./localize.js";
+import { dialogStyles } from "./ir-dialog-styles.js";
 import "./ir-emitter-picker.js";
 import type { HairApi } from "./api.js";
 import type { DeviceTypeId } from "./types.js";
@@ -52,11 +54,11 @@ export class IrPromoteDialog extends LitElement {
     private async _create(): Promise<void> {
         const name = this._name.trim();
         if (!name) {
-            this._error = "Device name is required.";
+            this._error = t("promote.device_name_required");
             return;
         }
         if (this._emitterIds.length === 0) {
-            this._error = "Select at least one IR emitter.";
+            this._error = t("promote.emitter_required");
             return;
         }
 
@@ -86,7 +88,7 @@ export class IrPromoteDialog extends LitElement {
         return html`
             <ha-dialog
                 open
-                heading="Promote to Device"
+                heading=${t("promote.heading")}
                 scrimClickAction=""
                 @closed=${this._close}
             >
@@ -94,21 +96,27 @@ export class IrPromoteDialog extends LitElement {
                     ? html`<ha-alert alert-type="error">${this._error}</ha-alert>`
                     : ""}
 
-                <p class="description">
-                    Create a new HAIR device. You can then assign captured
-                    signals to it as commands.
-                </p>
-
-                <ha-textfield
-                    label="Device name"
-                    .value=${this._name}
-                    required
-                    @input=${(e: Event) =>
-                        (this._name = (e.target as HTMLInputElement).value)}
-                ></ha-textfield>
+                <p class="description">${t("promote.description")}</p>
 
                 <div class="field">
-                    <label>Device type</label>
+                    <label>${t("promote.device_name")}</label>
+                    <input
+                        type="text"
+                        .value=${this._name}
+                        placeholder=${t("common.device_name_placeholder")}
+                        required
+                        autofocus
+                        @input=${(e: Event) =>
+                            (this._name = (e.target as HTMLInputElement)
+                                .value)}
+                        @keydown=${(e: KeyboardEvent) => {
+                            if (e.key === "Enter") void this._create();
+                        }}
+                    />
+                </div>
+
+                <div class="field">
+                    <label>${t("common.device_type")}</label>
                     <select
                         .value=${this._type}
                         @change=${(e: Event) =>
@@ -116,12 +124,12 @@ export class IrPromoteDialog extends LitElement {
                                 .value as DeviceTypeId)}
                     >
                         ${DEVICE_TYPES.map(
-                            (t) => html`
+                            (dt) => html`
                                 <option
-                                    value=${t.value}
-                                    ?selected=${this._type === t.value}
+                                    value=${dt.value}
+                                    ?selected=${this._type === dt.value}
                                 >
-                                    ${t.label}
+                                    ${t(`device_type.${dt.value}`)}
                                 </option>
                             `,
                         )}
@@ -139,45 +147,33 @@ export class IrPromoteDialog extends LitElement {
 
                 <div class="dialog-actions">
                     <button
-                        class="action-btn cancel-btn"
+                        class="action-btn wide cancel-btn"
                         @click=${this._close}
                         ?disabled=${this._busy}
                     >
-                        Cancel
+                        ${t("common.cancel")}
                     </button>
                     <button
-                        class="action-btn create-btn"
+                        class="action-btn wide create-btn"
                         @click=${this._create}
                         ?disabled=${this._busy}
                     >
-                        ${this._busy ? "Creating..." : "Create Device"}
+                        ${this._busy ? t("common.creating") : t("promote.create_device")}
                     </button>
                 </div>
             </ha-dialog>
         `;
     }
 
-    static styles = css`
-        ha-textfield,
-        .field {
-            display: block;
-            margin: 12px 0;
-            width: 100%;
-        }
-        .field label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--secondary-text-color);
-            margin-bottom: 6px;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid var(--divider-color);
-            background: var(--card-background-color);
-            color: var(--primary-text-color);
-        }
+    static styles = [
+        dialogStyles,
+        css`
+        /* NOTE: no ha-textfield here anymore. This dialog was the
+           panel's last ha-textfield user; the element is lazy-loaded by
+           the HA frontend and is not reliably defined inside a custom
+           panel, so it rendered as an empty, unfocusable shell (shampoo
+           bench). The name box is now the shared .field + plain input,
+           the same proven pattern as every other dialog. */
         ha-alert {
             display: block;
             margin: 8px 0;
@@ -187,35 +183,6 @@ export class IrPromoteDialog extends LitElement {
             color: var(--secondary-text-color);
             margin: 0 0 8px;
         }
-        .dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 20px;
-            padding-top: 16px;
-            border-top: 1px solid var(--divider-color);
-        }
-        .action-btn {
-            padding: 8px 20px;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
-            border: none;
-            transition: background 150ms ease, opacity 150ms ease;
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .cancel-btn {
-            background: transparent;
-            color: var(--secondary-text-color);
-        }
-        .cancel-btn:hover:not(:disabled) {
-            background: var(--secondary-background-color);
-        }
         .create-btn {
             background: #2e7d32;
             color: #fff;
@@ -223,7 +190,8 @@ export class IrPromoteDialog extends LitElement {
         .create-btn:hover:not(:disabled) {
             opacity: 0.9;
         }
-    `;
+    `,
+    ];
 }
 
 declare global {

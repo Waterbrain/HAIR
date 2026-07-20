@@ -57,6 +57,28 @@ Key components:
   2026.6+, where the infrared platform exports InfraredEmitterEntity. Plucked
   signals share the same catalog as sniffed and clipped ones, distinguished by the
   source field.
+- Mirror: a send-audit surface (a fifth panel tab, v0.6.6) logging every
+  HA-originated IR transmission at send time, heard back or not. HAIR's own sends
+  (device commands and catalog tests) are recorded with full identity and
+  provenance; foreign sends from any integration on the infrared platform are
+  caught via emitter state beacons (core writes the emitter's state on every
+  platform send) and identified by their echo when a receiver hears one, or
+  logged as a per-emitter "Unknown send" row when nothing does. Rows live in the
+  shared signal catalog under a synthetic device (source "echo", fingerprint
+  "hair-mirror") that the Sniffer filters out; they show the assignment or
+  decoded identity, the emitter (friendly names), heard-by resolved to HA areas,
+  a provenance chip (HAIR device / Catalog test / automation send / integration
+  send), and send counts, and carry the standard Assign / Test / Trigger actions
+  plus the code editor -- making the Mirror a universal TX tap: any vendor app
+  send heard by a receiver is one Assign away from living in HAIR. Deliberately
+  a log: no reorder, no clear-all, never auto-evicted; per-row delete clears an entry and the row resurrects on the next send of that identity. Echo
+  attribution also gates triggers: a capture matching a pending send expectation
+  (decoded identity or fingerprint, 2.5s TTL) is routed to the Mirror and never
+  reaches the trigger or catalog pipeline, so triggers fire only on signals from
+  outside Home Assistant and cannot feed back on HAIR's own output. The v0.4.0
+  known-command suppression is removed (v0.6.6, "heard means shown"): assigned
+  buttons keep flashing in the Sniffer and deleted rows resurrect on re-hearing;
+  dismiss is the only hiding tool.
 - Device Manager: lets users create profiles for IR-controlled devices (TVs, ACs,
   fans, lights, switches, screens, generic) with assigned IR emitters and learned
   commands. Assigning a sniffed or pasted signal copies it into the device as a
@@ -85,9 +107,61 @@ Key components:
   backward compatible); scoped triggers fire only when a listed receiver observes
   the signal, and legacy ESPHome-bridge captures (receiver_entity_id=None) match
   only unscoped triggers. Multiple triggers per signal fingerprint are legal (one
-  per room). A single press observed by several receivers within a 60ms window
-  fires each matching trigger once (per-(trigger, fingerprint) dedup) and counts as
-  one hit toward min_hits.
+  per room). A single press observed by several receivers fires each matching
+  trigger once (per-trigger dedup over a sliding window) and counts as one hit
+  toward min_hits.
+  Tiered signal identity (v0.5.8): every "is this the same signal?" decision --
+  trigger matching, the known-command matcher, Sniffer row dedup, repeat
+  suppression, the Assign dot -- uses one tiered rule: decoded protocol identity
+  when both sides have it, else the byte-level hash when both sides have it, else
+  the coarse S/L fingerprint. The highest tier both sides carry decides; a tier
+  only one side carries is skipped. Triggers store all three layers (null layers
+  on pre-0.5.8 triggers = legacy-broad matching, so existing triggers are never
+  narrowed; decoded identity is backfilled at load from the stored code, byte_hash
+  deliberately is not). This matters on remotes whose buttons all share one S/L
+  fingerprint because the protocol encodes bits in pulse widths below the
+  short/long threshold -- Sony SIRC is the common case, alongside the
+  Panasonic/Kaseikyo/TCL family -- and doubly on Sony, whose long mark sits
+  exactly ON the classification threshold, so the same button's fingerprint can
+  flip between captures: without the byte tier a trigger created for one button
+  fires for every button, and without dropping the fingerprint-equality
+  precondition the trigger then randomly misses its own button. The dedup window
+  slides and is keyed per trigger, so protocols that transmit several full frames
+  per press (Sony sends 4-5) count as one press even when frames flip fingerprints.
+  Local-first decoders (v0.6.0): HAIR ships its own decoders for eight
+  protocols -- Sony SIRC 12/15/20, Symphony (8/12/16-bit rc_switch family),
+  Philips RC-5 (incl. RC5X), Samsung32, Sharp, Kaseikyo (Panasonic family),
+  Marantz Extended, and Nokia32 (Philips RC-MM, the Foxtel/Sky/Mediamaster
+  set-top box family) -- in custom_components/hair/decoders/, each shaped
+  exactly like an infrared_protocols module so it can be donated upstream as
+  a near-file-copy. A registry in protocol_decode.py feature-detects per
+  protocol: when the user's bundled infrared-protocols ships a decoder
+  (from_raw_timings present), upstream wins; otherwise the local polyfill
+  registers. Decoders split a capture into frames and majority-vote, so
+  variable frame counts and receiver jitter cannot fragment one button into
+  many identities (the v0.5.8 day-one field regression). The decoded
+  fingerprint is formatted in exactly one place (format_fingerprint);
+  bit-count variants fold into the protocol label (SONY15, KASEIKYO48,
+  SYMPHONY12), Sharp/Marantz extension bits fold into a fingerprint suffix,
+  and the RC-5/Marantz toggle bit is press STATE, stored in decoded_extras,
+  excluded from identity, threaded into decoded TX, and flipped once per
+  successful send. GE-AC registers identity-only (tx_rebuild=False): decoded
+  identity matches/collapses signals, but TX always replays the captured
+  raw, since re-encoding AC state risks transmitting wrong state.
+  Recovery passes (v0.6.1): registry specs can carry optional seek and
+  salvage hooks, wired for NEC today. Seek trims junk ahead of the main
+  leader (stray repeat markers, partial bursts) before the strict decode;
+  salvage runs only after a strict reject, re-reads data pulses by
+  midpoint, and accepts solely on the protocol's own checksum. Samsung32
+  additionally tolerates an end pulse fused with a replayed packet's
+  leader (emitters that honor repeat_count on top of baked repeat frames
+  leave no junction gap); its inverted-command checksum still gates.
+  AC climate mapping (v0.6.1): commands named "Temp N" on an AC device
+  auto-map to temp_N and derive temperature_presets (deduped, sorted);
+  deleting one retires the preset. The climate entity seeds its target
+  from the median preset so the thermostat dial has a handle, and
+  reports the installation's temperature unit rather than a hardcoded
+  scale.
 
 Signal fingerprinting details:
 - Uses S/L (short/long) pulse-duration classification. Each pulse is classified as
@@ -99,7 +173,8 @@ Signal fingerprinting details:
 - Covers all major consumer IR protocols: NEC, Samsung, JVC, LG, Sony, RC-5, RC-6.
 - Source-remote grouping uses carrier frequency and preamble fingerprinting, so the
   Sniffer can identify which remote sent a signal without decoding the protocol.
-- When a captured signal can be read as a known protocol (NEC today), HAIR also
+- When a captured signal can be read as a known protocol (NEC plus the seven
+  v0.6.0 registry protocols), HAIR also
   stores the decoded identity alongside the raw timings as a cache layer. Raw
   timings stay the source of truth; the decoded form gives stronger matching and
   lets transmit re-encode clean timings instead of replaying captured ones.
@@ -123,9 +198,9 @@ Signal fingerprinting details:
   observation does not auto-set the TX Ditto count; the user acts on it.
 
 Supported capture providers (auto-discovered):
-- Native InfraredReceiverEntity instances (HA 2026.6+, hardware-agnostic)
+- Native InfraredReceiverEntity instances (HA 2026.6+, hardware-agnostic;
+  ESPHome receivers and SMLIGHT Ultima receivers ship this today)
 - ESPHome devices with the remote_receiver component (legacy bridge)
-- Broadlink RM series devices
 
 Supported transmit hardware: any IR emitter exposed to HA's infrared platform,
 including ESPHome IR LEDs, Tuya Local IR blasters, Broadlink RM series, and
@@ -139,6 +214,14 @@ Supported device types and resulting HA entities:
 - Switch -> switch (on/off)
 - Screen -> cover (open, close, stop)
 - Other -> remote (generic IR command sender)
+
+Localization (v0.6.8): the panel and the config flow ship in ten languages
+(en, es, fr, ja, de, pl, pt/pt-BR, nl, it, ru). The panel follows the HA user's
+profile language with English fallback. Non-English locales are
+programming-assistant drafts, marked "reviewer wanted" inside each
+dictionary file; native-speaker reviews
+and new languages are welcome as small PRs guarded by parity tests (see
+CONTRIBUTING.md, "Adding a language").
 
 Every device also gets a remote entity for raw Pronto hex codes and a button entity
 per learned command for direct dashboard or automation access.
@@ -179,7 +262,12 @@ Receiver architecture:
 
 - [README](https://github.com/DAB-LABS/HAIR/blob/main/README.md): Full feature
   overview, why-HAIR rationale, entity platform reference, Devices tab and Sniffer
-  tab walkthroughs, installation and setup, and architecture diagram.
+  tab walkthroughs, installation and setup, and architecture diagram. Truncated
+  translated READMEs (README.es.md, README.fr.md, README.ja.md, README.de.md,
+  README.pl.md, README.pt.md, README.nl.md, README.it.md, README.ru.md) sit at the
+  repo root, each carrying the pitch, install steps, and a pointer back to the full
+  English documentation; they are drafted by a programming assistant, refreshed
+  each release, and open for native-speaker ownership.
 - [info.md](https://github.com/DAB-LABS/HAIR/blob/main/info.md): HACS short-form
   summary shown in the HACS UI during install.
 - [Making your integration pluckable](https://github.com/DAB-LABS/HAIR/blob/main/docs/making-your-integration-pluckable.md):

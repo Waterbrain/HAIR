@@ -5,6 +5,133 @@ All notable changes to HAIR will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9] - 2026-07-20 -- Trim
+
+### Fixed
+
+- The panel footer reported v0.6.7 on v0.6.8 installs. The version constant in the panel source missed the release bump; it now reads the shipped version, and a new test pins the footer constant and the compiled bundle to manifest.json so the footer can never drift from the real version again.
+
+### Changed
+
+- Fresh README screenshots: the device detail and action mapping shots now show the current UI (including the Custom... action entry), the Mirror tab appears in the README for the first time, the assigned and trigger popovers get a row, and a Japanese panel screenshot shows the ten-language support doing its job.
+
+## [0.6.8] - 2026-07-19 -- French Braid
+
+### Added
+
+- HAIR speaks ten languages. The panel and the setup wizard ship in English, Spanish, French, Japanese, German, Polish, Portuguese (pt and pt-BR), Dutch, Italian, and Russian, following your Home Assistant profile language automatically with English fallback. Every non-English locale was drafted by a programming assistant and is marked "reviewer wanted" inside its dictionary file; native-speaker reviews are one-file PRs, and the reviewer's name goes in the file. See "Adding a language" in CONTRIBUTING.
+- Command vocabulary localizes end to end. Template names and action labels render in your language, an accepted template stores the localized name (your data, your language), and assign-time auto-mapping recognizes the vocabulary of every shipped language at once, so a command named "Allumer", "Einschalten", or "電源オン" wires itself the same way "Power On" always has.
+- Plural grammar done properly. Polish and Russian counts render through CLDR plural rules (1 sygnał / 2 sygnały / 5 sygnałów), not English-shaped if/else. Dates and timestamps follow the panel language too.
+- The Map action popover gains a Custom... entry: type any action key (temp_30, and the like) directly, no re-import needed to fix a mistyped mapping.
+- Nokia32 (RC-MM) decoding, the first guest decoder in the registry, contributed by @rohrsh with identity support for Foxtel boxes. Captured Nokia32 signals now carry decoded identities like the other seven local protocols.
+- A parity test suite makes translations safe to contribute: key parity, placeholder parity, brand-name preservation, and vocabulary coverage all fail CI before a stale or broken translation can ship blanks.
+
+### Fixed
+
+- The stray "Templates" button in the Assign dialog's custom-name mode is now a Cancel button, which is what it always did.
+
+### Changed
+
+- Every string in the panel now lives in one dictionary file per language instead of being scattered through the components; 428 strings extracted at pixel parity.
+
+## [0.6.7] - 2026-07-19 -- Shampoo
+
+### Added
+
+- Multi-emitter sends are staggered. Two blasters keying up at the same instant superimpose in the air, and any receiver in range of both hears a hybrid pulse train that decodes as nothing. HAIR now serializes every transmission it originates and inserts a short quiet gap whenever the transmitting emitter changes, so multi-emitter device commands and multi-emitter tests each come out clean. Same-emitter bursts are unaffected, and sends from other integrations remain outside HAIR's control.
+- Garbled echoes are recognized as the house's own voice. A HAIR send that comes back damaged (reflections, marginal range, protocol timing quirks) used to miss the echo claim and mint a junk Sniffer row per mangle. Send expectations now carry the transmitted frame's shape; an unclaimed, undecodable capture arriving inside the send window that resembles what just went out is claimed as a garbled echo, marks the Mirror row heard, and never reaches the Sniffer. Captures that decode cleanly are never swallowed, so pressing a real button moments after a test is safe.
+- "+ Mirrored Signal" joins Sniffed and Clipped in the device footer. The third road for getting codes into a device gets its road sign.
+- Unknown-send rows explain themselves. A foreign send that no receiver heard now reads "Unknown IR signal sent" with a plain sentence naming the blaster and what to do about it, in place of a mysterious grey row with disabled buttons.
+
+### Fixed
+
+- The Promote dialog's name field could render as an empty, unfocusable shell. It was the panel's last dialog built on a lazily-loaded Home Assistant element; rebuilt on the same plain input every other dialog uses. The suggested name pre-fills and Enter creates.
+- The Mirror's silver bloom now follows the trigger glow's exact lifecycle: bright, fade, one last pass, gentle exit.
+
+### Changed
+
+- Eleven dialogs now draw from one shared style module, the third extraction after the popovers and the action chips. Roughly 700 lines lighter at pixel parity, and groundwork for translations: every shared style and string now lives in exactly one place.
+- Mirror rows are individual rounded cards, and a send that lands while you watch blooms the whole card. Count dots render digits on tabular figures so every number sits identically in its circle. Heard-back wording says "last heard", describing the most recent send. Add-signal actions in the Clipper and Plucker are quiet accent-colored text buttons matching each tab's color.
+
+## [0.6.6] - 2026-07-18 -- Mirror
+
+### Added
+
+- The Mirror tab: see what your house transmits. Every IR command sent through Home Assistant now appears as a row in a new panel tab, whether anything heard it or not -- HAIR device commands, catalog tests, automations, and even other integrations sending through the native infrared platform, caught the moment their emitter fires. Each row shows the send's identity (the assigned command name when there is one, else the decoded protocol identity), which emitter carried it, whether a receiver heard it back and in which room (resolved through the receiver's Home Assistant area), how it originated, and the running send count. A send that lands while you are watching blooms the row silver. Rows carry the same Assign, Test, and Trigger actions as everywhere else, plus the code viewer, so the Mirror doubles as a third way of importing codes: press a button in any vendor app whose blaster transmits through the infrared platform, and if a receiver hears it, the code lands in the Mirror one Assign away from living in HAIR. Delete on a Mirror row clears the entry, and the row returns the next time that signal is sent -- the same come-back-when-heard behavior signals have everywhere else, so clearing out old experiments never damages the audit. Homes with no receiver at all simply see their sends without heard-back detail, and "not heard" reads as neutral information rather than an alarm, because plenty of setups are transmit-only on purpose.
+- Triggers never fire on the house's own transmissions. When HAIR sends a command and a receiver hears the echo, that capture is attributed to the send and routed to the Mirror instead of the trigger and Sniffer pipeline. A trigger bound to a signal now means "when this arrives from the outside world", a physical remote or another app, and cannot feed back on HAIR's own output. The trigger dialog says so when you create one from a Mirror row.
+- Clicking the Assign button on a signal that already has assignments opens a small picker: add another assignment, or click an existing one to jump straight to that device's card on the Devices tab. Exactly the flow the Trigger button has had since v0.5.7. The hover tooltip still summarizes the assignments for a quick glance.
+
+### Changed
+
+- Assigned signals stay visible in the Sniffer. Since v0.4.0, once a signal was assigned to a device command, re-pressing that button on the physical remote was silently swallowed, which made the Sniffer look broken exactly when everything was working: you assign a button, press it to celebrate, and nothing flashes. That suppression existed to keep HAIR's own transmissions out of the feed, and the Mirror's echo attribution now does that properly, so the suppression is gone. An assigned button flashes in the Sniffer forever, and a deleted signal row comes back the next time the button is pressed, the same way any signal appears when heard. Dismissing the remote remains the one way to hide activity you do not want to see.
+- The row action buttons (Assign, Test, Trigger, Delete, Dismiss) now share one style module across every tab, so the chip anatomy and colors cannot drift apart again.
+
+### Fixed
+
+- The v0.6.1 known issue is retired: a trigger no longer loses its yellow badge when the startup heal merges duplicate rows. The identity matching was already in place end to end; the badge was orphaned because the merged-away row was gone from the Sniffer and the old suppression kept it from returning. With assigned signals staying visible, the next press of the button recreates its row and the badge re-attaches through the decoded identity, which also survives any future heal.
+
+## [0.6.1] - 2026-07-18 -- Hot Towel Finish
+
+### Fixed
+
+- A single jittery pulse no longer splits an NEC button into two rows. Real receivers occasionally deliver a capture where one pulse measures in the dead zone between the protocol's two legal widths while every other pulse is fine; the strict decoder rightly rejected the frame, so the capture fell back to byte-level identity and became a second row for the same button. When the strict decode fails, HAIR now re-reads the frame leniently and accepts the result only if NEC's own built-in checksum validates, so a one-pulse wobble cannot fake a different button and a genuinely corrupt frame still decodes as nothing. Reported by @blalor with two captures of his Previous Track button, which are now permanent fixtures in the test suite.
+- NEC captures that start with leftover repeat chatter from a previous press decode now. The decoder used to require the capture to open on the main frame's leader; HAIR now seeks forward past a stray repeat marker or partial burst to the true frame start. This was the class behind several bench remotes whose buttons never decoded.
+- Air conditioner devices finally expose real target temperatures. The climate entity has supported temperature presets since the entity work landed, but nothing could create them from the UI. Commands named like "Temp 22" or "Temperature 26" now map themselves to the matching temperature step and register the degree value on the thermostat, the same way "Mode: Cool" and "Fan: High" have always self-mapped. Deleting a temp command retires its step. Found by @ripolltata (GH #45), who read the source and correctly identified a half-shipped feature; thank you for the precise report.
+- The thermostat dial is draggable from the start. Without an initial target temperature the dial rendered no handle, and nothing could ever set the first target, so a preset-equipped AC was stuck read-only. The entity now starts at the middle preset; nothing transmits until you actually move it.
+- The climate entity follows your installation's temperature unit instead of assuming Fahrenheit. Metric users' presets are Celsius now, as they always should have been.
+- Samsung32 captures whose end pulse arrives fused with a following frame decode now. Some emitters replay the whole packet for repeats with no gap at the junction, welding the end pulse to the next frame's leader; the decoder tolerates the fused pulse while the protocol checksum keeps gating every decode. Found on the bench with real captures, which are now fixtures.
+
+### Changed
+
+- The most-recent-hit Assign button in the Sniffer wears a mint rim, and each new hit blooms it into a mint ring. The old pulse used the same green as the button fill, so the halo disappeared into it.
+- The adopters table gains SMLIGHT Ultima native receiving (HA 2026.7), the second receiver source after ESPHome.
+- The infrared-protocols test dependency cap moved from <8.0 to <9.0; upstream's 8.0.0 changes only Edifier code sets and keeps the command contract.
+
+### Known issues
+
+- When the startup heal merges duplicate rows, a trigger created on one of the merged rows can lose its yellow badge in the Sniffer, because the surviving row carries a different waveform identity. The trigger itself keeps firing normally; only the row badge and count display are affected. A proper fix (triggers following decoded identity, the way commands already do) is planned as its own release.
+
+## [0.6.0] - 2026-07-17 -- Shave and a Haircut
+
+### Added
+
+- HAIR now decodes seven more protocols: Sony SIRC (12, 15, and 20-bit), Symphony (the ceiling-fan family), Philips RC-5 (including the RC5X extension), Samsung32, Sharp, Kaseikyo (the Panasonic family), and Marantz Extended. Until now only NEC signals got a decoded identity; every other remote leaned on the byte-level tiebreaker, which is exactly where the remaining rough edges lived. A decoded signal gets the strongest identity HAIR has: stable per-button matching that survives receiver jitter, clean re-encoded transmit instead of replaying captured timings, and the protocol name on the Sniffer row.
+- The decoders live inside HAIR and are written in the shared infrared-protocols library's own style, because that library is their long-term home. Each one is headed upstream as a pull request; whenever a Home Assistant release bundles a library version that can decode one of these protocols itself, HAIR automatically defers to the library for that protocol, no update required. Until then the built-in decoder covers the gap. The diagnostics download lists which source is serving each protocol.
+- RC-5 and Marantz remotes alternate a toggle bit between key presses so the receiver can tell "held" from "pressed twice". HAIR now tracks that state per command and flips it on every send, the way the original remotes do.
+
+### Fixed
+
+- One button is one row again, even on remotes without a decodable protocol in yesterday's HAIR. Day-one v0.5.8 reports showed the strict byte-level identity could split repeat presses of a single button into many Sniffer rows: the press length varies, so captures contain different numbers of repeated frames, and on some receivers the pulse widths wobble across a quantization edge between presses. The new decoders read the actual bits instead: a capture is split into its frames, each frame is decoded, and the majority decides, so a two-frame capture, a three-frame capture, and a jittery capture of the same button all produce the same identity. Reported by @loic.gouraud (twelve rows for twelve presses of one button) and @blalor (a duplicate row on an NEC remote) within a day of v0.5.8 -- thank you both for the fast, precise reports.
+- Sniffer catalogs that already fragmented heal at startup: the existing load-time merge now runs with decoded identity available, so the split rows collapse into the oldest row, keeping its alias and summing its hit counts.
+- The ceiling-fan class from GH #38 decodes now. Symphony remotes send a preamble frame or two and then repeat the button code for as long as the button is held, so every capture used to look different. The majority vote discards the preambles and the truncated tail, and all captures of a button collapse to one row. Thanks @mvdwetering for the ESPHome log that identified the protocol and the preamble detail; your captures are in the test suite.
+- Sony remotes transmit reliably from the catalog now: decoded Sony signals re-encode canonical timings on Test and device TX, the same first-class treatment NEC has had since v0.4.0.
+
+### Changed
+
+- Decode-capable protocols no longer market themselves as "NEC today" in the docs. The registry reports itself in diagnostics, including whether each protocol is served by the bundled library or by HAIR's built-in decoder, and whether its transmit path re-encodes or replays raw.
+- The infrared-protocols test dependency cap moved from <7.0 to <8.0; upstream's 7.x line keeps the same command contract (verified against source).
+
+## [0.5.8] - 2026-07-14 -- Fine-Tooth Comb
+
+### Fixed
+
+- Triggers can now tell apart buttons on remotes whose signals look alike. Some remotes, Sony being the common one, encode their bits in pulse widths that all fall below the cutoff HAIR uses to sort pulses into short and long, so every button on the remote produces the same coarse pattern. The Sniffer already stored those buttons as separate signals, and their nicknames worked, but a trigger created for one button fired for all of them, which made the whole remote unusable as a control surface for automations. Triggers, the assigned-command matcher, and repeat suppression now use the byte-level identity that sits underneath the coarse pattern, so each button gets its own trigger. Reported by @loic.gouraud on the forum and by @somethingp (GH #43), with the same root cause behind @blalor's Sony remote report.
+- Those same triggers now also survive the coarse pattern *changing between presses*. Sony's long pulse sits exactly on HAIR's short/long cutoff, so the identical button can read as one pattern when you store it and as another when the receiver hears it again; on the bench this made only 2 of 4 Sony triggers fire, seemingly at random. Every place HAIR asks "is this the same signal?" -- trigger matching, the assigned-command matcher, Sniffer row grouping, repeat suppression, and the green Assign dot -- now uses one tiered identity: the decoded protocol identity when both sides have one, else the byte-level identity, else the coarse pattern. The byte-level identity survives the flip exactly, so all four buttons fire reliably. Nothing that matched before stops matching: the coarse pattern is only ever consulted when nothing better exists on both sides. This is also @blalor's "hardly ever shows the same signal twice" report.
+- Assigning one button on such a remote no longer swallows its siblings. Previously, assigning one signal to a device command made the other buttons on the remote match that command, so they disappeared from the Sniffer and re-pressing them looked like a press of the assigned button. The green Assign dot follows the same rule now, so it appears only on the row you actually assigned -- and both the suppression and the dot survive the pattern flip, so an assigned button no longer reappears in the Sniffer as a brand-new signal.
+- A single press on remotes that transmit several frames per press now counts once, even when individual frames of that press land on opposite sides of the short/long cutoff. Sony sends four or five full frames each time you press a button; the dedup window slides and is keyed per trigger, so one press is one fire and one hit. Note for min-hits users on such remotes: one press now counts as exactly one hit, where it could previously count as two or three, so a trigger with a min-hits threshold may need the threshold revisited (it now genuinely means distinct presses).
+- Editing a signal's Pronto code now re-points its trigger even when the change does not shift the coarse pattern, which is exactly the case on these remotes. Rewiring carries the full identity, decoded layer included.
+- Sniffer catalogs that already contain flip-duplicates of the same button (one row per side of the cutoff) heal at startup: the rows merge into the oldest one, keeping its nickname and summing its hit counts.
+- IR receivers are now discovered continuously instead of once at startup. Previously HAIR looked for receivers exactly once, when the integration loaded, so a proxy added later was never heard from until you manually reloaded the integration. Worse, if HAIR happened to load before your receiver's integration on a cold boot, it saw zero receivers and permanently switched to a legacy listening path that the recommended ESPHome configs do not even emit -- the "I installed it and nothing shows in the Sniffer" experience. Receivers are now picked up the moment they appear, released cleanly when they are removed, re-subscribed when an ESPHome device is reloaded or re-adopted (previously the subscription could be left pointing at a dead entity), and a final re-scan runs when Home Assistant finishes starting. The legacy path is now used only where it belongs: on HA 2026.4-2026.5, which lack the native receiver API. Reported twice by @blalor (forum posts #85 and #102) -- the second report is what cracked the first.
+
+### Changed
+
+- Existing triggers are upgraded gently: at startup each stored trigger whose code decodes as a known protocol (NEC today) gains the decoded identity, which is validated by the protocol's own checksum and therefore cannot mis-scope a trigger. The byte-level identity is deliberately NOT retrofitted onto old triggers -- a stored code that was snapped or re-encoded can hash differently from live captures, and a wrong hash would silence the trigger. Old triggers keep their broad matching; triggers created from now on carry the full identity from birth.
+- When an upstream decoder for a boundary protocol lands (a Sony SIRC decoder for `infrared-protocols` is planned), the decoded tier takes over for it automatically with no further HAIR changes.
+
+### Added
+
+- Light devices gain Color Temp Warmer and Color Temp Cooler command templates, a `color_temp` command category, and name auto-mapping, so color temperature buttons captured from an IR ceiling light organize themselves like any other command. They are usable today through each command's button entity. Entity-level color temperature control (a temperature slider on the light) is deliberately not exposed yet; doing it honestly needs per-device calibration, and that is being designed separately. Thanks @nogic1008 (GH #40).
+
 ## [0.5.7] - 2026-07-05
 
 ### Added

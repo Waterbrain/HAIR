@@ -13,6 +13,7 @@ from custom_components.hair.const import (
 )
 from custom_components.hair.event_parser import EventParser
 from custom_components.hair.models import IRCommand, IRDevice
+from custom_components.hair.protocol_decode import DecodedIdentity
 from custom_components.hair.storage import HAIRStore, _HAIRDeviceStore
 
 
@@ -49,8 +50,11 @@ def test_match_command_decoded_tier(fake_hass):
 
 
 def test_match_command_fingerprint_and_bytehash_tiers(fake_hass):
-    """Composite (fingerprint, byte_hash) matches, and a byte_hash miss
-    falls through to the fingerprint-only tier."""
+    """Composite (fingerprint, byte_hash) matches; a byte_hash miss does
+    NOT fall back to the bare fingerprint when the command carries its own
+    hash (v0.5.8 behavior flip, deliberate: that false match is how
+    assigning one sub-threshold button used to swallow its siblings). The
+    bare tier serves only legacy hash-less commands."""
     dev = IRDevice(
         name="TV",
         commands=[
@@ -64,8 +68,27 @@ def test_match_command_fingerprint_and_bytehash_tiers(fake_hass):
     fp = EventParser.signal_fingerprint("PRONTO", _PRONTO_CODE, None)
     ref = (dev.id, dev.commands[0].id)
     assert store.match_command(None, fp, "bh1") == ref
-    assert store.match_command(None, fp, "other") == ref
+    assert store.match_command(None, fp, "other") is None
+    assert store.match_command(None, fp, None) is None
     assert store.match_command(None, "nope", None) is None
+
+
+def test_match_command_legacy_bare_fp_tier(fake_hass):
+    """A hash-less (legacy) command still matches on the bare fingerprint,
+    regardless of the incoming signal's byte_hash. Backfill normally
+    eliminates this class at load; commands with no Pronto code keep it."""
+    dev = IRDevice(
+        name="TV",
+        commands=[
+            IRCommand(name="Power", protocol="PRONTO", code=_PRONTO_CODE)
+        ],
+    )
+    store = HAIRStore(fake_hass)
+    store.add_device(dev)
+    fp = EventParser.signal_fingerprint("PRONTO", _PRONTO_CODE, None)
+    ref = (dev.id, dev.commands[0].id)
+    assert store.match_command(None, fp, None) == ref
+    assert store.match_command(None, fp, "anything") == ref
 
 
 def test_command_index_rebuilds_on_remove(fake_hass):
@@ -107,8 +130,11 @@ async def test_async_load_backfills_decoded_fields(fake_hass):
         "custom_components.hair.storage._HAIRDeviceStore",
         lambda *a, **k: backing,
     ), patch(
-        "custom_components.hair.protocol_decode.try_decode",
-        return_value=("NEC", 0xFB04, 0x08),
+        "custom_components.hair.protocol_decode.try_decode_identity",
+        return_value=DecodedIdentity(
+            protocol="NEC", address=0xFB04, command=0x08,
+            fingerprint="NEC:0xfb04:0x08", extras=None, source="upstream",
+        ),
     ):
         store = HAIRStore(fake_hass)
         await store.async_load()

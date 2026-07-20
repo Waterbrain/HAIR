@@ -13,13 +13,18 @@
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "./decorators.js";
+import { dialogStyles } from "./ir-dialog-styles.js";
+import { t } from "./localize.js";
 
 @customElement("ir-confirm-dialog")
 export class IrConfirmDialog extends LitElement {
-    @property() public title = "Confirm";
-    @property() public message = "Are you sure?";
-    @property() public confirmLabel = "Confirm";
-    @property() public cancelLabel = "Cancel";
+    // Empty-string defaults resolve through t() at render time, so
+    // the fallbacks localize (class-body defaults would freeze English
+    // before the panel language is known).
+    @property() public title = "";
+    @property() public message = "";
+    @property() public confirmLabel = "";
+    @property() public cancelLabel = "";
     @property({ type: Boolean }) public destructive = false;
     @state() private _busy = false;
 
@@ -39,17 +44,17 @@ export class IrConfirmDialog extends LitElement {
         return html`
             <div class="overlay" @click=${this._close}>
                 <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
-                    <h3 class="heading">${this.title}</h3>
-                    <p class="message">${this.message}</p>
+                    <h3 class="heading">${this.title || t("common.confirm")}</h3>
+                    <p class="message">${this.message || t("common.are_you_sure")}</p>
                     <div class="actions">
                         <button class="btn cancel" @click=${this._close}>
-                            ${this.cancelLabel}
+                            ${this.cancelLabel || t("common.cancel")}
                         </button>
                         <button
                             class="btn confirm ${this.destructive ? "destructive" : ""}"
                             @click=${this._confirm}
                         >
-                            ${this.confirmLabel}
+                            ${this.confirmLabel || t("common.confirm")}
                         </button>
                     </div>
                 </div>
@@ -57,29 +62,12 @@ export class IrConfirmDialog extends LitElement {
         `;
     }
 
-    static styles = css`
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-        .dialog {
-            background: var(--card-background-color, #fff);
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
+    static styles = [
+        dialogStyles,
+        css`
+        /* Tighter heading than the shared 16px; ships this way. */
         .heading {
             margin: 0 0 12px;
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: var(--primary-text-color);
         }
         .message {
             margin: 0 0 20px;
@@ -121,7 +109,8 @@ export class IrConfirmDialog extends LitElement {
             background: #e65100;
             border-color: #e65100;
         }
-    `;
+    `,
+    ];
 }
 
 declare global {

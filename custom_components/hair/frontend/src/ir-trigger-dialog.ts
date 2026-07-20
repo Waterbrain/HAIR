@@ -10,6 +10,8 @@
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "./decorators.js";
+import { t } from "./localize.js";
+import { dialogStyles } from "./ir-dialog-styles.js";
 import "./ir-receiver-picker.js";
 import type { HairApi } from "./api.js";
 import type { IRTrigger } from "./types.js";
@@ -25,6 +27,12 @@ export class IrTriggerDialog extends LitElement {
     @property() public slPattern: string | null = null;
     /** Optional signal alias, shown instead of bare diamonds when set. */
     @property() public alias: string | null = null;
+    /** Byte-level identity of the source signal (v0.5.8). Distinguishes
+     * sub-threshold sibling buttons that share an S/L fingerprint. */
+    @property() public byteHash: string | null = null;
+    /** Decoded protocol identity of the source signal (v0.5.8 unified
+     * identity). Jitter-immune tier-1 matching where a decoder exists. */
+    @property() public decodedFingerprint: string | null = null;
 
     /** For create mode: optional source references. */
     @property() public sourceDeviceId: string | null = null;
@@ -32,6 +40,10 @@ export class IrTriggerDialog extends LitElement {
 
     /** For edit mode: pass the existing trigger. */
     @property({ attribute: false }) public trigger: IRTrigger | null = null;
+
+    // Set when opened from a Mirror row (v0.6.6): renders a one-line note
+    // that the echo gate keeps the house's own sends from firing triggers.
+    @property({ type: Boolean }) public mirrorContext = false;
 
     @state() private _name = "";
     @state() private _minHits = 1;
@@ -57,7 +69,7 @@ export class IrTriggerDialog extends LitElement {
     private async _save(): Promise<void> {
         const name = this._name.trim();
         if (!name) {
-            this._error = "Name is required.";
+            this._error = t("common.name_required");
             return;
         }
         this._busy = true;
@@ -86,6 +98,12 @@ export class IrTriggerDialog extends LitElement {
                 if (this.signalFingerprint) {
                     payload.signal_fingerprint = this.signalFingerprint;
                 }
+                if (this.byteHash) {
+                    payload.byte_hash = this.byteHash;
+                }
+                if (this.decodedFingerprint) {
+                    payload.decoded_fingerprint = this.decodedFingerprint;
+                }
                 saved = await this.api.createTrigger(payload);
             }
             this.dispatchEvent(
@@ -96,7 +114,7 @@ export class IrTriggerDialog extends LitElement {
                 }),
             );
         } catch (err) {
-            this._error = (err as Error).message ?? "Save failed";
+            this._error = (err as Error).message ?? t("trigger.save_failed");
         } finally {
             this._busy = false;
         }
@@ -138,7 +156,7 @@ export class IrTriggerDialog extends LitElement {
         // user recognizes which signal this trigger is for.
         if (!isEdit && this.alias) {
             return html`<span class="alias-inline"
-                ><span class="alias-tag">alias</span
+                ><span class="alias-tag">${t("trigger.alias_tag")}</span
                 ><span class="alias-name">${this.alias}</span></span
             >`;
         }
@@ -168,7 +186,7 @@ export class IrTriggerDialog extends LitElement {
         }
 
         // Fallback.
-        return html`<span class="proto">Trigger Event</span>`;
+        return html`<span class="proto">${t("trigger.event")}</span>`;
     }
 
     render() {
@@ -178,7 +196,7 @@ export class IrTriggerDialog extends LitElement {
             <div class="overlay" @click=${this._close}>
                 <div class="dialog" @click=${(e: Event) => e.stopPropagation()}>
                     <h3 class="heading">
-                        ${isEdit ? "Edit Trigger" : "Create Trigger"}
+                        ${isEdit ? t("trigger.edit_heading") : t("trigger.create_heading")}
                     </h3>
 
                     <!-- Signal info (read-only) -->
@@ -186,12 +204,18 @@ export class IrTriggerDialog extends LitElement {
                         ${this._renderSignalInfo()}
                     </div>
 
+                    ${this.mirrorContext
+                        ? html`<p class="field-hint scope-hint">
+                              ${t("trigger.mirror_hint")}
+                          </p>`
+                        : ""}
+
                     <!-- Name -->
-                    <label class="field-label">Trigger Name</label>
+                    <label class="field-label">${t("trigger.name_label")}</label>
                     <input
                         class="field-input"
                         type="text"
-                        placeholder="e.g. TV Power"
+                        placeholder=${t("trigger.name_placeholder")}
                         .value=${this._name}
                         @input=${(e: Event) => {
                             this._name = (e.target as HTMLInputElement).value;
@@ -201,9 +225,9 @@ export class IrTriggerDialog extends LitElement {
 
                     <!-- Min Hits -->
                     <label class="field-label">
-                        Min Hits
+                        ${t("trigger.min_hits")}
                         <span class="field-hint">
-                            Number of presses within 5s to fire
+                            ${t("trigger.min_hits_hint")}
                         </span>
                     </label>
                     <input
@@ -233,8 +257,7 @@ export class IrTriggerDialog extends LitElement {
                             }}
                         ></ir-receiver-picker>
                         <p class="field-hint scope-hint">
-                            Fires once per press, regardless of how many scoped
-                            receivers observe the signal.
+                            ${t("trigger.scope_hint")}
                         </p>
                     </div>
 
@@ -248,53 +271,32 @@ export class IrTriggerDialog extends LitElement {
                                   class="btn delete-btn"
                                   @click=${this._emitDelete}
                                   ?disabled=${this._busy}
-                              >Delete</button>`
+                              >${t("common.delete")}</button>`
                             : ""}
                         <span class="actions-spacer"></span>
                         <button
                             class="btn cancel"
                             @click=${this._close}
                             ?disabled=${this._busy}
-                        >Cancel</button>
+                        >${t("common.cancel")}</button>
                         <button
                             class="btn save"
                             @click=${this._save}
                             ?disabled=${this._busy || !this._name.trim()}
                         >${this._busy
-                            ? "Saving..."
+                            ? t("common.saving")
                             : isEdit
-                              ? "Update"
-                              : "Create"}</button>
+                              ? t("common.update")
+                              : t("common.create")}</button>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    static styles = css`
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-        .dialog {
-            background: var(--card-background-color, #fff);
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 400px;
-            width: 90%;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        }
-        .heading {
-            margin: 0 0 16px;
-            font-size: 1.1rem;
-            font-weight: 500;
-            color: var(--primary-text-color);
-        }
+    static styles = [
+        dialogStyles,
+        css`
         .signal-info {
             padding: 8px 12px;
             background: var(--secondary-background-color);
@@ -432,7 +434,8 @@ export class IrTriggerDialog extends LitElement {
         .delete-btn:hover {
             background: rgba(230, 81, 0, 0.08);
         }
-    `;
+    `,
+    ];
 }
 
 declare global {

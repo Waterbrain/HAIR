@@ -57,25 +57,37 @@ class _RecentObservation:
 
 
 class _HitState:
-    """Per-trigger hit accumulator."""
+    """Per-trigger hit accumulator.
 
-    __slots__ = ("count", "last_hit")
+    The reset window is anchored at the FIRST press of the chain
+    (v0.6.6, owner bench ruling): all min_hits presses must land within
+    ``TRIGGER_HIT_RESET_WINDOW_S`` of the first one, which is what the
+    trigger dialog's "within 5s" copy always promised. Before v0.6.6
+    the window slid on every press, so a chain of slow presses with
+    sub-5s gaps could accumulate to the threshold across an arbitrary
+    total span (two presses, a long thoughtful pause, two more = fire).
+    A press that arrives after the window closes starts a fresh chain
+    and counts as its first hit.
+    """
+
+    __slots__ = ("count", "first_hit")
 
     def __init__(self) -> None:
         self.count: int = 0
-        self.last_hit: float = 0.0
+        self.first_hit: float = 0.0
 
     def increment(self, now: float) -> int:
         """Increment hit count, resetting if the window has elapsed."""
-        if now - self.last_hit > TRIGGER_HIT_RESET_WINDOW_S:
+        if now - self.first_hit > TRIGGER_HIT_RESET_WINDOW_S:
             self.count = 0
+        if self.count == 0:
+            self.first_hit = now
         self.count += 1
-        self.last_hit = now
         return self.count
 
     def reset(self) -> None:
         self.count = 0
-        self.last_hit = 0.0
+        self.first_hit = 0.0
 
 
 class TriggerManager:
@@ -98,7 +110,9 @@ class TriggerManager:
         # per (trigger_id, fingerprint): the second and later observations are
         # gated out before the hit increment, so min_hits still counts distinct
         # presses and a matching trigger fires at most once per press.
-        self._recent_fires: dict[tuple[str, str], float] = {}
+        # Keyed on trigger id alone (unified identity): see the dedup
+        # comment in on_signal_captured.
+        self._recent_fires: dict[str, float] = {}
         # Best-effort per-fingerprint observation tracking for the diagnostic
         # log line only.
         self._pending_obs: dict[str, _RecentObservation] = {}
@@ -125,13 +139,21 @@ class TriggerManager:
         code: str | None,
         source_device_fp: str | None = None,
         receiver_entity_id: str | None = None,
+        byte_hash: str | None = None,
+        decoded_fingerprint: str | None = None,
     ) -> list[str]:
         """Process an incoming signal against all enabled triggers.
 
         Threads the capturing ``receiver_entity_id`` (or ``None`` for legacy
-        ESPHome-bridge captures). Applies each trigger's receiver scope, then
-        the existing ``min_hits`` accumulation, with a 60ms cross-receiver
-        dedup so one physical press counts once per (trigger, fingerprint).
+        ESPHome-bridge captures) plus the signal's ``byte_hash`` and
+        ``decoded_fingerprint``; matching is the tiered identity rule
+        (v0.5.8 unified identity, decoded > byte_hash > S/L fingerprint),
+        so a boundary protocol's fingerprint flip no longer disconnects a
+        trigger from its button. Applies each trigger's receiver scope,
+        then the existing ``min_hits`` accumulation, with a sliding
+        per-trigger dedup so one physical press counts once even for
+        protocols that transmit several full frames per press (Sony sends
+        4-5 at ~45ms spacing; each skipped frame refreshes the window).
 
         Returns the list of trigger IDs that fired (for caller awareness).
         """
@@ -155,7 +177,9 @@ class TriggerManager:
         ):
             obs.other_observers.append(receiver_entity_id)
 
-        triggers = self._store.get_triggers_for_signal(protocol, code, fingerprint)
+        triggers = self._store.get_triggers_for_signal(
+            protocol, code, fingerprint, byte_hash, decoded_fingerprint
+        )
         if not triggers:
             return []
 
@@ -170,11 +194,31 @@ class TriggerManager:
             if not trigger.matches_receiver(receiver_entity_id):
                 continue
 
-            # Cross-receiver dedup: within the window, a repeat capture of the
-            # same press for this (trigger, fingerprint) is skipped entirely --
-            # no hit increment, no fire -- so min_hits counts distinct presses.
-            key = (trigger.id, fingerprint)
+            # Cross-receiver dedup: within the window, a repeat capture of
+            # the same press for this trigger is skipped entirely -- no hit
+            # increment, no fire -- so min_hits counts distinct presses.
+            # The window SLIDES (v0.5.8): a skipped capture refreshes the
+            # timestamp, so protocols that transmit several full frames per
+            # press (Sony: 4-5 frames ~45ms apart, longer than the window
+            # end to end) collapse into one hit instead of re-firing on
+            # frame 3 and frame 5. Two intentional presses are never this
+            # close together; NEC dittos are filtered before this point.
+            #
+            # Keyed on the trigger id ALONE (unified identity): under
+            # tiered matching two receivers can compute DIFFERENT
+            # fingerprints for one physical press (the Sony boundary flip)
+            # and both reach this point via byte_hash, so a
+            # fingerprint-qualified key would double-fire. This aligns the
+            # dedup key with ``_hit_states``, which was already
+            # trigger-global, and closes the dual-path capture hole
+            # (native PRONTO fp vs legacy protocol:code fp) for free. One
+            # trigger cannot legitimately match two different buttons
+            # inside the window: same-fingerprint siblings shared a key
+            # already, and the RC-6 bin-share corner is a case where
+            # collapsing is the correct outcome.
+            key = trigger.id
             if now - self._recent_fires.get(key, 0.0) < MULTI_RECEIVER_DEDUP_WINDOW_S:
+                self._recent_fires[key] = now
                 continue
             self._recent_fires[key] = now
 
@@ -219,7 +263,7 @@ class TriggerManager:
 
         Called every 100 captures from ``on_signal_captured``. Bounded and
         cheap; keeps the dedup map from growing with the number of distinct
-        (trigger, fingerprint) pairs seen over the process lifetime.
+        triggers seen over the process lifetime.
         """
         now = time.monotonic()
         cutoff = 5 * MULTI_RECEIVER_DEDUP_WINDOW_S
@@ -311,35 +355,75 @@ class TriggerManager:
         new_fingerprint: str,
         new_protocol: str | None,
         new_code: str | None,
+        old_byte_hash: str | None = None,
+        new_byte_hash: str | None = None,
+        old_decoded_fingerprint: str | None = None,
+        new_decoded_fingerprint: str | None = None,
     ) -> dict[str, list[str]]:
-        """Repoint triggers from an old signal fingerprint to a new one.
+        """Repoint triggers from an old signal identity to a new one.
 
-        Used when an edit changes a signal/command's S/L fingerprint: every
-        trigger bound to the old fingerprint is updated to the new
-        ``(signal_fingerprint, protocol, code)`` together so it keeps firing
-        on the edited signal. A no-op when the fingerprint is unchanged (snap
-        and byte-only edits preserve the S/L fingerprint).
+        Used when an edit changes a signal/command's identity. Identity is
+        the (S/L fingerprint, byte_hash, decoded_fingerprint) triple
+        (v0.5.8): a sub-threshold edit (Sony code A to Sony code B) changes
+        ONLY the byte_hash, so this must run on ANY component changing, not
+        just the fingerprint. Callers capture ``old_byte_hash`` and
+        ``old_decoded_fingerprint`` BEFORE mutating the signal/command.
+
+        Repoint rule: a trigger on the old fingerprint is rewired when its
+        byte-level and decoded identities are each either unknown on one
+        side or equal -- precise for scoped triggers, broad for legacy
+        ones; a trigger scoped to a DIFFERENT sibling identity is left
+        alone. Every rewired trigger is stamped with the full new identity
+        (``new_byte_hash``, ``new_decoded_fingerprint``), which promotes
+        legacy triggers to precise identity; the edit gives us certain
+        knowledge of the new identity, so this is a strict improvement.
+        (Note the tiered matcher itself would keep an unstamped trigger
+        firing across a fingerprint-only change via byte_hash, but stamping
+        keeps stored identity honest rather than relying on the rescue.)
 
         v0.5.7: multiple triggers per fingerprint are legal (they may carry
         different receiver scopes), so there is no collision rejection -- all
-        matching triggers are rewired. All matching triggers are mutated in
-        memory, then a single ``async_save`` persists.
+        matching triggers are rewired, then a single ``async_save`` persists.
 
         Returns ``{"rewired": [names], "skipped": []}``; ``skipped`` is kept in
         the shape for callers but is always empty now that collisions are legal.
         """
         rewired: list[str] = []
         skipped: list[str] = []
-        if not new_fingerprint or old_fingerprint == new_fingerprint:
+        if not new_fingerprint:
+            return {"rewired": rewired, "skipped": skipped}
+        if (
+            old_fingerprint == new_fingerprint
+            and old_byte_hash == new_byte_hash
+            and old_decoded_fingerprint == new_decoded_fingerprint
+        ):
             return {"rewired": rewired, "skipped": skipped}
 
         changed = False
         for trigger in self._store.get_all_triggers():
             if trigger.signal_fingerprint != old_fingerprint:
                 continue
+            if (
+                trigger.byte_hash is not None
+                and old_byte_hash is not None
+                and trigger.byte_hash != old_byte_hash
+            ):
+                # Scoped to a DIFFERENT button on the same fingerprint
+                # (sub-threshold sibling); this edit is not its signal.
+                continue
+            if (
+                trigger.decoded_fingerprint is not None
+                and old_decoded_fingerprint is not None
+                and trigger.decoded_fingerprint != old_decoded_fingerprint
+            ):
+                # Same guard, decoded tier: bound to a different decoded
+                # identity that merely shares the S/L fingerprint.
+                continue
             trigger.signal_fingerprint = new_fingerprint
             trigger.protocol = new_protocol
             trigger.code = new_code
+            trigger.byte_hash = new_byte_hash
+            trigger.decoded_fingerprint = new_decoded_fingerprint
             self._store.update_trigger(trigger)
             rewired.append(trigger.name)
             changed = True

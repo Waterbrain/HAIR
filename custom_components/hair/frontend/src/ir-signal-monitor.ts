@@ -4,7 +4,9 @@
  * new signals appear in real time without polling.
  */
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
+import { actionChipStyles } from "./ir-action-chip-styles";
 import { customElement, property, state } from "./decorators.js";
+import { formatLanguage, t, tp } from "./localize.js";
 import { keyed } from "lit/directives/keyed.js";
 import { repeat } from "lit/directives/repeat.js";
 import Sortable from "sortablejs";
@@ -18,11 +20,14 @@ import "./ir-test-emitter-dialog.js";
 import "./ir-trigger-dialog.js";
 import "./ir-count-dot.js";
 import "./ir-trigger-popover.js";
+import "./ir-assigned-popover.js";
+import { MIRROR_DEVICE_FP, triggerMatchesSignal } from "./types.js";
 import type {
     AssignResult,
     DeviceSummary,
     IRTrigger,
     ReceiverInfo,
+    SignalAssignment,
     SignalRemovedEvent,
     UnknownDeviceSummary,
     UnknownDevice,
@@ -34,7 +39,7 @@ import type {
 function fmtTime(iso: string): string {
     try {
         const d = new Date(iso);
-        return d.toLocaleString(undefined, {
+        return d.toLocaleString(formatLanguage(), {
             month: "short",
             day: "numeric",
             hour: "2-digit",
@@ -49,10 +54,10 @@ function fmtTime(iso: string): string {
 function relTime(iso: string): string {
     try {
         const diff = Date.now() - new Date(iso).getTime();
-        if (diff < 60_000) return "just now";
-        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} min ago`;
-        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-        return `${Math.floor(diff / 86_400_000)}d ago`;
+        if (diff < 60_000) return t("rel.just_now");
+        if (diff < 3_600_000) return t("rel.min_ago", { count: Math.floor(diff / 60_000) });
+        if (diff < 86_400_000) return t("rel.h_ago", { count: Math.floor(diff / 3_600_000) });
+        return t("rel.d_ago", { count: Math.floor(diff / 86_400_000) });
     } catch {
         return "";
     }
@@ -137,6 +142,16 @@ export class IrSignalMonitor extends LitElement {
     @state() private _triggerPopover: {
         deviceId: string;
         signal: UnknownSignal;
+        top: number;
+        left: number;
+    } | null = null;
+    // Assigned-commands popover (v0.6.6): shown when 1+ HAIR commands
+    // already carry a signal's identity; zero-assignment click opens the
+    // Assign dialog directly. Mirrors the trigger popover's flow.
+    @state() private _assignedPopover: {
+        deviceId: string;
+        signal: UnknownSignal;
+        label: string | null;
         top: number;
         left: number;
     } | null = null;
@@ -555,6 +570,57 @@ export class IrSignalMonitor extends LitElement {
         };
     }
 
+    /** Assign-button click router (v0.6.6, mirrors the Trigger flow):
+     * zero assignments opens the Assign dialog directly; 1+ shows the
+     * assigned popover with "+ new assignment" and click-through rows. */
+    private _onAssignClick(
+        deviceId: string,
+        signal: UnknownSignal,
+        label: string | null | undefined,
+        ev?: Event,
+    ): void {
+        if (!signal.assigned_to?.length) {
+            this._openAssign(deviceId, signal, label);
+            return;
+        }
+        const btn = ev?.currentTarget as HTMLElement | undefined;
+        const rect = btn?.getBoundingClientRect();
+        this._assignedPopover = {
+            deviceId,
+            signal,
+            label: label ?? null,
+            top: rect ? rect.bottom + 4 : 120,
+            left: rect ? Math.max(8, rect.right - 220) : 120,
+        };
+        this._installPopoverDismiss();
+    }
+
+    private _closeAssignedPopover(): void {
+        this._assignedPopover = null;
+        this._removePopoverDismiss();
+    }
+
+    private _onAssignedPopoverCreateNew(): void {
+        const p = this._assignedPopover;
+        this._closeAssignedPopover();
+        if (p) this._openAssign(p.deviceId, p.signal, p.label);
+    }
+
+    private _onAssignedPopoverOpen(ev: CustomEvent): void {
+        const a = ev.detail as SignalAssignment | undefined;
+        this._closeAssignedPopover();
+        if (!a) return;
+        // Bubble up to the panel: switch to the Devices tab and expand
+        // the assignment's device card.
+        this.dispatchEvent(
+            new CustomEvent("navigate-device", {
+                detail: a.device_id,
+                bubbles: true,
+                composed: true,
+            }),
+        );
+    }
+
     private _closeAssign(): void {
         this._assignSignal = null;
     }
@@ -651,9 +717,9 @@ export class IrSignalMonitor extends LitElement {
             ).length;
             const total = emitters.length;
             if (sent === total) {
-                this._testResult = total === 1 ? "Sent!" : `Sent! (${sent}/${total})`;
+                this._testResult = total === 1 ? t("mirror.sent") : t("mirror.sent_all_n", { sent, total });
             } else if (sent === 0) {
-                this._testResult = "Failed";
+                this._testResult = t("mirror.failed");
             } else {
                 this._testResult = `Sent (${sent}/${total})`;
             }
@@ -668,16 +734,15 @@ export class IrSignalMonitor extends LitElement {
 
     // --- Trigger helpers ---
 
-    /** Check if a signal fingerprint already has a trigger. */
-    private _hasTrigger(fingerprint: string): boolean {
-        return this._triggers.some((t) => t.signal_fingerprint === fingerprint);
+    /** Check if a signal already has a trigger (identity-aware, v0.5.8). */
+    private _hasTrigger(signal: UnknownSignal): boolean {
+        return this._triggers.some((t) => triggerMatchesSignal(t, signal));
     }
 
-    /** Count triggers bound to a fingerprint (yellow dot count). */
-    private _triggerCountFor(fingerprint: string): number {
-        return this._triggers.filter(
-            (t) => t.signal_fingerprint === fingerprint,
-        ).length;
+    /** Count triggers bound to a signal (yellow dot count). */
+    private _triggerCountFor(signal: UnknownSignal): number {
+        return this._triggers.filter((t) => triggerMatchesSignal(t, signal))
+            .length;
     }
 
     private _openTriggerDialog(
@@ -685,8 +750,8 @@ export class IrSignalMonitor extends LitElement {
         signal: UnknownSignal,
         ev?: Event,
     ): void {
-        const matches = this._triggers.filter(
-            (t) => t.signal_fingerprint === signal.fingerprint,
+        const matches = this._triggers.filter((t) =>
+            triggerMatchesSignal(t, signal),
         );
         // Zero triggers: open the Create dialog directly (no popover).
         if (matches.length === 0) {
@@ -722,16 +787,23 @@ export class IrSignalMonitor extends LitElement {
         if (t) this._triggerEditDialog = t;
     }
 
-    // Dismiss the popover on an outside click or any scroll (bound refs so
-    // add/removeEventListener pair up).
+    // Dismiss the popovers on an outside click or any scroll (bound refs so
+    // add/removeEventListener pair up). One handler pair covers both the
+    // trigger and assigned popovers; only one is ever open at a time.
     private _onDocClickForPopover = (ev: Event): void => {
-        const pop = this.shadowRoot?.querySelector("ir-trigger-popover");
-        if (pop && ev.composedPath().includes(pop)) return;
+        const path = ev.composedPath();
+        const trig = this.shadowRoot?.querySelector("ir-trigger-popover");
+        const asgn = this.shadowRoot?.querySelector("ir-assigned-popover");
+        if ((trig && path.includes(trig)) || (asgn && path.includes(asgn))) {
+            return;
+        }
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _onScrollForPopover = (): void => {
         this._closeTriggerPopover();
+        this._closeAssignedPopover();
     };
 
     private _installPopoverDismiss(): void {
@@ -817,6 +889,10 @@ export class IrSignalMonitor extends LitElement {
     }
 
     private _onLiveSignal(ev: UnknownSignalEvent): void {
+        // Mirror pushes (v0.6.6) are the house's own sends; the Mirror tab
+        // renders them. Without this guard every HAIR send would look like
+        // an unknown device and trigger a full list reload.
+        if (ev.device_fingerprint === MIRROR_DEVICE_FP) return;
         const now = new Date().toISOString();
 
         // Update the matching device in our local list, or add a new one.
@@ -991,11 +1067,10 @@ export class IrSignalMonitor extends LitElement {
             <div class="toolbar">
                 <span class="title">
                     <ha-svg-icon .path=${ICON_SIGNAL}></ha-svg-icon>
-                    HAIR Sniffer
+                    ${t("sniffer.title")}
                     ${!this._loading
                         ? html`<span class="count"
-                              >(${this._devices.length}
-                              ${this._devices.length === 1 ? "remote" : "remotes"})</span
+                              >(${tp("sniffer.remotes", this._devices.length)})</span
                           >`
                         : ""}
                 </span>
@@ -1006,36 +1081,23 @@ export class IrSignalMonitor extends LitElement {
                 : ""}
 
             ${this._loading
-                ? html`<div class="loading">Scanning for signals...</div>`
+                ? html`<div class="loading">${t("sniffer.scanning")}</div>`
                 : this._devices.length === 0
                   ? this._hasReceivers
                     ? html`
                         <ha-card class="empty">
                             <ha-svg-icon class="empty-icon" .path=${ICON_SIGNAL}></ha-svg-icon>
-                            <h3>No unknown signals detected</h3>
-                            <p>
-                                When unrecognized IR signals are received by your
-                                ESPHome devices, they will appear here automatically.
-                            </p>
-                            <p class="hint">
-                                Try pressing a button on a remote that hasn't been
-                                configured yet.
-                            </p>
+                            <h3>${t("sniffer.empty_title")}</h3>
+                            <p>${t("sniffer.empty_body")}</p>
+                            <p class="hint">${t("sniffer.empty_hint")}</p>
                         </ha-card>
                     `
                     : html`
                         <ha-card class="empty">
                             <ha-svg-icon class="empty-icon" .path=${ICON_SIGNAL}></ha-svg-icon>
-                            <h3>No IR receiver is set up</h3>
-                            <p>
-                                HAIR has no way to receive IR signals yet, so the
-                                Sniffer cannot capture anything.
-                            </p>
-                            <p class="hint">
-                                Set up an ESPHome receiver with the infrared
-                                platform, or check Settings, then Devices and
-                                Services, to confirm your IR device is adopted.
-                            </p>
+                            <h3>${t("sniffer.norx_title")}</h3>
+                            <p>${t("sniffer.norx_body")}</p>
+                            <p class="hint">${t("sniffer.norx_hint")}</p>
                         </ha-card>
                     `
                   : html`
@@ -1054,10 +1116,10 @@ export class IrSignalMonitor extends LitElement {
             <div class="bottom-bar">
                 <button
                     class="action-btn dismiss-btn ${this._dismissGlowActive ? "dismiss-glow" : ""}"
-                    title="Restore previously hidden remotes"
+                    title=${t("sniffer.show_dismissed_title")}
                     @click=${this._toggleDismissed}
                 >
-                    ${this._showDismissed ? "Hide Dismissed" : "Show Dismissed"}
+                    ${this._showDismissed ? t("sniffer.hide_dismissed") : t("sniffer.show_dismissed")}
                     ${this._dismissDotVisible
                         ? html`<span class="dismiss-dot" aria-hidden="true"></span>`
                         : ""}
@@ -1065,10 +1127,10 @@ export class IrSignalMonitor extends LitElement {
                 ${this._devices.length > 0 || this._showDismissed
                     ? html`<button
                           class="action-btn delete-btn"
-                          title="Wipe the entire unknown catalog AND the dismiss list. Use Show Dismissed before Clear All if you want to retain individual dismissed entries."
+                          title=${t("sniffer.clear_all_title")}
                           @click=${() => (this._confirmClearAll = true)}
                       >
-                          Clear All
+                          ${t("sniffer.clear_all")}
                       </button>`
                     : ""}
             </div>
@@ -1103,8 +1165,8 @@ export class IrSignalMonitor extends LitElement {
             ${this._deleteSignal
                 ? html`
                       <ir-confirm-dialog
-                          title="Delete Signal"
-                          message="Remove this signal permanently? This cannot be undone."
+                          title=${t("sniffer.del_signal_title")}
+                          message=${t("sniffer.del_signal_msg")}
                           confirmLabel="Delete"
                           .destructive=${true}
                           @confirmed=${this._confirmDelete}
@@ -1133,8 +1195,8 @@ export class IrSignalMonitor extends LitElement {
             ${this._confirmClearAll
                 ? html`
                       <ir-confirm-dialog
-                          title="Clear All Signals"
-                          message="Remove all unknown signals and devices? This cannot be undone."
+                          title=${t("sniffer.clear_all_confirm_title")}
+                          message=${t("sniffer.clear_all_confirm_msg")}
                           confirmLabel="Clear All"
                           .destructive=${true}
                           @confirmed=${this._doClearAll}
@@ -1146,10 +1208,11 @@ export class IrSignalMonitor extends LitElement {
             ${this._triggerPopover
                 ? html`
                       <ir-trigger-popover
-                          .triggers=${this._triggers.filter(
-                              (t) =>
-                                  t.signal_fingerprint ===
-                                  this._triggerPopover!.signal.fingerprint,
+                          .triggers=${this._triggers.filter((t) =>
+                              triggerMatchesSignal(
+                                  t,
+                                  this._triggerPopover!.signal,
+                              ),
                           )}
                           .receivers=${this._receivers}
                           .top=${this._triggerPopover.top}
@@ -1159,11 +1222,24 @@ export class IrSignalMonitor extends LitElement {
                       ></ir-trigger-popover>
                   `
                 : ""}
+            ${this._assignedPopover
+                ? html`
+                      <ir-assigned-popover
+                          .assignments=${this._assignedPopover.signal.assigned_to ?? []}
+                          .top=${this._assignedPopover.top}
+                          .left=${this._assignedPopover.left}
+                          @create-new=${this._onAssignedPopoverCreateNew}
+                          @open-assignment=${this._onAssignedPopoverOpen}
+                      ></ir-assigned-popover>
+                  `
+                : ""}
             ${this._triggerDialog
                 ? html`
                       <ir-trigger-dialog
                           .api=${this.api}
                           .signalFingerprint=${this._triggerDialog.signal.fingerprint}
+                          .byteHash=${this._triggerDialog.signal.byte_hash ?? null}
+                          .decodedFingerprint=${this._triggerDialog.signal.decoded_fingerprint ?? null}
                           .protocol=${this._triggerDialog.signal.protocol}
                           .code=${this._triggerDialog.signal.code}
                           .slPattern=${this._triggerDialog.signal.sl_pattern ?? null}
@@ -1201,8 +1277,8 @@ export class IrSignalMonitor extends LitElement {
             ${this._confirmDeleteTriggerId
                 ? html`
                       <ir-confirm-dialog
-                          title="Delete Trigger"
-                          message="Remove this trigger? The associated HA event entity will also be removed."
+                          title=${t("mirror.del_trigger_title")}
+                          message=${t("devdetail.del_trigger_msg")}
                           confirmLabel="Delete"
                           .destructive=${true}
                           @confirmed=${this._doDeleteTrigger}
@@ -1239,26 +1315,26 @@ export class IrSignalMonitor extends LitElement {
                                 : html`<ha-svg-icon
                                           class="remote-grip"
                                           .path=${ICON_GRIP}
-                                          title="Drag to reorder"
+                                          title=${t("devdetail.drag")}
                                           @click=${(e: Event) => e.stopPropagation()}
                                       ></ha-svg-icon>
                                       ${d.dismissed
                                           ? html`<span class="protocol locked"
-                                                >${d.label ?? d.protocol ?? "RAW"}</span
+                                                >${d.label ?? d.protocol ?? t("common.raw")}</span
                                             >`
                                           : html`<span
                                                 class="protocol"
-                                                title="Click to rename"
+                                                title=${t("cmdrow.rename")}
                                                 @click=${(e: Event) => this._startRename(d, e)}
-                                            >${d.label ?? d.protocol ?? "RAW"}</span>`}`}
+                                            >${d.label ?? d.protocol ?? t("common.raw")}</span>`}`}
                             <span class="device-stats ${statsFlash ? "stats-flash" : ""}">
                                 <span class="stat"
                                     ><strong>${d.hit_count}</strong>
-                                    ${d.hit_count === 1 ? "hit" : "hits"}</span
+                                    ${tp("sniffer.hit_word", d.hit_count)}</span
                                 >
                                 <span class="stat"
                                     ><strong>${d.signal_count}</strong>
-                                    ${d.signal_count === 1 ? "signal" : "signals"}</span
+                                    ${tp("sniffer.signal_word", d.signal_count)}</span
                                 >
                                 <span class="stat last-seen" title=${fmtTime(d.last_seen)}>${relTime(d.last_seen)}</span>
                             </span>
@@ -1266,18 +1342,18 @@ export class IrSignalMonitor extends LitElement {
                                 ? html`<span
                                       class="status-badge hair-device"
                                       @click=${(e: Event) => e.stopPropagation()}
-                                  >HAIR Device</span>`
+                                  >${t("sniffer.hair_device")}</span>`
                                 : d.label && !d.dismissed
                                     ? html`<span
                                           class="status-badge promote-badge"
                                           @click=${(e: Event) => this._promoteDevice(d, e)}
-                                      >Promote</span>`
+                                      >${t("sniffer.promote")}</span>`
                                     : ""}
                             ${d.device_address
-                                ? html`<span class="address">addr: ${d.device_address}</span>`
+                                ? html`<span class="address">${t("sniffer.addr", { address: d.device_address })}</span>`
                                 : ""}
                             ${d.dismissed
-                                ? html`<span class="dismissed-badge">dismissed</span>`
+                                ? html`<span class="dismissed-badge">${t("sniffer.dismissed")}</span>`
                                 : ""}
                         </div>
                     </div>
@@ -1288,14 +1364,14 @@ export class IrSignalMonitor extends LitElement {
                                   e.stopPropagation();
                                   void this._undismiss(d.id);
                               }}
-                          >Restore</button>`
+                          >${t("sniffer.restore")}</button>`
                         : html`<button
                               class="action-btn device-dismiss-btn"
                               @click=${(e: Event) => {
                                   e.stopPropagation();
                                   void this._dismiss(d.id);
                               }}
-                          >Dismiss</button>`}
+                          >${t("sniffer.dismiss")}</button>`}
                     <ha-svg-icon
                         class="expand-icon"
                         .path=${expanded ? ICON_COLLAPSE : ICON_EXPAND}
@@ -1313,8 +1389,8 @@ export class IrSignalMonitor extends LitElement {
         return html`
             <div class="expanded">
                 <div class="signal-header">
-                    <span>Signals (${device.signals.length})</span>
-                    <span class="first-seen">First seen: ${fmtTime(device.first_seen)}</span>
+                    <span>${t("sniffer.signals_head", { count: device.signals.length })}</span>
+                    <span class="first-seen">${t("sniffer.first_seen", { time: fmtTime(device.first_seen) })}</span>
                 </div>
                 <div class="signal-list">
                     ${keyed(
@@ -1335,7 +1411,7 @@ export class IrSignalMonitor extends LitElement {
                                     : html`<ha-svg-icon
                                           class="signal-grip"
                                           .path=${ICON_GRIP}
-                                          title="Drag to reorder"
+                                          title=${t("devdetail.drag")}
                                       ></ha-svg-icon>`}
                                 <div class="signal-info">
                                     <ir-signal-alias
@@ -1349,7 +1425,7 @@ export class IrSignalMonitor extends LitElement {
                                 <div class="signal-meta">
                                     <span class="${isHitFlash ? "hit-flash" : ""}"
                                         >${sig.hit_count}
-                                        ${sig.hit_count === 1 ? "hit" : "hits"}</span
+                                        ${tp("sniffer.hit_word", sig.hit_count)}</span
                                     >
                                     <span title=${fmtTime(sig.last_seen)}
                                         >${relTime(sig.last_seen)}</span
@@ -1359,7 +1435,7 @@ export class IrSignalMonitor extends LitElement {
                                 ${sig.code
                                     ? html`<button
                                           ?disabled=${device.dismissed}
-                                          title="View or edit code"
+                                          title=${t("cmdrow.edit_code")}
                                           @click=${(e: Event) =>
                                               this._openEditSignal(device.id, sig, e)}
                                           style="background:none;border:none;cursor:pointer;color:var(--secondary-text-color);padding:2px;display:inline-flex;align-items:center"
@@ -1375,17 +1451,20 @@ export class IrSignalMonitor extends LitElement {
                                         class="action-btn assign-btn ${isLatest ? "recent-latest" : ""} ${isPrevious ? "recent-previous" : ""} ${isGlowing ? "glow" : ""}"
                                         @click=${(e: Event) => {
                                             e.stopPropagation();
-                                            this._openAssign(device.id, sig, device.label);
+                                            this._onAssignClick(device.id, sig, device.label, e);
                                         }}
                                         ?disabled=${device.dismissed}
                                         title=${sig.assignment_count && sig.assigned_to?.length
                                             ? (sig.assignment_count === 1
-                                                ? `Assigned to ${sig.assigned_to[0]}`
-                                                : `Assigned to ${sig.assignment_count} commands:\n- ${sig.assigned_to.join("\n- ")}`)
+                                                ? t("mirror.assigned_one", {
+                                                      device: sig.assigned_to[0].device_name,
+                                                      command: sig.assigned_to[0].command_name,
+                                                  })
+                                                : t("mirror.assigned_n", { count: sig.assignment_count }) + `\n- ${sig.assigned_to.map((a) => `${a.device_name} / ${a.command_name}`).join("\n- ")}`)
                                             : (device.dismissed
-                                                ? "Restore this remote first"
-                                                : "Assign this signal to a HAIR device")}
-                                    >Assign<ir-count-dot
+                                                ? t("sniffer.restore_first")
+                                                : t("mirror.assign_title"))}
+                                    >${t("assign.assign")}<ir-count-dot
                                             color="green"
                                             .count=${sig.assignment_count ?? 0}
                                         ></ir-count-dot></button>
@@ -1397,11 +1476,11 @@ export class IrSignalMonitor extends LitElement {
                                         }}
                                         ?disabled=${device.dismissed || this._testingSignalId === sig.id}
                                         title=${device.dismissed
-                                            ? "Restore this remote first"
-                                            : "Send this signal through an emitter to test it"}
+                                            ? t("sniffer.restore_first")
+                                            : t("mirror.test_title")}
                                     >${this._testingSignalId === sig.id
-                                        ? (this._testResult ?? "Sending...")
-                                        : "Test"}</button>
+                                        ? (this._testResult ?? t("mirror.sending"))
+                                        : t("mirror.test")}</button>
                                     <button
                                         class="action-btn trigger-btn"
                                         @click=${(e: Event) => {
@@ -1409,14 +1488,14 @@ export class IrSignalMonitor extends LitElement {
                                             this._openTriggerDialog(device.id, sig, e);
                                         }}
                                         ?disabled=${device.dismissed}
-                                        title=${this._hasTrigger(sig.fingerprint)
-                                            ? "Edit trigger(s) for this signal"
+                                        title=${this._hasTrigger(sig)
+                                            ? t("mirror.trigger_edit")
                                             : (device.dismissed
-                                                ? "Restore this remote first"
-                                                : "Create an HA event entity that fires on this signal")}
-                                    >Trigger<ir-count-dot
+                                                ? t("sniffer.restore_first")
+                                                : t("sniffer.trigger_create"))}
+                                    >${t("cmdrow.trigger")}<ir-count-dot
                                             color="yellow"
-                                            .count=${this._triggerCountFor(sig.fingerprint)}
+                                            .count=${this._triggerCountFor(sig)}
                                         ></ir-count-dot></button>
                                     <button
                                         class="action-btn delete-btn"
@@ -1424,7 +1503,7 @@ export class IrSignalMonitor extends LitElement {
                                             e.stopPropagation();
                                             this._openDelete(device.id, sig);
                                         }}
-                                    >Delete</button>
+                                    >${t("common.delete")}</button>
                                 </div>
                             </div>
                         `;
@@ -1436,7 +1515,7 @@ export class IrSignalMonitor extends LitElement {
         `;
     }
 
-    static styles = css`
+    static styles = [actionChipStyles, css`
         :host {
             display: block;
         }
@@ -1812,61 +1891,6 @@ export class IrSignalMonitor extends LitElement {
             gap: 4px;
             flex-shrink: 0;
         }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            font-family: inherit;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            transition: background 150ms ease, color 150ms ease,
-                        border-color 150ms ease, box-shadow 300ms ease;
-        }
-        .action-btn:hover {
-            background: var(--secondary-background-color);
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-
-        /* Semantic button colors */
-        .action-btn.assign-btn {
-            color: #2e7d32;
-            border-color: rgba(46, 125, 50, 0.3);
-            position: relative; /* anchor for the green assignment dot */
-        }
-        .action-btn.assign-btn:hover {
-            background: rgba(46, 125, 50, 0.08);
-        }
-        .action-btn.test-btn {
-            color: var(--primary-color);
-        }
-        .action-btn.trigger-btn {
-            color: #b89930;
-            border-color: rgba(184, 153, 48, 0.3);
-            position: relative; /* anchor for the yellow trigger dot */
-        }
-        .action-btn.trigger-btn:hover {
-            background: rgba(184, 153, 48, 0.08);
-        }
-        .action-btn.delete-btn {
-            color: #e65100;
-            border-color: rgba(230, 81, 0, 0.25);
-        }
-        .action-btn.delete-btn:hover {
-            background: rgba(230, 81, 0, 0.08);
-        }
-        .action-btn.dismiss-btn {
-            color: var(--secondary-text-color);
-            border-color: var(--divider-color);
-            position: relative; /* anchor for the dot indicator */
-        }
 
         /* Transient blue pulse on the Show Dismissed button when a
            signal arrives from a remote in the dismiss set. Reuses the
@@ -1901,11 +1925,14 @@ export class IrSignalMonitor extends LitElement {
             pointer-events: none;
         }
 
-        /* Latest signal: bright green filled Assign button */
+        /* Latest signal: deep green fill (AA contrast with the white
+           label) with a mint rim that previews the hit ring. Locked
+           design: sniffer-hit-glow.md -- the earlier same-green halo
+           read as a blob against the fill. */
         .action-btn.assign-btn.recent-latest {
             color: #fff;
             background: #2e7d32;
-            border-color: #2e7d32;
+            border-color: #69f0ae;
         }
         .action-btn.assign-btn.recent-latest:hover {
             background: #1b5e20;
@@ -1921,14 +1948,15 @@ export class IrSignalMonitor extends LitElement {
             background: rgba(46, 125, 50, 0.12);
         }
 
-        /* Glow pulse animation on hit */
+        /* Hit pulse: the mint rim blooms into a ring, brighter than
+           the fill so the halo separates instead of blobbing. */
         .action-btn.assign-btn.glow {
-            animation: assign-glow 1.2s ease-out;
+            animation: assign-glow 1.4s ease-out;
         }
         @keyframes assign-glow {
-            0% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.6); }
-            50% { box-shadow: 0 0 8px 3px rgba(46, 125, 50, 0.3); }
-            100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+            0% { box-shadow: 0 0 0 0 rgba(105, 240, 174, 0.9); }
+            35% { box-shadow: 0 0 0 2px #69f0ae, 0 0 12px 5px rgba(105, 240, 174, 0.55); }
+            100% { box-shadow: 0 0 0 0 rgba(105, 240, 174, 0); }
         }
 
         /* Hit count flash animation */
@@ -1945,7 +1973,7 @@ export class IrSignalMonitor extends LitElement {
             color: var(--primary-color);
             transition: color 300ms ease;
         }
-    `;
+    `];
 }
 
 declare global {

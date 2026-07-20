@@ -8,6 +8,8 @@
  */
 import { LitElement, html, css } from "lit";
 import { customElement, property, state } from "./decorators.js";
+import { t } from "./localize.js";
+import { dialogStyles } from "./ir-dialog-styles.js";
 import "./ir-emitter-picker.js";
 import type { HairApi } from "./api.js";
 import type {
@@ -59,11 +61,11 @@ export class IrAddDeviceDialog extends LitElement {
 
     private async _create() {
         if (!this._name.trim()) {
-            this._error = "Name is required.";
+            this._error = t("common.name_required");
             return;
         }
         if (this._emitterIds.length === 0) {
-            this._error = "Pick at least one IR emitter.";
+            this._error = t("adddev.emitter_required");
             return;
         }
 
@@ -97,7 +99,7 @@ export class IrAddDeviceDialog extends LitElement {
         return html`
             <ha-dialog
                 open
-                heading="Add Device"
+                heading=${t("adddev.heading")}
                 scrimClickAction=""
                 @closed=${this._close}
             >
@@ -106,11 +108,11 @@ export class IrAddDeviceDialog extends LitElement {
                     : ""}
 
                 <div class="field">
-                    <label>Name</label>
+                    <label>${t("common.name")}</label>
                     <input
                         type="text"
                         .value=${this._name}
-                        placeholder="e.g. Living Room TV"
+                        placeholder=${t("common.device_name_placeholder")}
                         required
                         autofocus
                         @input=${(e: Event) =>
@@ -119,7 +121,7 @@ export class IrAddDeviceDialog extends LitElement {
                 </div>
 
                 <div class="field">
-                    <label>Device type</label>
+                    <label>${t("common.device_type")}</label>
                     <select
                         .value=${this._deviceType}
                         @change=${(e: Event) =>
@@ -127,12 +129,12 @@ export class IrAddDeviceDialog extends LitElement {
                                 .value as DeviceTypeId)}
                     >
                         ${DEVICE_TYPES.map(
-                            (t) => html`
+                            (dt) => html`
                                 <option
-                                    value=${t.value}
-                                    ?selected=${this._deviceType === t.value}
+                                    value=${dt.value}
+                                    ?selected=${this._deviceType === dt.value}
                                 >
-                                    ${t.label}
+                                    ${t(`device_type.${dt.value}`)}
                                 </option>
                             `,
                         )}
@@ -154,82 +156,26 @@ export class IrAddDeviceDialog extends LitElement {
                         @click=${this._close}
                         ?disabled=${this._busy}
                     >
-                        Cancel
+                        ${t("common.cancel")}
                     </button>
                     <button
                         class="action-btn create-btn"
                         @click=${this._create}
                         ?disabled=${this._busy}
                     >
-                        ${this._busy ? "Creating..." : "Create"}
+                        ${this._busy ? t("common.creating") : t("adddev.create")}
                     </button>
                 </div>
             </ha-dialog>
         `;
     }
 
-    static styles = css`
-        .field {
-            display: block;
-            margin: 12px 0;
-            width: 100%;
-        }
-        .field label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--secondary-text-color);
-            margin-bottom: 6px;
-        }
-        input[type="text"],
-        select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid var(--divider-color);
-            background: var(--card-background-color);
-            color: var(--primary-text-color);
-            font-size: 0.95rem;
-            font-family: inherit;
-            box-sizing: border-box;
-        }
-        input[type="text"]:focus,
-        select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
+    static styles = [
+        dialogStyles,
+        css`
         ha-alert {
             display: block;
             margin: 8px 0;
-        }
-        .dialog-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-            margin-top: 20px;
-            padding-top: 16px;
-            border-top: 1px solid var(--divider-color);
-        }
-        .action-btn {
-            background: none;
-            border: 1px solid var(--divider-color);
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            font-family: inherit;
-            cursor: pointer;
-            transition: background 150ms ease;
-        }
-        .action-btn:disabled {
-            opacity: 0.5;
-            cursor: default;
-        }
-        .cancel-btn {
-            background: transparent;
-            color: var(--secondary-text-color);
-        }
-        .cancel-btn:hover:not(:disabled) {
-            background: var(--secondary-background-color);
         }
         .create-btn {
             background: #2e7d32;
@@ -239,7 +185,8 @@ export class IrAddDeviceDialog extends LitElement {
         .create-btn:hover:not(:disabled) {
             opacity: 0.9;
         }
-    `;
+    `,
+    ];
 }
 
 declare global {

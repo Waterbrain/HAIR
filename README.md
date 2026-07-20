@@ -2,11 +2,26 @@
   <img src="images/HAIR-readme-hero-v0.2.png" alt="HAIR Full Service barbershop banner with the TX mascot welcoming the new RX mascot at the shop entrance, RX IS HERE speech bubble overhead" width="900" />
 </p>
 
+<p align="center">
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.de.md">Deutsch</a> ·
+  <a href="README.pl.md">Polski</a> ·
+  <a href="README.pt.md">Português</a> ·
+  <a href="README.nl.md">Nederlands</a> ·
+  <a href="README.it.md">Italiano</a> ·
+  <a href="README.ru.md">Русский</a>
+</p>
+
 # HAIR
 
 ***HAIR moves your IR codes out of vendor clouds, blaster memory, and config files, and into Home Assistant itself.*** Point any remote at an ESPHome IR receiver, press a button, and HAIR turns that signal into a native HA entity. A button you can fire from any dashboard. An event that ***triggers automations***. A command broadcast through any blaster on HA's native `infrared` platform, whether that is an ESPHome IR LED, a [Tuya Local](https://github.com/make-all/tuya-local) IR blaster, a Broadlink RM, an SMLIGHT SLZB, or anything else that adopts the platform.
 
 No vendor cloud, no code-file downloads, no YAML -- just point, press, use. Prefer a head start? An optional manufacturer and model picker in the Clipper can pre-fill a remote from your installed code library.
+
+> [!IMPORTANT]
+> **HAIR now speaks ten languages, and nine of them need your help.** The Spanish, French, Japanese, German, Polish, Portuguese, Dutch, Italian, and Russian translations were drafted by a programming assistant and are marked "reviewer wanted" inside each dictionary file. If you use Home Assistant in one of these languages, a native-speaker pass over one file is all it takes, and your name goes in the file as its reviewer. A language we don't have yet is a two-file PR. Start here: [Adding a language](CONTRIBUTING.md#adding-a-language).
 
 ## Platform state
 
@@ -21,9 +36,9 @@ HAIR works with any integration that exposes HA's native `infrared` entity platf
 | [ESPHome](https://esphome.io/) | Core | Yes | Yes | No | Since 2026.4 (TX), 2026.6 (native RX) |
 | [Tuya Local](https://github.com/make-all/tuya-local) | HACS | Yes | No | Yes | TX since 2026.4, Pluck since 2026.6.2 |
 | [Broadlink](https://www.home-assistant.io/integrations/broadlink/) | Core | Yes | No | No | Since 2026.5 |
-| [SMLIGHT](https://www.home-assistant.io/integrations/smlight/) | Core | Yes | No | No | Since 2026.5 |
+| [SMLIGHT](https://www.home-assistant.io/integrations/smlight/) | Core | Yes | Yes | No | TX since 2026.5, native RX (Ultima) since 2026.7 |
 
-On HA 2026.6+, HAIR subscribes to native `InfraredReceiverEntity` instances via `infrared.async_subscribe_receiver()`. Any integration that implements the receiver entity works as a HAIR receiver automatically. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event bus bridge (see [ESPHome Receiver Setup](#esphome-receiver-setup) below).
+On HA 2026.6+, HAIR subscribes to native `InfraredReceiverEntity` instances via `infrared.async_subscribe_receiver()`. Any integration that implements the receiver entity works as a HAIR receiver automatically. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event bus bridge (see [ESPHome Setup](#esphome-setup) below).
 
 As more integrations adopt the `infrared` platform, HAIR picks them up with no changes needed on HAIR's side.
 
@@ -37,11 +52,25 @@ When HAIR can read a captured signal as a known protocol (NEC today), it also st
 
 | Devices Overview | Device Detail |
 |:---:|:---:|
-| ![Devices overview showing HAIR Devices, Triggers, Emitters, Receivers, and Proxies](images/screenshots/devices-overview.png) | ![Device detail with learned commands, S/L fingerprints, and trigger buttons](images/screenshots/device-detail.png) |
+| ![Devices overview showing HAIR Devices, Triggers, Emitters, Receivers, and Proxies](images/screenshots/devices-overview.png) | ![Device detail with learned commands, S/L fingerprints, localized action badges, and trigger buttons](images/screenshots/device-detail.png) |
+
+| Same shop, your language |
+|:---:|
+| ![The same device detail rendered in Japanese, with translated action badges and buttons while the Sniffer, Clipper, and Mirror tab names stay put](images/screenshots/device-detail-ja.png) |
+
+Same device as the Device Detail shot above, but after a profile-language change. The complete HAIR UI is multilingual.
+
+| The Mirror |
+|:---:|
+| ![Mirror tab logging every HA-originated IR send with provenance chips, heard-by areas, and send counts](images/screenshots/mirror-tab.png) |
 
 | Action Mapping | Sniffer |
 |:---:|:---:|
-| ![Action mapping popover for binding commands to HA entity features](images/screenshots/action-mapping.png) | ![Sniffer showing captured signals with S/L diamond fingerprints, trigger buttons, and hit counts](images/screenshots/sniffer-signals.png) |
+| ![Action mapping popover with mode and fan options plus the free-form custom action entry](images/screenshots/action-mapping.png) | ![Sniffer showing captured signals with S/L diamond fingerprints, trigger buttons, and hit counts](images/screenshots/sniffer-signals.png) |
+
+| Assigned Popover | Trigger Popover |
+|:---:|:---:|
+| ![Assigned popover listing every device command a signal is bound to, with click-through navigation](images/screenshots/assigned-popover.png) | ![Trigger popover listing the automations a signal fires, with a new trigger shortcut](images/screenshots/trigger-popover.png) |
 
 | Assign Signal | Create Trigger | Promote Device |
 |:---:|:---:|:---:|
@@ -51,7 +80,7 @@ When HAIR can read a captured signal as a known protocol (NEC today), it also st
 
 - Home Assistant **2026.4** or later
 - Python 3.12+
-- **For capture (RX):** any integration that exposes HA's native `InfraredReceiverEntity` (HA 2026.6+) -- ESPHome IR receivers work day-one, and any other integration that adopts the receiver entity works automatically. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event-bus bridge (see [ESPHome Receiver Setup](#esphome-receiver-setup) for the YAML stub).
+- **For capture (RX):** any integration that exposes HA's native `InfraredReceiverEntity` (HA 2026.6+) -- ESPHome IR receivers work day-one, SMLIGHT Ultima receivers work natively since HA 2026.7, and any other integration that adopts the receiver entity works automatically. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event-bus bridge (see [ESPHome Setup](#esphome-setup) for the YAML stub).
 - **For send (TX):** at least one integration on HA's native infrared platform (ESPHome infrared entities, [Tuya Local](https://github.com/make-all/tuya-local) IR blasters, Broadlink RM series, SMLIGHT SLZB devices, etc.)
 
 ## Installation
@@ -77,13 +106,70 @@ When HAIR can read a captured signal as a known protocol (NEC today), it also st
 3. The config flow auto-detects your IR hardware (emitters and receivers)
 4. Once added, find **HAIR** in the sidebar
 
-### ESPHome Receiver Setup
+### ESPHome Setup
 
-This setup is only needed if you are on HA 2026.4 or 2026.5 (before native `InfraredReceiverEntity` shipped), or if you are on 2026.6+ but have not yet migrated your ESPHome YAML to register the receiver entity on the `infrared` platform. In both cases, HAIR uses the legacy event-bus bridge below to receive signals from your ESPHome IR receiver.
+If your ESPHome device already has `remote_transmitter` and `remote_receiver` blocks, one addition registers them both on HA's native `infrared` platform, and HAIR discovers them automatically:
 
-If you are on HA 2026.6+ and your ESPHome YAML registers the receiver via the `infrared` platform, HAIR subscribes to it directly through `infrared.async_subscribe_receiver()` and this bridge is not needed. The Devices tab will show a `RX-NATIVE` badge on the receiver card when that path is active, or `RX-BRIDGE` when this legacy bridge is in use.
+```yaml
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Emitter
+    id: ir_proxy_tx
+    remote_transmitter_id: ir_tx     # your remote_transmitter id
+  - platform: ir_rf_proxy
+    name: IR Receiver
+    id: ir_proxy_rx
+    receiver_frequency: 38kHz
+    remote_receiver_id: ir_rx        # your remote_receiver id
+```
 
-Add this to your ESPHome device's `remote_receiver` block to wire up the bridge:
+Reflash, and the Devices tab shows the emitter with a `TX-NATIVE` badge and the receiver with `RX-NATIVE`. That's it.
+
+For ready-made, HAIR-tested configurations for common ESP32 boards and IR devices (XIAO Smart IR Mate, Athom RF IR Remote, M5Stack IR Unit, generic ESP32s), see [`esphome/`](esphome/) in this repo. Each device has two tiers: minimal (just the IR pieces) and full (preserves device-specific features like touch pads and status LEDs). Copying one of those is the fastest road to a working setup.
+
+<details>
+<summary><b>Starting from scratch? The complete minimal YAML (TX + RX + registration)</b></summary>
+
+```yaml
+# --- IR Transmitter (TX) ---
+remote_transmitter:
+  id: ir_tx
+  pin: GPIO9        # your IR LED pin
+  carrier_duty_percent: 50%
+  non_blocking: true
+
+# --- IR Receiver (RX) ---
+remote_receiver:
+  id: ir_rx
+  pin:
+    number: GPIO8   # your IR receiver data pin
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  dump: all
+  tolerance: 25%
+  idle: 10ms
+
+# --- Register both on HA's native infrared platform ---
+infrared:
+  - platform: ir_rf_proxy
+    name: IR Emitter
+    id: ir_proxy_tx
+    remote_transmitter_id: ir_tx
+  - platform: ir_rf_proxy
+    name: IR Receiver
+    id: ir_proxy_rx
+    receiver_frequency: 38kHz
+    remote_receiver_id: ir_rx
+```
+
+</details>
+
+<details>
+<summary>Legacy bridge for HA 2026.4-2026.5 (only if you cannot upgrade)</summary>
+
+Before native `InfraredReceiverEntity` shipped in HA 2026.6, HAIR received signals over an event-bus bridge. If you are stuck on 2026.4 or 2026.5, add this to your ESPHome device's `remote_receiver` block:
 
 ```yaml
 remote_receiver:
@@ -101,11 +187,11 @@ remote_receiver:
             code: !lambda 'return x.data;'
 ```
 
-The `on_pronto` trigger catches every IR signal regardless of protocol (NEC, Samsung, Sony, RC-5, etc.) and fires it as a `homeassistant.event` on the HA bus. The HAIR Sniffer subscribes to these events automatically.
+The `on_pronto` trigger catches every IR signal regardless of protocol and fires it as a `homeassistant.event` on the HA bus; the HAIR Sniffer subscribes automatically. The panel shows `RX-BRIDGE` on the receiver card while this path is in use.
 
-When you are ready to migrate to the native receiver path on HA 2026.6+, add the `infrared` platform receiver entry to your ESPHome YAML (canonical examples in [`esphome/`](esphome/)) and reflash. HAIR will detect the native receiver and switch over automatically. You can keep the legacy `on_pronto` bridge in place during the transition: HAIR will not double-process signals, and the panel will show both `RX-NATIVE` and `RX-BRIDGE` badges until you remove the bridge from your YAML.
+When you upgrade to 2026.6+, add the `infrared` platform receiver entry shown above and reflash. HAIR detects the native receiver and switches over automatically. You can keep the bridge in place during the transition, signals are not double-processed and the card shows both badges, then remove the `on_pronto:` block once `RX-NATIVE` appears.
 
-For ready-made, HAIR-tested configurations for common ESP32 boards and IR devices (XIAO Smart IR Mate, Athom RF IR Remote, generic ESP32s), see [`esphome/`](esphome/) in this repo. Each device has two tiers: minimal (just the IR pieces) and full (preserves device-specific features like touch pads and status LEDs).
+</details>
 
 ## Features
 
@@ -117,7 +203,11 @@ For ready-made, HAIR-tested configurations for common ESP32 boards and IR device
 
 **HAIR Plucker** - Pull IR codes that already live in a vendor blaster, the codes you learned in the vendor's own app, into HAIR as native signals without re-learning each one at a receiver. The Plucker works with integrations that can replay a stored code by name through a chosen emitter on HA's native `infrared` platform. HAIR points that replay at its own observer emitter (the HAIR Tweezer) and captures the code before it becomes physical IR, so nothing is broadcast over the air during a pluck and your blaster keeps working normally. [Tuya Local](https://github.com/make-all/tuya-local) is the first integration to support it; adding another is a single YAML file (see [Making your integration pluckable](docs/making-your-integration-pluckable.md)). The Plucker tab, and a Blasters (Pluckable) section on the Devices tab, appear only when a compatible blaster is configured.
 
+**HAIR Mirror** - See what your house transmits. Every IR command sent through Home Assistant appears as a row on the Mirror tab, whether anything heard it or not: HAIR device commands, catalog tests, automations, and other integrations sending through the native `infrared` platform. Each row shows the send's identity, which emitter carried it, whether a receiver heard it back and in which room, how it originated, and a running send count. Because Mirror rows carry the same Assign, Test, and Trigger actions as everywhere else, the Mirror is also a third road for getting codes into HAIR alongside the Clipper and the Plucker: press a button in any vendor app whose blaster transmits through the infrared platform, and if a receiver hears the transmission, the code lands in the Mirror one Assign away from living in HAIR. The Mirror also gates triggers, so the house's own sends never fire them.
+
 **Signal Aliases** - Give any signal a nickname by clicking its S/L diamond pattern and typing. The alias replaces the diamonds in the list so you can tell your signals apart at a glance, in both the Sniffer and Clipper. Click an existing alias to rename it, or clear the field to remove the alias and bring the diamonds back. An alias is a label on the signal, not a command name, so the same signal can still become differently-named commands on different devices.
+
+**Ten Languages** - The panel and the setup wizard speak English, Spanish, French, Japanese, German, Polish, Portuguese, Dutch, Italian, and Russian. HAIR follows your Home Assistant profile language automatically and falls back to English for anything it does not know. Honest disclosure: every language except English was drafted by a programming assistant, clearly marked as such inside each dictionary file, waiting for a native speaker to give it a proper haircut. See [Adding a language](CONTRIBUTING.md#adding-a-language).
 
 **Device Management** - Create profiles for your IR-controlled devices (TVs, ACs, fans, lights, switches, screens). Assign captured signals as named commands from a device-type-aware template list, or enter custom names. Assigning a signal copies it into the device and leaves the original in place, so the same signal can be assigned to more than one device or as more than one command. Each device gets native HA entities automatically based on its type. One-click duplicate clones an existing device with all its commands, action mappings, and emitter assignments preserved, useful when you have several remotes of the same model or a stack of similar AC units.
 
@@ -171,7 +261,7 @@ The Test button on any captured signal opens an emitter picker so you can choose
 
 Devices already managed by HAIR are tagged with a "HAIR Device" badge. You can dismiss noisy sources (like a neighbor's remote leaking through a window) and bring them back later with the "Show Dismissed" toggle (hover tooltip: "Restore previously hidden remotes"). When dismissed remotes are still firing in the background, the button quietly glows blue and shows a small dot indicator, so you can tell at a glance that there is still activity arriving from remotes you have hidden, without re-exposing those signals in the live feed. Clicking the button clears the dot and reveals the dismissed remotes so you can restore the ones you actually want back.
 
-You can give any signal an alias by clicking its diamond pattern and typing a name. The alias replaces the diamonds in the row, which makes it easy to tell signals apart before you assign them. Assigning a signal no longer removes it from the Sniffer either. The signal is copied into the device and stays in the list, so you can assign the same signal to several devices, or as several commands, and reuse it later. Only Delete, Dismiss, and Clear All take a signal out of the Sniffer.
+You can give any signal an alias by clicking its diamond pattern and typing a name. The alias replaces the diamonds in the row, which makes it easy to tell signals apart before you assign them. Assigning a signal no longer removes it from the Sniffer either. The signal is copied into the device and stays in the list, so you can assign the same signal to several devices, or as several commands, and reuse it later. Only Delete, Dismiss, and Clear All take a signal out of the Sniffer -- and an assigned button keeps flashing its row when you press it, so you can always see that the remote is alive. A deleted signal comes back the next time a receiver hears it, exactly like any other signal; if you want activity to stay hidden, dismiss the remote.
 
 Remotes and signals are yours to arrange. Drag the grip handle on a remote to reorder your remotes, and drag the grip on a signal row to reorder the signals inside a remote. The order you set is remembered, and a newly seen remote or signal appears at the top until you move it.
 
@@ -195,6 +285,16 @@ Click "+ Add Blaster" to register one: pick the vendor entity, then enter the ap
 
 Nothing is transmitted over the air during a pluck, and your blaster keeps working normally. If your integration is not pluckable yet, the tab stays hidden. See [Making your integration pluckable](docs/making-your-integration-pluckable.md) for what it takes to add support.
 
+### The Mirror Tab
+
+The Mirror logs every IR transmission that originates inside Home Assistant, at the moment it is sent. A HAIR device command, a Test from any catalog tab, an automation firing a command, or another integration sending through the native `infrared` platform: each lands as a row showing what was sent (the assigned command name when there is one, otherwise the decoded protocol identity), which emitter carried it, whether a receiver heard it back and in which room, where it came from, and how many times it has been sent. A send that arrives while you are watching blooms its row silver.
+
+The heard-back column is the part that earns the tab its place: a command that transmits but is never heard by any receiver reads "not heard", which is how you find a dead IR LED, a misaimed blaster, or an offline emitter without pointing a phone camera at anything. "Not heard" is neutral, not an alarm, because plenty of setups are transmit-only on purpose; the amber "Not heard" filter chip is there when you are actually troubleshooting. Homes with no receiver at all simply see their sends without heard-back detail. Filter chips narrow the list to one emitter, and search covers names, protocols, emitters, and origins.
+
+Every row carries the same Assign, Test, and Trigger buttons as the rest of the panel, plus the code viewer. That makes the Mirror the third road for importing codes, next to the Clipper (paste) and the Plucker (pull by name): press a button in any vendor app whose blaster transmits through the infrared platform, and if a receiver hears the transmission, the decoded code appears in the Mirror ready to assign to a HAIR device. No pasting, no vendor support file, no re-learning.
+
+Repeat sends of the same command bump one row's count rather than piling up, and deleting a row just clears the entry -- it returns the next time that signal is sent, so tidying up old experiments never damages the audit. One rule the Mirror never bends: triggers do not fire on anything it records. When Home Assistant sends a command and a receiver hears the echo, that capture is attributed to the send rather than treated as a new signal, so a trigger means "this arrived from the outside world" and can never feed back on the house's own output.
+
 ### Adding a Device
 
 There are five ways to add a device.
@@ -213,9 +313,13 @@ There are five ways to add a device.
 
 Navigate to the Sniffer tab and press buttons on your physical remote. HAIR captures each signal in real time. Expand the source device row, then click on a signal to assign it to one of your HAIR devices. Pick a command name from the device-type-aware template list (e.g., "Power On," "Volume Up," "Mode: Cool") or enter a custom name. While assigning you can also set a "Send times" count for a device that needs the command repeated to register; you can change it later in the command editor.
 
+For air conditioners, command names like "Temp 22" and "Temp 24" wire themselves up: each one maps to its temperature step and the climate card grows a real thermostat bounded to your steps, snapping to the nearest one as you drag. Deleting a temp command removes its step.
+
 When you don't have the physical remote to hand, build the command in the Clipper instead: paste the button's Pronto code on the Clipper tab, then Assign it to a device exactly as you would a sniffed signal. Sniffed and clipped signals are interchangeable once captured.
 
 When the code already lives in a vendor blaster (such as Tuya Local), use the Plucker tab to pull it into HAIR by name without re-learning it at a receiver. Register the blaster with "+ Add Blaster", then "+ Pluck Signal" with the command name you used in the vendor's app, and the resulting signal is interchangeable with sniffed and clipped ones for assignment, alias, trigger, and promote.
+
+And when the send happens anyway, let the Mirror catch it: press the button in the vendor's own app, and if a receiver hears the blaster fire, the code lands on the Mirror tab with an Assign button on it. See [The Mirror Tab](#the-mirror-tab).
 
 You can also start from a device. A device's detail view has add-command buttons that take you to the appropriate capture surface (Sniffer, Clipper, or Plucker depending on what you have configured) so you can capture, paste, or pluck the signal and assign it back to the device.
 
@@ -273,7 +377,7 @@ HAIR sits between you and HA's IR platform. It does not replace your IR hardware
 
 ### Capture (RX)
 
-HAIR uses a dual-path receive architecture. On HA 2026.6 and later, HAIR subscribes to native `InfraredReceiverEntity` instances via `infrared.async_subscribe_receiver()`. This is hardware-agnostic: any integration that exposes a receiver entity on the `infrared` platform works automatically, no per-vendor code in HAIR. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event-bus bridge (see [ESPHome Receiver Setup](#esphome-receiver-setup) above for the YAML stub). Both paths feed the same signal-processing pipeline so fingerprinting, deduplication, and trigger matching behave identically regardless of which path is active. The Devices tab surfaces which path each receiver is using via `RX-NATIVE` and `RX-BRIDGE` badges.
+HAIR uses a dual-path receive architecture. On HA 2026.6 and later, HAIR subscribes to native `InfraredReceiverEntity` instances via `infrared.async_subscribe_receiver()`. This is hardware-agnostic: any integration that exposes a receiver entity on the `infrared` platform works automatically, no per-vendor code in HAIR. On HA 2026.4-2026.5, HAIR falls back to the legacy ESPHome event-bus bridge (see [ESPHome Setup](#esphome-setup) above for the YAML stub). Both paths feed the same signal-processing pipeline so fingerprinting, deduplication, and trigger matching behave identically regardless of which path is active. The Devices tab surfaces which path each receiver is using via `RX-NATIVE` and `RX-BRIDGE` badges.
 
 ### Transmit (TX)
 
@@ -287,7 +391,7 @@ S/L fingerprinting covers all major consumer IR protocols including NEC, Samsung
 
 ### Architecture
 
-Three signal sources feed one catalog: live capture (Sniffer), manual Pronto paste (Clipper), and vendor code import (Plucker).
+Four signal sources feed one catalog: live capture (Sniffer), manual Pronto paste (Clipper), vendor code import (Plucker), and the send audit (Mirror). The Mirror also closes the loop on the TX side: every outgoing send is logged with its provenance, and echoes of the house's own transmissions are attributed back to their send instead of re-entering the capture pipeline.
 
 ```
   Remote Control                              Pasted Pronto hex
@@ -300,22 +404,25 @@ Three signal sources feed one catalog: live capture (Sniffer), manual Pronto pas
   | async_subscribe_receiver | esphome.remote_received   |
   +--------------------------+---------------------------+
         |                                            |
-  HAIR Sniffer (RX capture)      Clipper (paste)      Plucker (vendor pluck)
-        |                             |                         |
-        +--------------+--------------+-------------+-----------+
+        |<-- echo attribution: captures matching a pending send
+        |    route to the Mirror, never to triggers or the Sniffer
+        |                                            |
+  HAIR Sniffer (RX capture)   Clipper (paste)   Plucker (vendor pluck)   Mirror (send audit)
+        |                          |                      |                    |
+        +--------------+-----------+----------+-----------+--------------------+
                               |
-   Signal Store  (S/L fingerprint + dedup; tracks sniffed / manual / plucked)
+   Signal Store  (S/L fingerprint + dedup; tracks sniffed / manual / plucked / echo)
                               |
                   Trigger Manager --> Event Entities (HA automations)
                               |
-   HAIR Admin Panel  (Sniffer tab + Clipper tab + Plucker tab)
+   HAIR Admin Panel  (Sniffer + Clipper + Plucker + Mirror tabs)
                               |
    Assign signal / Promote remote --> Device Manager --> Entity Factory
                               |
    HA Entities (media_player, climate, fan, light, switch, cover, remote, button)
                               |
    HA infrared Platform (infrared.send_command)  <-- TX path: any platform integration
-                              |
+                              |                       (every send logged on the Mirror)
    IR Emitter Hardware (ESPHome, Tuya Local, Broadlink, SMLIGHT, etc.)
 ```
 

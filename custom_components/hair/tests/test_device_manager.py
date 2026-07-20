@@ -7,6 +7,7 @@ import homeassistant.components.infrared as _infrared_mod
 import pytest
 
 from custom_components.hair.const import (
+    SEND_REPEAT_GAP,
     CommandCategory,
     DeviceType,
 )
@@ -134,7 +135,14 @@ async def test_send_command_repeats_whole_frame(manager):
         await manager.async_send_command(dev.id, "c1")
     # 3 repeats x 2 emitters; a gap between each repeat (not after the last).
     assert ir_send.await_count == 6
-    assert sleep.await_count == 2
+    # Sleeps: 2 inter-frame SEND_REPEAT_GAP pauses, plus 5 transmit-gate
+    # staggers -- the send order alternates a,b | a,b | a,b, so every one
+    # of the 5 emitter CHANGES inserts a quiet gap (see tx_gate). The
+    # patch on device_manager.asyncio.sleep is the shared asyncio module,
+    # so the gate's sleeps land in the same mock.
+    gaps = [c.args[0] for c in sleep.await_args_list]
+    assert gaps.count(SEND_REPEAT_GAP) == 2
+    assert len(gaps) == 7
 
 
 @pytest.mark.asyncio
@@ -328,8 +336,8 @@ class TestUpdateCommand:
         assert manager._store.match_command(None, old_fp, None) == (dev.id, "c1")
 
         with patch(
-            "custom_components.hair.protocol_decode.decode_to_fields",
-            return_value=(None, None, None, None),
+            "custom_components.hair.protocol_decode.try_decode_identity",
+            return_value=None,
         ):
             result = await manager.async_update_command(
                 dev.id, "c1", pronto=_CODE_LONG
@@ -428,8 +436,8 @@ class TestUpdateCommand:
         tm = TriggerManager(manager._hass, manager._store)
 
         with patch(
-            "custom_components.hair.protocol_decode.decode_to_fields",
-            return_value=(None, None, None, None),
+            "custom_components.hair.protocol_decode.try_decode_identity",
+            return_value=None,
         ):
             result = await manager.async_update_command(
                 dev.id, "c1", pronto=_CODE_LONG, trigger_manager=tm
@@ -516,3 +524,100 @@ class TestApplyAutoMap:
         assert (
             manager._store.get_device(dev.id).entity_config.command_mapping == {}
         )
+
+
+# --- Temp N auto-map (v0.6.1, GH #45) ---------------------------------------
+
+
+def _mock_device_registry():
+    return patch(
+        "custom_components.hair.device_manager.dr.async_get",
+        return_value=MagicMock(
+            async_get_or_create=MagicMock(return_value=MagicMock(id="x")),
+            async_get_device=MagicMock(return_value=None),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_temp_commands_auto_map_and_derive_presets(manager):
+    """"Temp 24" maps to temp_24 and registers the preset, sorted."""
+    device = IRDevice(
+        name="AC", device_type=DeviceType.AC, emitter_entity_ids=["infrared.a"]
+    )
+    with _mock_device_registry():
+        await manager.async_create_device(device)
+    for name in ("Temp 24", "Temp: 22", "temperature 26"):
+        await manager.async_add_command(
+            device.id, IRCommand(name=name, protocol="NEC", code="0x1")
+        )
+    refreshed = manager.get_device(device.id)
+    mapping = refreshed.entity_config.command_mapping
+    assert mapping["temp_24"] == "Temp 24"
+    assert mapping["temp_22"] == "Temp: 22"
+    assert mapping["temp_26"] == "temperature 26"
+    # Presets deduped and sorted; these drive the thermostat min/max,
+    # so a metric user's 16..30 set behaves as Celsius end to end.
+    assert refreshed.entity_config.temperature_presets == [22, 24, 26]
+
+
+@pytest.mark.asyncio
+async def test_temp_pattern_ignores_non_ac_devices(manager):
+    device = IRDevice(
+        name="TV",
+        device_type=DeviceType.MEDIA_PLAYER,
+        emitter_entity_ids=["infrared.a"],
+    )
+    with _mock_device_registry():
+        await manager.async_create_device(device)
+    await manager.async_add_command(
+        device.id, IRCommand(name="Temp 24", protocol="NEC", code="0x1")
+    )
+    refreshed = manager.get_device(device.id)
+    assert "temp_24" not in refreshed.entity_config.command_mapping
+    assert refreshed.entity_config.temperature_presets is None
+
+
+@pytest.mark.asyncio
+async def test_temp_preset_deduplicates(manager):
+    device = IRDevice(
+        name="AC", device_type=DeviceType.AC, emitter_entity_ids=["infrared.a"]
+    )
+    with _mock_device_registry():
+        await manager.async_create_device(device)
+    await manager.async_add_command(
+        device.id, IRCommand(name="Temp 24", protocol="NEC", code="0x1")
+    )
+    await manager.async_add_command(
+        device.id, IRCommand(name="TEMP 24", protocol="NEC", code="0x2")
+    )
+    refreshed = manager.get_device(device.id)
+    assert refreshed.entity_config.temperature_presets == [24]
+
+
+@pytest.mark.asyncio
+async def test_removing_temp_command_retires_preset(manager):
+    device = IRDevice(
+        name="AC", device_type=DeviceType.AC, emitter_entity_ids=["infrared.a"]
+    )
+    with _mock_device_registry():
+        await manager.async_create_device(device)
+    await manager.async_add_command(
+        device.id, IRCommand(name="Temp 24", protocol="NEC", code="0x1")
+    )
+    await manager.async_add_command(
+        device.id, IRCommand(name="Temp 26", protocol="NEC", code="0x2")
+    )
+    refreshed = manager.get_device(device.id)
+    target = next(
+        c for c in refreshed.commands if c.name == "Temp 24"
+    )
+    await manager.async_remove_command(device.id, target.id)
+    refreshed = manager.get_device(device.id)
+    assert "temp_24" not in refreshed.entity_config.command_mapping
+    assert refreshed.entity_config.temperature_presets == [26]
+    # Removing the last one clears the feature entirely (None, not []).
+    target = next(c for c in refreshed.commands if c.name == "Temp 26")
+    await manager.async_remove_command(device.id, target.id)
+    refreshed = manager.get_device(device.id)
+    assert refreshed.entity_config.temperature_presets is None

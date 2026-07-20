@@ -25,6 +25,29 @@ DEFAULT_REPEAT_COUNT = 1
 MAX_SEND_COUNT = 10
 SEND_REPEAT_GAP = 0.1
 
+# Garbled-echo swallow (shampoo, owner design 2026-07-18). When HAIR's
+# own send comes back damaged -- merged tail, truncated head, shard --
+# it decodes as nothing, misses the identity claim, and would mint a
+# junk Sniffer row. An unclaimed, UNDECODABLE capture arriving inside
+# the send window is swallowed as a garbled echo when its S/L pattern
+# fuzzy-matches a live expectation's transmitted pattern within this
+# edit-distance ratio (edits / capture length). Captures that decode
+# cleanly are NEVER swallowed regardless of similarity: a clean decode
+# with a non-matching fingerprint is a real, different signal (e.g. the
+# user pressing candles-off two seconds after testing candles-on).
+ECHO_GARBLE_SIMILARITY = 0.35
+
+# Minimum quiet time (seconds) between HAIR-originated transmissions on
+# DIFFERENT emitters. Two blasters keying up at once superimpose their
+# marks and spaces at any receiver in range of both; the hybrid arrives
+# as a valid pulse train that decodes as nothing, fails the echo claim,
+# and mints a junk Sniffer row (owner bench 2026-07-18: dual-emitter
+# test of a SAMSUNG32 signal). Enforced by tx_gate.gated_send. Measured
+# from the previous send's service ack, so it also absorbs the blaster's
+# own post-ack transmit time. Same-emitter pacing (SEND_REPEAT_GAP)
+# is untouched -- devices queue their own back-to-back sends.
+EMITTER_STAGGER_GAP_S = 0.3
+
 # Maximum delay (seconds) between a captured main frame and any NEC ditto from
 # the same source device for the ditto to attribute to that frame. NEC dittos
 # arrive every ~110ms; this 1.0s window covers up to ~9 consecutive dittos,
@@ -94,13 +117,29 @@ SIGNAL_RAW_FINGERPRINT_LEN = 64
 # ---------------------------------------------------------------------------
 # Triggers
 # ---------------------------------------------------------------------------
+# min_hits accumulation window, anchored at the FIRST press of a chain
+# (v0.6.6): all min_hits presses must land within this many seconds of the
+# first one, exactly as the trigger dialog's "within 5s" copy states. A
+# press arriving after the window closes starts a fresh chain. (Pre-0.6.6
+# the window slid on every press, letting slow chains accumulate across an
+# unbounded total span.) Distinct from MULTI_RECEIVER_DEDUP_WINDOW_S below,
+# which collapses one physical press seen by several receivers.
 TRIGGER_HIT_RESET_WINDOW_S = 5
 EVENT_TRIGGER_FIRED = f"{DOMAIN}_trigger_fired"
-# Location-aware triggers (v0.5.7). A single physical press captured by several
-# receivers within this window counts as one press per (trigger, fingerprint):
-# it increments a trigger's hit state once and fires each matching trigger at
-# most once. Composes with min_hits (distinct presses still accumulate).
-MULTI_RECEIVER_DEDUP_WINDOW_S = 0.060
+# Trigger dedup window (v0.5.7, resized v0.5.8). A single physical press
+# captured by several receivers within this window counts as one press per
+# (trigger, fingerprint): it increments a trigger's hit state once and fires
+# each matching trigger at most once. Composes with min_hits (distinct
+# presses still accumulate).
+#
+# Since v0.5.8 the window SLIDES (each suppressed capture refreshes it), so it
+# must only cover the gap BETWEEN consecutive frames of one press, not the
+# whole burst. It is sized against the widest inter-frame gap we know of:
+# Sony SIRC repeats a full frame about every 45ms while a button is held.
+# 100ms leaves real headroom for a jittery receiver without approaching a
+# human double-press interval (150ms+ between distinct presses, since a
+# release and re-press cannot happen faster).
+MULTI_RECEIVER_DEDUP_WINDOW_S = 0.100
 
 # Pronto S/L classification threshold (in Pronto timing units).
 # Timing words below this are "short" (S), above are "long" (L).
@@ -157,6 +196,28 @@ PLUCK_TIMEOUT_S = 5
 # HA's general infrared emitter list (vendor services must be able to target
 # it).
 TWEEZER_OBSERVER_ATTR = "hair_observer"
+
+# --- The Mirror (v0.6.6) ----------------------------------------------------
+# Synthetic Sniffer-store device that logs every HA-originated IR
+# transmission (send-time rows; echoes enrich with heard_by). Rendered by
+# the Mirror tab; the Sniffer filters it out of its own feed.
+MIRROR_DEVICE_FP = "hair-mirror"
+MIRROR_DEVICE_LABEL = "Mirror"
+# How long after a send (or a foreign emitter beacon) an arriving capture
+# may still be claimed as that send's echo. Generous for slow emitters
+# (Broadlink queueing) and multi-frame sends.
+MIRROR_ECHO_TTL_S = 2.5
+# A state beacon on an emitter within this window of HAIR's own recorded
+# send on that emitter is HAIR's own beacon, not a foreign integration's.
+# 3.0s, not 1.0: the mark is set BEFORE the send loop, and a queued
+# Broadlink can take over a second to actually transmit and write its
+# state -- at 1.0s the bench caught HAIR mistaking its own send for a
+# foreign integration's (which then claimed stray captures as echoes).
+# Matches the echo TTL's generosity for slow emitters.
+MIRROR_OWN_BEACON_WINDOW_S = 3.0
+# Synthetic per-emitter fingerprint prefix for foreign sends that no
+# receiver heard (identity unknown, send still audited).
+MIRROR_UNKNOWN_SEND_FP_PREFIX = "mirror-unknown::"
 # Directory (relative to this package) holding the pluckable YAML registry,
 # one file per vendor integration. Files starting with "_" are skipped by
 # the loader (templates, drafts).
@@ -189,6 +250,7 @@ class CommandCategory(StrEnum):
     TEMPERATURE = "temperature"
     FAN_SPEED = "fan_speed"
     BRIGHTNESS = "brightness"
+    COLOR_TEMP = "color_temp"
     COVER = "cover"
     MEDIA_CONTROL = "media_control"
     CUSTOM = "custom"
