@@ -76,7 +76,7 @@ las utilizará sin necesidad de cambios por su parte.
 
 Algunas integraciones van un paso más allá y permiten a HAIR sacar los
 códigos ya aprendidos en sus propios emisores del entorno cerrado del
-fabricante y llevarlos a Home Assistant. [Tuya
+fabricante y traerlos a Home Assistant. [Tuya
 Local](https://github.com/make-all/tuya-local) es la primera en
 admitirlo. Consulta [La pestaña Plucker](#la-pestaña-plucker) para ver
 cómo funciona y [Making your integration
